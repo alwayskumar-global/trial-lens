@@ -17,7 +17,7 @@
     "test": "vitest run",
     "eval": "tsx eval/index.ts",
     "precompute:replay": "tsx eval/precompute-replay.ts",
-    "spike:smoke": "tsx eval/spike/01-smoke.ts"
+    "spike:smoke": "NODE_USE_ENV_PROXY=1 tsx eval/spike/01-smoke.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
