@@ -1,0 +1,107 @@
+# SPEC.md — TrialLens
+
+Scope: **breast cancer only** (generic core vocabulary + pluggable breast-oncology pack; see SCHEMA.md).
+Anything marked `VERIFY:` must be confirmed in the Phase 1 spike before depending on it.
+
+## 1. Positioning
+"An eligibility reasoning engine for patients, not a trial search: it tells you where you stand, what's unknown, and exactly what to ask."
+
+Differentiators vs prior art (state in README, never claim "first"):
+1. Patient-side **gap analysis**: unknown → what record/test would settle it → question for the coordinator.
+2. **Adaptive questioning** computed deterministically (instant re-ranking, no extra LLM calls for typed facts).
+3. **Open-model** evaluation with published numbers, including failure modes.
+
+Non-goals: EHR/FHIR, real patient records, diagnosis, treatment advice, enrollment, other diseases (stretch only), document OCR, accounts.
+
+## 2. User flow (5 screens)
+1. **Describe** — large free-text input + sample fictional profiles. Optional structured fields.
+2. **Confirm** — shows extracted profile as Known / Unknown / Uncertain chips; user can edit before search.
+3. **Processing** — live stage stream: `Searching recruiting studies ✓ N` → `Basic eligibility ✓ M remain` → `Reading criteria` → `Comparing history` → `Verifying`.
+4. **Results** — counts per tier; cards show trial title, site + distance, phase, tier, top 3 reasons, top unknown. Adaptive panel: "Answering these 3 questions could sharpen your matches".
+5. **Trial detail (hero)** — left: plain-language overview; center: **eligibility matrix** (criterion original text | plain language | patient fact | status | what to ask); right: why it surfaced, coordinator questions, site/contact, source NCT link.
+
+Design principles: calm, dense-but-readable, no chat-first UI, never alarming colors for UNKNOWN, always original text visible.
+
+## 3. Pipeline
+Each stage emits SSE events (`stage`, `counts`, `trial_result`, `question`, `done`, `error`).
+
+| # | Stage | Model | Notes |
+|---|---|---|---|
+| 1 | Profile extraction | FAST | free text → `PatientProfile` facts (known/unknown/uncertain). Never invent. Zod-validated |
+| 2 | CT.gov discovery | none | v2 API, deterministic filters: condition, `RECRUITING` status, age, sex, distance. Cap `MAX_CANDIDATE_TRIALS` |
+| 3 | Criteria parse | MID | per trial, **cached**. Output `ParsedCriterion[]` with `fact_key/operator/value` where possible, else free text + `depends_on` |
+| 4 | Evaluate | code + MID | typed criteria in code; free-text criteria in **one batched LLM call per trial** returning findings with `evidence` fact paths |
+| 5 | Abstention guard | code | PASS/FAIL without valid known evidence → UNKNOWN (+ metric) |
+| 6 | Tier | code | rules in §4 |
+| 7 | Verify | MID or DEEP | independent pass on STRONG/POSSIBLE trials only; sees criteria + profile, NOT the first evaluator's reasoning; tries to produce a FAIL. Disagreement → downgrade tier + flag |
+| 8 | Escalate | DEEP | only for core-category AMBIGUOUS findings, capped per run |
+| 9 | Adaptive questions | code | §5 |
+| 10 | Plain-language + coordinator prep | FAST/MID | per shortlisted trial, preserves original criterion text |
+
+Model routing table is provisional; finalize from spike results (accuracy/latency/cost per tier). Model IDs from env only.
+
+### Statuses (per criterion)
+Normalised to effect on the patient, for both inclusion and exclusion criteria:
+- `PASS` — patient is not blocked by this criterion (inclusion met, or exclusion does not apply)
+- `FAIL` — patient appears blocked (inclusion not met, or exclusion applies)
+- `UNKNOWN` — required information not in profile
+- `AMBIGUOUS` — needs clinical interpretation
+
+UI labels: ✓ Meets · ⚠ Possible conflict · ? Unknown (ask) · ◐ Needs clinical judgment.
+
+Criteria in category `consent_logistics` (willing to comply, able to consent, etc.) are **non-scoring**: shown collapsed, excluded from tiering.
+
+## 4. Tier rules (pure function, all thresholds from config)
+Core categories: `diagnosis`, `stage`, `biomarker`, `prior_therapy`, `disease_setting`.
+Let N = `TIER_UNKNOWN_THRESHOLD` (default 3). Over scoring criteria only:
+
+- **LIKELY_MISMATCH** — any `FAIL`.
+- **UNCERTAIN** — no FAIL, and any core-category criterion is `UNKNOWN` or `AMBIGUOUS`.
+- **STRONG** — no FAIL, all core resolved to PASS, and total `UNKNOWN`+`AMBIGUOUS` ≤ N.
+- **POSSIBLE** — no FAIL, all core resolved to PASS, total `UNKNOWN`+`AMBIGUOUS` > N.
+
+Evaluation order: LIKELY_MISMATCH → UNCERTAIN → STRONG → POSSIBLE.
+Tune N and category list on the eval set, not by feel. No percentage scores anywhere.
+
+## 5. Adaptive question engine (pure function, no LLM)
+Input: candidate trials (tier ≠ LIKELY_MISMATCH), current profile.
+
+1. `U` = fact_keys that are `UNKNOWN` in the profile AND referenced by at least one **typed** `UNKNOWN` criterion in a candidate trial AND flagged `askable` in the vocabulary.
+2. For each `u ∈ U`, build the answer set `A(u)`:
+   - boolean / enum → all values (+ "I don't know")
+   - numeric → buckets cut at the distinct threshold values appearing in candidate trials' criteria for `u` (e.g. LVEF thresholds {40, 50} → <40, 40–49, ≥50)
+3. For each `a ∈ A(u)`, re-run **typed evaluation + tiering** over all candidates with `u = a` (pure, instant).
+4. `gain(u)` = mean over `a` (uniform prior unless overridden) of the number of trials whose tier becomes decisive (→ STRONG or → LIKELY_MISMATCH) minus current decisive count.
+5. `score(u) = gain(u) / ask_cost(u)` where `ask_cost` ∈ {1 easy, 2 needs a record, 3 needs a recent lab/test}.
+6. Return top 3 with rationale: "Affects N trials".
+7. On user answer: update profile, re-tier typed criteria in code; re-run LLM only for free-text criteria whose `depends_on` includes the answered fact (one small batched call per affected trial).
+
+Free-text criteria with no `fact_key` never enter this loop; they surface as "Ask the study team".
+Unit tests required: bucket construction, no-op when nothing askable, monotonicity (answering never reduces known facts), determinism.
+
+## 6. Replay mode and abuse protection
+Requirement: demo must remain usable, free and unrestricted through Dec 15.
+- **Replay mode:** `replay_cases` holds precomputed full outputs for 3 fictional profiles (generated by `pnpm precompute:replay`). UI clearly labels "Replay of a saved run" — never pose as live.
+- Automatic fallback to replay when: global daily budget exhausted, Upstash/Nebius errors, or rate limit hit. User sees a friendly explanation + the replay, never a blank error.
+- Guards: per-IP rate limit (`@upstash/ratelimit`), global daily run counter (`DAILY_RUN_BUDGET`), `MAX_LLM_CALLS_PER_RUN`, input length cap (`MAX_INPUT_CHARS`).
+- No CAPTCHA (Rules require unrestricted testing access). Revisit only if abuse appears.
+- Keep Nebius credits reserved for Dec 1–15 judging; monitor spend weekly.
+
+## 7. Evaluation plan
+Goal: honest numbers, failure modes included, no claim of beating published systems.
+- **Data:** public labeled patient-trial cohorts used in the TrialGPT paper (`VERIFY:` exact datasets, availability, license, whether criterion-level annotations are downloadable). Use mixed-condition cohorts for general numbers and the breast-cancer slice for the headline.
+- **Hand-built abstention test set:** ~30 criteria × profiles with deliberately missing facts, to measure abstention behavior directly (label as author-created, non-clinician).
+- **Metrics:** criterion-level accuracy; **unsupported-assumption rate** (target ≈ 0); **false-PASS rate on exclusion-sensitive criteria**; UNKNOWN detection accuracy; tier-level agreement; latency and cost per run.
+- **Ablations:** FAST vs MID vs DEEP on criterion evaluation; routing vs single model; verifier on/off; hybrid vs pure-LLM evaluator (the cost/accuracy case for our design).
+- **Output:** `eval/reports/*.md` + JSON, committed. README links the headline table.
+- **Limits stated in README:** synthetic patients, no clinician review, not validated for clinical use.
+- Optional: run the harness as a Nebius Serverless Job (adds an AI Cloud usage story; only if time allows).
+
+## 8. Acceptance criteria for the 3-minute demo
+1. Paste fictional breast-cancer profile → confirm screen shows Known/Unknown chips.
+2. Live stream shows counts narrowing (e.g. 100+ → ~30 → tiered).
+3. Open a top trial → eligibility matrix with ✓, ? and ⚠ rows, original text visible.
+4. Adaptive panel asks one question; user answers; **tiers visibly update instantly**.
+5. Coordinator question list generated; site + NCT source link shown.
+6. Closing shot: eval table (accuracy, unsupported-assumption rate) + architecture strip (CT.gov → Token Factory → Nemotron tiers).
+Replay mode works end-to-end with all external services disabled.

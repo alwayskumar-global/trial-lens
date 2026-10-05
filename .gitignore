@@ -1,0 +1,19 @@
+# dependencies / build
+node_modules/
+.next/
+out/
+dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# secrets: never commit; only .env.example is tracked
+.env
+.env.*
+!.env.example
+
+# tooling / OS
+.vercel/
+.claude/settings.local.json
+.DS_Store
+*.log
