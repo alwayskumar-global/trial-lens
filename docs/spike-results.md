@@ -470,5 +470,5 @@ Single run per variant on 15 fixed criteria, json_schema strict, max_tokens 1638
 |---|---|
 | `pnpm lint` | 0 |
 | `pnpm typecheck` | 0 |
-| `pnpm test` (118 tests, 8 files) | 0 |
+| `pnpm test` (118 tests, 7 files) | 0 |
 | `pnpm build` (only NEBIUS_* set) | 0 |
