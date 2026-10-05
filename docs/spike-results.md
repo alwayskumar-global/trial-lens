@@ -463,3 +463,12 @@ Single run per variant on 15 fixed criteria, json_schema strict, max_tokens 1638
 - Single runs; no variance estimates. Cost per run not computed (no pricing in hand). 
 - Unit factors marked VERIFY in code (`mmol/L→g/dL` 1.61, month≈30 d).
 - Free-text evaluator, verifier and extraction prompts in `07-e2e.ts` are spike-grade and unevaluated for accuracy; only cost/latency/budget behaviour was measured.
+
+## 2026-10-05T15:50Z — Checks after the gate repairs (run locally by the agent; no CI exists)
+
+| Command | Exit |
+|---|---|
+| `pnpm lint` | 0 |
+| `pnpm typecheck` | 0 |
+| `pnpm test` (118 tests, 8 files) | 0 |
+| `pnpm build` (only NEBIUS_* set) | 0 |
