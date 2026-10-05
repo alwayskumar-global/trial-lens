@@ -15,6 +15,8 @@ export interface Reservation {
   escalate: number;
 }
 export const DEFAULT_RESERVATION: Reservation = { extraction: 1, verify: 8, escalate: 3 };
+/** Parse may use at most this many slots per run so free-text evaluation is never starved by a cold cache. */
+export const DEFAULT_STAGE_CAPS: Partial<Record<Stage, number>> = { parse: 14 };
 
 /**
  * What an overflowing stage must do:
@@ -32,7 +34,11 @@ export class RunBudget {
   private shared: number;
   private granted: Record<Stage, number> = { extraction: 0, parse: 0, evaluate: 0, verify: 0, escalate: 0 };
 
-  constructor(readonly maxCalls: number, reservation: Reservation = DEFAULT_RESERVATION) {
+  constructor(
+    readonly maxCalls: number,
+    reservation: Reservation = DEFAULT_RESERVATION,
+    private readonly caps: Partial<Record<Stage, number>> = DEFAULT_STAGE_CAPS,
+  ) {
     this.totalSlots = Math.floor(maxCalls / SLOT_COST);
     const reserved = reservation.extraction + reservation.verify + reservation.escalate;
     if (reserved > this.totalSlots) throw new Error("reservation exceeds budget");
@@ -42,6 +48,8 @@ export class RunBudget {
 
   /** Take one slot for `stage`. Own reserve first, then the shared pool. Never touches another stage's reserve. */
   take(stage: Stage): boolean {
+    const cap = this.caps[stage];
+    if (cap !== undefined && this.granted[stage] >= cap) return false;
     if (this.reserve[stage] > 0) {
       this.reserve[stage]--;
     } else if (this.shared > 0) {

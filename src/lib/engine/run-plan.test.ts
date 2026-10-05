@@ -36,6 +36,20 @@ describe("RunBudget (MAX_LLM_CALLS_PER_RUN = 80)", () => {
     while (b.take("evaluate")) evaluate++;
     expect(evaluate).toBe(28);
   });
+  it("parse is capped so a cold cache cannot starve evaluate", () => {
+    const b = new RunBudget(80);
+    let parse = 0;
+    while (b.take("parse")) parse++;
+    expect(parse).toBe(14);
+    let evaluate = 0;
+    while (b.take("evaluate")) evaluate++;
+    expect(evaluate).toBe(14); // 28 shared − 14 parse
+  });
+  it("worst case with caps still ≤ 80 calls when every slot retries", () => {
+    const b = new RunBudget(80);
+    for (let i = 0; i < 200; i++) for (const s of ["extraction", "parse", "evaluate", "verify", "escalate"] as const) b.take(s);
+    expect(b.worstCaseCalls).toBeLessThanOrEqual(80);
+  });
   it("rejects a reservation larger than the budget", () => {
     expect(() => new RunBudget(10, { extraction: 1, verify: 8, escalate: 3 })).toThrow();
   });
