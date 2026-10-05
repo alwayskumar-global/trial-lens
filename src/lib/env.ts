@@ -117,10 +117,10 @@ function parseGroup<S extends z.ZodType>(group: string, schema: S, source: Sourc
 }
 
 function lazyGroup<S extends z.ZodType>(group: string, schema: S) {
-  let cached: z.output<S> | undefined;
-  const get = (): z.output<S> => {
-    if (cached === undefined) cached = Object.freeze(parseGroup(group, schema, process.env));
-    return cached;
+  let cached: { value: Readonly<z.output<S>> } | undefined;
+  const get = (): Readonly<z.output<S>> => {
+    cached ??= { value: Object.freeze(parseGroup(group, schema, process.env)) };
+    return cached.value;
   };
   const reset = () => {
     cached = undefined;
@@ -134,11 +134,11 @@ const upstash = lazyGroup("upstash", upstashSchema);
 const pipeline = lazyGroup("pipeline", pipelineSchema);
 const guard = lazyGroup("guard", guardSchema);
 
-export type NebiusEnv = z.output<typeof nebiusSchema>;
-export type SupabaseEnv = z.output<typeof supabaseSchema>;
-export type UpstashEnv = z.output<typeof upstashSchema>;
-export type PipelineEnv = z.output<typeof pipelineSchema>;
-export type GuardEnv = z.output<typeof guardSchema>;
+export type NebiusEnv = Readonly<z.output<typeof nebiusSchema>>;
+export type SupabaseEnv = Readonly<z.output<typeof supabaseSchema>>;
+export type UpstashEnv = Readonly<z.output<typeof upstashSchema>>;
+export type PipelineEnv = Readonly<z.output<typeof pipelineSchema>>;
+export type GuardEnv = Readonly<z.output<typeof guardSchema>>;
 
 export const getNebiusEnv = (): NebiusEnv => nebius.get();
 export const getSupabaseEnv = (): SupabaseEnv => supabase.get();
