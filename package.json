@@ -25,6 +25,7 @@
     "spike:coverage2": "NODE_USE_ENV_PROXY=1 tsx eval/spike/04c-coverage-clauses.ts",
     "spike:reasoning": "NODE_USE_ENV_PROXY=1 tsx eval/spike/08-reasoning-probe.ts",
     "spike:e2e": "NODE_USE_ENV_PROXY=1 tsx eval/spike/07-e2e.ts",
+    "spike:reach": "tsx eval/spike/09-adaptive-reach.ts",
     "spike:coverage:analysis": "tsx eval/spike/04b-coverage-analysis.ts",
     "spike:sse": "NODE_NO_WARNINGS=1 tsx eval/spike/05-sse.ts"
   },

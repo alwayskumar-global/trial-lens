@@ -51,7 +51,11 @@ Source of truth for types. Mirror these in `/src/schema` as Zod schemas. The voc
 
 Derived (computed in code, not asked): `tnbc` = `er=negative ∧ pr=negative ∧ her2=negative`.
 
-Anything not mappable → `fact_key: null`, evaluated by the LLM path with `depends_on` listing any vocabulary keys it touches.
+Anything not mappable → kept as a `text` leaf (see `docs/clause-representation.md`), evaluated by the LLM path with `depends_on` listing any vocabulary keys it touches.
+
+`Fact` invariants (enforced by Zod): `state: "known"` requires a `value` that conforms to the vocabulary type (number finite, bool boolean, enum in `values`); `state: "unknown"` must not carry a value.
+
+Compound criteria: `ParsedCriterion` gains a `clause` (tree of `atom | text | timing` leaves joined by `all | any | except`, every leaf with an exact `source` fragment); `scoring` is derived (`category !== consent_logistics`), not model output; parse completeness is `full | partial | unresolved`.
 
 ## 2. Types (Zod-equivalent TS)
 

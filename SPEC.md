@@ -53,15 +53,16 @@ Criteria in category `consent_logistics` (willing to comply, able to consent, et
 
 ## 4. Tier rules (pure function, all thresholds from config)
 Core categories: `diagnosis`, `stage`, `biomarker`, `prior_therapy`, `disease_setting`.
-Let N = `TIER_UNKNOWN_THRESHOLD` (default 3). Over scoring criteria only:
+Let N = `TIER_UNKNOWN_THRESHOLD` (default 3). Over scoring criteria only (non-scoring = category `consent_logistics`, derived in code).
+Each criterion also has a **parse completeness**: `full` (every leaf an executable atom) · `partial` (any text/timing leaf or non-executable atom) · `unresolved` (no valid parse; kept as an UNKNOWN scoring criterion).
 
-- **LIKELY_MISMATCH** — any `FAIL`.
-- **UNCERTAIN** — no FAIL, and any core-category criterion is `UNKNOWN` or `AMBIGUOUS`.
-- **STRONG** — no FAIL, all core resolved to PASS, and total `UNKNOWN`+`AMBIGUOUS` ≤ N.
-- **POSSIBLE** — no FAIL, all core resolved to PASS, total `UNKNOWN`+`AMBIGUOUS` > N.
-
-Evaluation order: LIKELY_MISMATCH → UNCERTAIN → STRONG → POSSIBLE.
-Tune N and category list on the eval set, not by feel. No percentage scores anywhere.
+Evaluation order (conservative; implemented in `src/lib/engine/tier.ts`):
+1. **LIKELY_MISMATCH** — any scoring `FAIL`.
+2. **UNCERTAIN** — analysis failed, nothing scorable, scoring criteria missing (fewer than expected), or any scoring criterion `unresolved`.
+3. **UNCERTAIN** — any core-category criterion `UNKNOWN`, `AMBIGUOUS`, or only `partial`.
+4. **POSSIBLE** — any non-core criterion only `partial`, or total `UNKNOWN`+`AMBIGUOUS` > N.
+5. **STRONG** — otherwise.
+A trial can never be `STRONG` while a scoring criterion is missing, partially parsed or unresolved. (Changed from the original rules on the founder's instruction after the Phase 1 coverage gate; no percentage scores anywhere. Tune N and category list on the eval set, not by feel.)
 
 ## 5. Adaptive question engine (pure function, no LLM)
 Input: candidate trials (tier ≠ LIKELY_MISMATCH), current profile.
