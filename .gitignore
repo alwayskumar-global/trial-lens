@@ -20,3 +20,7 @@ next-env.d.ts
 
 # spike fixtures (raw CT.gov text; regenerate with pnpm spike:ctgov)
 eval/spike/fixtures/
+
+# local-only agent/project notes (kept out of git)
+CLAUDE.md
+TASKS.md
