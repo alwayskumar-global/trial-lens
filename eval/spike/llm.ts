@@ -4,6 +4,9 @@ import OpenAI from "openai";
 import { z } from "zod";
 import { getNebiusEnv } from "../../src/lib/env";
 
+/** Turns Nemotron reasoning off (observed: ~3x fewer tokens, ~4x faster; see docs/spike-results.md 08). */
+export const THINKING_OFF = { chat_template_kwargs: { enable_thinking: false } } as const;
+
 export type Mode = "json_schema" | "json_object" | "prompt_only";
 
 export interface CallStats {
@@ -18,6 +21,7 @@ export interface CallStats {
   httpErrors: number; // non-429 API errors
   truncated: boolean; // finish_reason=length on any attempt
   errorKind: string | null; // fixed label, never provider text
+  problems: string[]; // validation problem per attempt (indices/counts/fixed phrases only; no criterion text)
 }
 
 export class CallCap {
@@ -91,12 +95,14 @@ export interface JsonCallArgs<T> {
   schema: z.ZodType<T>;
   schemaName: string;
   maxTokens?: number;
+  /** Extra request body fields (e.g. THINKING_OFF). VERIFY: Token Factory honours chat_template_kwargs for Nemotron. */
+  extraBody?: Record<string, unknown>;
 }
 
 export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null; stats: CallStats }> {
   const stats: CallStats = {
     attempts: 0, firstValid: false, finalValid: false, fenced: false, latencyMs: 0,
-    promptTokens: 0, completionTokens: 0, rateLimited: 0, httpErrors: 0, truncated: false, errorKind: null,
+    promptTokens: 0, completionTokens: 0, rateLimited: 0, httpErrors: 0, truncated: false, errorKind: null, problems: [],
   };
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: a.system },
@@ -110,7 +116,7 @@ export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null;
     try {
       ({ content } = await chat(
         a.client, a.cap,
-        { model: a.model, messages, temperature: 0, max_tokens: a.maxTokens ?? 2048, ...(rf ? { response_format: rf } : {}) },
+        { model: a.model, messages, temperature: 0, max_tokens: a.maxTokens ?? 2048, ...(rf ? { response_format: rf } : {}), ...(a.extraBody ?? {}) } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming,
         stats,
       ));
     } catch (e) {
@@ -133,6 +139,7 @@ export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null;
     } catch {
       problem = "output was not valid JSON";
     }
+    stats.problems.push(problem);
     if (attempt === 1) {
       messages.push(
         { role: "assistant", content: content.slice(0, 4000) },

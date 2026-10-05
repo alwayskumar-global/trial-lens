@@ -157,3 +157,8 @@ export function evaluabilityProblems(c: LlmCriterion): string[] {
   }
   return p;
 }
+
+// Splitting helper reused by v2 scripts (same regex split as 04; fixed cohort).
+export function cohortCriteria(trials: Trial[]): SplitCriterion[] {
+  return trials.flatMap(splitCriteria);
+}
