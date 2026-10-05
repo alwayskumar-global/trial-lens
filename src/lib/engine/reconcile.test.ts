@@ -25,6 +25,7 @@ describe("source fragment check", () => {
     expect(isSourceFragment("ANC ≥ 1.5 × 10\\^9/L", "anc ≥ 1.5 × 10^9/l")).toBe(true);
     expect(isSourceFragment("Pregnant or breastfeeding women", "is pregnant")).toBe(false);
     expect(isSourceFragment("anything", "")).toBe(false);
+    expect(isSourceFragment("cT1N0；（AJCC 7th）", "cT1N0;(AJCC 7th)")).toBe(true); // full-width punctuation
   });
 });
 
@@ -49,9 +50,11 @@ describe("batch schema rejects bad batches (so the caller retries once)", () => 
     const bad = { criteria: [item(0, crit([text("Performance status is good")])), good.criteria[1], good.criteria[2]] };
     expect(schema.safeParse(bad).success).toBe(false);
   });
-  it("rejects an atom leaf missing operator/value", () => {
+  it("an atom leaf missing operator/value is downgraded to a text leaf (partial), not rejected", () => {
     const leaf = { ...atom("ECOG 0-1", "ecog", "in", ["0", "1"]), operator: null };
-    expect(schema.safeParse({ criteria: [item(0, crit([leaf])), good.criteria[1], good.criteria[2]] }).success).toBe(false);
+    const batch = schema.parse({ criteria: [item(0, crit([leaf])), good.criteria[1], good.criteria[2]] });
+    const out = reconcileBatch(sources, batch);
+    expect(out[0]).toMatchObject({ state: "parsed", completeness: "partial", clause: { kind: "text", source: "ECOG 0-1", depends_on: ["ecog"] } });
   });
 });
 

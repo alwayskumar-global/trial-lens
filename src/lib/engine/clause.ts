@@ -16,20 +16,16 @@ export type Tri = "true" | "false" | "unknown";
 
 // ---- Build ---------------------------------------------------------------------------------
 export function leafToNode(l: LlmLeaf): LeafNode {
-  if (l.kind === "atom") {
-    return { kind: "atom", source: l.source, fact_key: l.fact_key!, operator: l.operator!, value: l.value!, unit: l.unit };
+  if (l.kind === "atom" && l.fact_key !== null && l.operator !== null && l.value !== null) {
+    return { kind: "atom", source: l.source, fact_key: l.fact_key, operator: l.operator, value: l.value, unit: l.unit };
   }
-  if (l.kind === "timing") {
-    return {
-      kind: "timing",
-      source: l.source,
-      relation: l.relation!,
-      amount: l.amount!,
-      time_unit: l.time_unit!,
-      depends_on: l.depends_on,
-    };
+  if (l.kind === "timing" && l.relation !== null && l.amount !== null && l.time_unit !== null) {
+    return { kind: "timing", source: l.source, relation: l.relation, amount: l.amount, time_unit: l.time_unit, depends_on: l.depends_on };
   }
-  return { kind: "text", source: l.source, depends_on: l.depends_on };
+  // Text leaf, or an atom/timing leaf missing required fields: downgraded to the free-text path.
+  const dep = new Set(l.depends_on);
+  if (l.fact_key !== null) dep.add(l.fact_key);
+  return { kind: "text", source: l.source, depends_on: [...dep] };
 }
 
 export function toClauseTree(c: Pick<LlmClauseCriterion, "combine" | "items" | "except">): ClauseNode {

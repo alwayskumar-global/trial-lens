@@ -19,6 +19,6 @@ export const text = (source: string, depends_on: FactKey[] = []): LlmLeaf => ({
 export const timing = (source: string, relation: "within_last" | "not_within_last", amount: number, time_unit: "days" | "weeks" | "months"): LlmLeaf => ({
   kind: "timing", source, fact_key: null, operator: null, value: null, unit: null, depends_on: [], relation, amount, time_unit,
 });
-export const crit = (items: LlmLeaf[], opts: Partial<Pick<LlmClauseCriterion, "combine" | "except" | "category" | "scoring">> = {}): LlmClauseCriterion => ({
-  category: opts.category ?? "other", scoring: opts.scoring ?? true, combine: opts.combine ?? "all", items, except: opts.except ?? [],
+export const crit = (items: LlmLeaf[], opts: Partial<Pick<LlmClauseCriterion, "combine" | "except" | "category">> = {}): LlmClauseCriterion => ({
+  category: opts.category ?? "other", combine: opts.combine ?? "all", items, except: opts.except ?? [],
 });

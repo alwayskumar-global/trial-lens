@@ -21,6 +21,7 @@ export function checkIndices(expected: number, returned: readonly number[]): Ind
 /** Whitespace/markdown-escape/quote-insensitive form used ONLY to compare source fragments. */
 export function normaliseForCompare(s: string): string {
   return s
+    .normalize("NFKC") // full-width punctuation etc. compare equal to ASCII
     .replace(/\\/g, "")
     .replace(/[*_`]/g, "")
     .replace(/[“”]/g, '"')

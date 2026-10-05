@@ -40,7 +40,7 @@ export function reconcileBatch(
     if (!c) return { state: "unresolved", reason: "missing" };
     const clause = toClauseTree(c);
     const completeness = classifyCompleteness(clause);
-    return { state: "parsed", category: c.category, scoring: c.scoring, clause, completeness: completeness === "full" ? "full" : "partial" };
+    return { state: "parsed", category: c.category, scoring: c.category !== "consent_logistics", clause, completeness: completeness === "full" ? "full" : "partial" };
   });
 }
 

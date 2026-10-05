@@ -99,31 +99,26 @@ export type ParseCompleteness = z.infer<typeof ParseCompletenessSchema>;
 
 // ---- LLM-facing flat schema --------------------------------------------------------------
 // All fields are required (nullable) so the shape works with strict JSON-schema output.
-export const LlmLeafSchema = z
-  .object({
-    kind: z.enum(["atom", "text", "timing"]),
-    source: z.string().min(1), // EXACT contiguous fragment of the criterion text this leaf represents
-    fact_key: FactKeySchema.nullable(),
-    operator: OperatorSchema.nullable(),
-    value: ValueSchema.nullable(),
-    unit: z.string().nullable(),
-    depends_on: z.array(FactKeySchema),
-    relation: RelationSchema.nullable(),
-    amount: z.number().nullable(),
-    time_unit: TimeUnitSchema.nullable(),
-  })
-  .superRefine((l, ctx) => {
-    const need = (ok: boolean, what: string) => {
-      if (!ok) ctx.addIssue({ code: "custom", message: `${l.kind} leaf requires ${what}` });
-    };
-    if (l.kind === "atom") need(l.fact_key !== null && l.operator !== null && l.value !== null, "fact_key, operator and value");
-    if (l.kind === "timing") need(l.relation !== null && l.amount !== null && l.time_unit !== null, "relation, amount and time_unit");
-  });
+export const LlmLeafSchema = z.object({
+  kind: z.enum(["atom", "text", "timing"]),
+  source: z.string().min(1), // EXACT contiguous fragment of the criterion text this leaf represents
+  fact_key: FactKeySchema.nullable(),
+  operator: OperatorSchema.nullable(),
+  value: ValueSchema.nullable(),
+  unit: z.string().nullable(),
+  depends_on: z.array(FactKeySchema),
+  relation: RelationSchema.nullable(),
+  amount: z.number().nullable(),
+  time_unit: TimeUnitSchema.nullable(),
+});
+// NOTE: an atom/timing leaf missing its required fields is NOT a batch rejection. `leafToNode`
+// (engine) downgrades it to a text leaf (source kept verbatim, free-text path), which classifies the
+// criterion as partial and can never yield STRONG.
 export type LlmLeaf = z.infer<typeof LlmLeafSchema>;
 
+// `scoring` is NOT model output: it is derived in code (non-scoring iff category === "consent_logistics", SPEC §3).
 export const LlmClauseCriterionSchema = z.object({
   category: CategorySchema,
-  scoring: z.boolean(), // false only for consent/logistics
   combine: z.enum(["all", "any"]),
   items: z.array(LlmLeafSchema).min(1).max(8),
   except: z.array(LlmLeafSchema).max(4), // conditions under which the stated condition does NOT apply
