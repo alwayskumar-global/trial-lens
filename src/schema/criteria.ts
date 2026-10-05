@@ -58,3 +58,33 @@ export const CriterionFindingSchema = z.object({
   guard_downgraded: z.boolean().optional(),
 });
 export type CriterionFinding = z.infer<typeof CriterionFindingSchema>;
+
+// What the parser LLM returns per criterion. id/nct_id/type/original_text are attached
+// in code so the original text can never be altered by the model.
+// All fields required (nullable) so the shape works with strict JSON-schema output.
+export const LlmCriterionSchema = z
+  .object({
+    category: CategorySchema,
+    fact_key: FactKeySchema.nullable(),
+    operator: OperatorSchema.nullable(),
+    value: z
+      .union([z.number(), z.string(), z.boolean(), z.array(z.union([z.number(), z.string()]))])
+      .nullable(),
+    unit: z.string().nullable(),
+    depends_on: z.array(FactKeySchema),
+    scoring: z.boolean(),
+  })
+  .superRefine((c, ctx) => {
+    const typed = c.fact_key !== null;
+    if (typed && (c.operator === null || c.value === null)) {
+      ctx.addIssue({ code: "custom", message: "fact_key set requires operator and value" });
+    }
+    if (!typed && (c.operator !== null || c.value !== null)) {
+      ctx.addIssue({ code: "custom", message: "operator/value must be null when fact_key is null" });
+    }
+  });
+export type LlmCriterion = z.infer<typeof LlmCriterionSchema>;
+
+export const LlmCriteriaBatchSchema = z.object({
+  criteria: z.array(z.object({ index: z.number().int().nonnegative() }).and(LlmCriterionSchema)),
+});

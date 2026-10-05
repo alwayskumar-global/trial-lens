@@ -17,3 +17,6 @@ next-env.d.ts
 .claude/settings.local.json
 .DS_Store
 *.log
+
+# spike fixtures (raw CT.gov text; regenerate with pnpm spike:ctgov)
+eval/spike/fixtures/
