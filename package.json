@@ -21,7 +21,9 @@
     "spike:ctgov": "NODE_USE_ENV_PROXY=1 tsx eval/spike/03-ctgov.ts",
     "spike:structured": "NODE_USE_ENV_PROXY=1 tsx eval/spike/02-structured.ts",
     "spike:coverage": "NODE_USE_ENV_PROXY=1 tsx eval/spike/04-coverage.ts",
-    "spike:sse": "tsx eval/spike/05-sse.ts"
+    "spike:budget": "tsx eval/spike/06-call-budget.ts",
+    "spike:coverage:analysis": "tsx eval/spike/04b-coverage-analysis.ts",
+    "spike:sse": "NODE_NO_WARNINGS=1 tsx eval/spike/05-sse.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

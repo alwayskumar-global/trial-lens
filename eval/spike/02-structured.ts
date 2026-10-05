@@ -65,6 +65,7 @@ async function main(): Promise<void> {
   // 2) 50-criteria run per tier
   lines.push("\n### 50-criteria parse (per tier, best supported mode)\n", "| Tier | Mode | First-attempt valid | Valid after 1 retry | p50 ms | p95 ms | prompt tok | completion tok | 429s | other API errs | truncated | fenced | Gate ≥95% |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|");
   const limit = pLimit(conc);
+  const notes: string[] = [];
   for (const [tier, model] of tiers) {
     const t0 = performance.now();
     const results: CallStats[] = await Promise.all(
@@ -91,9 +92,10 @@ async function main(): Promise<void> {
       `| ${tier} | ${best[tier]} | ${first}/${n} (${Math.round((100 * first) / n)}%) | ${fin}/${n} (${Math.round((100 * fin) / n)}%) | ${pct(lat, 50)} | ${pct(lat, 95)} | ${sum((r) => r.promptTokens)} | ${sum((r) => r.completionTokens)} | ${sum((r) => r.rateLimited)} | ${sum((r) => r.httpErrors)} | ${results.filter((r) => r.truncated).length} | ${results.filter((r) => r.fenced).length} | ${gate} |`,
     );
     console.log(`${tier}: first ${first}/${n}, final ${fin}/${n}, p50 ${pct(lat, 50)}ms p95 ${pct(lat, 95)}ms, 429s ${sum((r) => r.rateLimited)}, wall ${wall}ms, failures ${JSON.stringify([...fails])}`);
-    if (fails.size) lines.push(`  - ${tier} failure kinds: ${[...fails].map(([k, v]) => `${k}×${v}`).join(", ")}`);
-    lines.push(`  - ${tier} wall time for ${n} calls at concurrency ${conc}: ${wall} ms`);
+    if (fails.size) notes.push(`  - ${tier} failure kinds: ${[...fails].map(([k, v]) => `${k}×${v}`).join(", ")}`);
+    notes.push(`  - ${tier} wall time for ${n} calls at concurrency ${conc}: ${wall} ms`);
   }
+  lines.push("\nPer-tier notes:", ...notes);
   lines.push(`\n- Total HTTP calls used (incl. probes, retries, 429 retries): ${cap.used}/${MAX_CALLS}.`);
   appendResults(lines.join("\n") + "\n");
 }

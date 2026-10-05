@@ -113,3 +113,47 @@ export function stratifiedSample(all: SplitCriterion[], seed = 20261005): { samp
   }
   return { sample: picked, strata: got, trials: perTrial.size };
 }
+
+// ---- "Typed" = fully executable in code (Phase 1 definition) --------------------------
+import { VOCABULARY } from "../../src/schema/vocabulary";
+import type { LlmCriterion } from "../../src/schema/criteria";
+
+const NUM_OPS = new Set(["gte", "lte", "gt", "lt", "eq", "neq"]);
+const SET_OPS = new Set(["eq", "neq", "in", "not_in"]);
+const norm = (u: string) => u.toLowerCase().replace(/\s+/g, "").replace(/×/g, "x").replace(/µ/g, "u").replace(/\^/g, "");
+// Units the (Phase 2) code normaliser could convert to the canonical unit. null unit => not evaluable
+// for these keys (SCHEMA.md §3). Indexed creatinine clearance (/1.73m2) is deliberately NOT accepted.
+const UNIT_OK: Record<string, (u: string) => boolean> = {
+  anc: (u) => /^(\/mm3|\/ul|cells\/mm3|cells\/ul|10[39]\/l|x10[39]\/l|k\/ul|10e9\/l|x10e9\/l|10[39]\/ul)$/.test(u),
+  platelets: (u) => /^(\/mm3|\/ul|cells\/mm3|cells\/ul|10[39]\/l|x10[39]\/l|k\/ul|10e9\/l|x10e9\/l|10[39]\/ul)$/.test(u),
+  hemoglobin: (u) => /^(g\/dl|g\/l|mmol\/l)$/.test(u),
+  bilirubin_x_uln: (u) => /uln/.test(u),
+  ast_alt_x_uln: (u) => /uln/.test(u),
+  lvef_percent: (u) => u === "%" || u === "percent",
+  creatinine_clearance: (u) => u === "ml/min",
+  days_since_last_systemic_therapy: (u) => /^(day|days|week|weeks|month|months)$/.test(u),
+  age: (u) => /^(year|years|yrs|y)$/.test(u),
+};
+
+export function evaluabilityProblems(c: LlmCriterion): string[] {
+  if (c.fact_key === null) return ["no_fact_key"];
+  const v = VOCABULARY.find((e) => e.key === c.fact_key);
+  if (!v) return ["unknown_key"];
+  const p: string[] = [];
+  const vals = Array.isArray(c.value) ? c.value : [c.value];
+  if (v.type === "number") {
+    if (!c.operator || !NUM_OPS.has(c.operator)) p.push("bad_operator_for_number");
+    if (typeof c.value !== "number" || !Number.isFinite(c.value)) p.push("value_not_number");
+    const need = UNIT_OK[c.fact_key];
+    if (need && !(c.unit && need(norm(c.unit)))) p.push("unit_missing_or_unconvertible");
+  } else if (v.type === "bool") {
+    if (!c.operator || !["eq", "neq"].includes(c.operator)) p.push("bad_operator_for_bool");
+    if (typeof c.value !== "boolean") p.push("value_not_bool");
+  } else {
+    if (!c.operator || !SET_OPS.has(c.operator)) p.push("bad_operator_for_enum");
+    const allowed = "values" in v ? (v.values as readonly string[]) : [];
+    if (!vals.every((x) => typeof x === "string" && allowed.includes(x))) p.push("enum_value_not_in_vocab");
+    if ((c.operator === "in" || c.operator === "not_in") !== Array.isArray(c.value)) p.push("in_requires_array");
+  }
+  return p;
+}
