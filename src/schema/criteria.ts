@@ -38,9 +38,9 @@ export const ParsedCriterionSchema = z.object({
   value: z
     .union([z.number(), z.string(), z.boolean(), z.array(z.union([z.number(), z.string()]))])
     .optional(),
-  // SCHEMA.md §2 types this `unit?: string`, but §3 says the parser sets `unit: null`
-  // for ambiguous/missing units. Accept both. VERIFY: settle in Phase 2 parser work.
-  unit: z.string().nullable().optional(),
+  // string | null; null = unit absent or ambiguous in the source, so the evaluator
+  // returns UNKNOWN (SCHEMA.md §3). Absent from parser output defaults to null.
+  unit: z.string().nullable().default(null),
   depends_on: z.array(FactKeySchema), // for free-text criteria
   scoring: z.boolean(), // false for consent_logistics
 });

@@ -86,6 +86,24 @@ describe("ParsedCriterion / SseEvent smoke", () => {
     expect(r.success).toBe(true);
   });
 
+  it("defaults an absent unit to null and accepts an explicit null", () => {
+    const base = {
+      id: "NCT00000000:inclusion:1",
+      nct_id: "NCT00000000",
+      type: "inclusion",
+      category: "lab",
+      original_text: "ANC >= 1500",
+      fact_key: "anc",
+      operator: "gte",
+      value: 1500,
+      depends_on: [],
+      scoring: true,
+    };
+    const absent = ParsedCriterionSchema.parse(base);
+    expect(absent.unit).toBeNull();
+    expect(ParsedCriterionSchema.parse({ ...base, unit: null }).unit).toBeNull();
+  });
+
   it("rejects an unknown SSE event type", () => {
     expect(SseEventSchema.safeParse({ type: "progress" }).success).toBe(false);
     expect(SseEventSchema.safeParse({ type: "done", replay: false }).success).toBe(true);

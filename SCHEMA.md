@@ -85,7 +85,7 @@ interface ParsedCriterion {
   fact_key: FactKey | null;     // null => free-text / LLM path
   operator?: Operator;
   value?: number | string | boolean | Array<number | string>;
-  unit?: string;                // as written in the source, converted in code
+  unit: string | null;          // as written in the source, converted in code; null = absent/ambiguous (evaluator returns UNKNOWN); defaults to null
   depends_on: FactKey[];        // for free-text criteria
   scoring: boolean;             // false for consent_logistics
 }
