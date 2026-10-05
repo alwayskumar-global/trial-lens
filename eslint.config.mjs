@@ -14,6 +14,32 @@ const config = [
     },
   },
   {
+    // Components are client-facing: they must never reach server-only modules or secrets.
+    files: ["src/components/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@/lib/env",
+                "@/lib/llm/**",
+                "@/lib/guards/**",
+                "@/lib/ctgov/**",
+                "**/lib/env",
+                "**/lib/llm/**",
+                "**/lib/guards/**",
+                "**/lib/ctgov/**",
+              ],
+              message: "Components must not import server-only modules (env, llm, guards, ctgov).",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Local scripts print counts/timings/IDs only.
     files: ["eval/**/*.ts"],
     rules: { "no-console": "off" },
