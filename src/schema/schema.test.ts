@@ -4,6 +4,7 @@ import {
   FACT_KEYS,
   FACT_TYPES,
   FactKeySchema,
+  FactSchema,
   ParsedCriterionSchema,
   PatientProfileSchema,
   SseEventSchema,
@@ -107,5 +108,32 @@ describe("ParsedCriterion / SseEvent smoke", () => {
   it("rejects an unknown SSE event type", () => {
     expect(SseEventSchema.safeParse({ type: "progress" }).success).toBe(false);
     expect(SseEventSchema.safeParse({ type: "done", replay: false }).success).toBe(true);
+  });
+});
+
+describe("Fact: known requires a vocabulary-valid value", () => {
+  it("rejects known without a value", () => {
+    expect(FactSchema.safeParse({ key: "ecog", state: "known" }).success).toBe(false);
+  });
+  it("accepts known with a conforming value", () => {
+    expect(FactSchema.safeParse({ key: "ecog", state: "known", value: "1" }).success).toBe(true);
+    expect(FactSchema.safeParse({ key: "age", state: "known", value: 57 }).success).toBe(true);
+    expect(FactSchema.safeParse({ key: "pregnant", state: "known", value: false }).success).toBe(true);
+  });
+  it("rejects known with a non-conforming value", () => {
+    expect(FactSchema.safeParse({ key: "ecog", state: "known", value: "9" }).success).toBe(false);
+    expect(FactSchema.safeParse({ key: "age", state: "known", value: "old" }).success).toBe(false);
+    expect(FactSchema.safeParse({ key: "age", state: "known", value: Number.NaN }).success).toBe(false);
+    expect(FactSchema.safeParse({ key: "pregnant", state: "known", value: "no" }).success).toBe(false);
+  });
+  it("unknown must not carry a value; uncertain may", () => {
+    expect(FactSchema.safeParse({ key: "ecog", state: "unknown", value: "1" }).success).toBe(false);
+    expect(FactSchema.safeParse({ key: "ecog", state: "unknown" }).success).toBe(true);
+    expect(FactSchema.safeParse({ key: "ecog", state: "uncertain", value: "1", note: "approximate" }).success).toBe(true);
+  });
+  it("profile rejects a known fact without a value", () => {
+    const facts = blankProfileFacts();
+    facts.ecog = { key: "ecog", state: "known" };
+    expect(PatientProfileSchema.safeParse({ facts }).success).toBe(false);
   });
 });
