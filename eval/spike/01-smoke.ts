@@ -111,8 +111,8 @@ async function chatOnce(client: OpenAI, tier: string, model: string): Promise<Ch
       model,
       messages: [{ role: "user", content: "Reply with the single word: ok" }],
       temperature: 0,
-      // Small cap; reasoning-style models may spend tokens before content (see finish_reason).
-      max_tokens: 32,
+      // Reasoning-style models may spend tokens before content; finish_reason=length means the cap bit.
+      max_tokens: 512,
     });
     const latencyMs = Math.round(performance.now() - started);
     const choice = res.choices[0];
@@ -212,7 +212,7 @@ async function main(): Promise<number> {
 
   // c. One chat completion per configured tier
   say("\n== c. Chat completion per tier ==");
-  md.push("\n### c. Chat completion (\"Reply with the single word: ok\", temperature 0, max_tokens 32)\n");
+  md.push("\n### c. Chat completion (\"Reply with the single word: ok\", temperature 0, max_tokens 512)\n");
   const tiers: Array<[string, string | undefined]> = [
     ["FAST", env.NEMOTRON_MODEL_FAST],
     ["MID", env.NEMOTRON_MODEL_MID],
