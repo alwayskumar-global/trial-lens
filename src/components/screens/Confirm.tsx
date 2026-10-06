@@ -5,7 +5,7 @@ import { ProfileChip } from "../forms/ProfileChip";
 import { PROFILE, SAMPLE_TEXT, type ProfileGroups } from "@/lib/sample/triallens-sample";
 import { Header } from "./Header";
 
-export function Confirm({ text, onBack, onNext }: { text: string; onBack: () => void; onNext: () => void }) {
+export function Confirm({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
   const [prof, setProf] = useState<ProfileGroups>(PROFILE);
   const edit = (g: keyof ProfileGroups, i: number, v: string) => setProf((p) => ({ ...p, [g]: p[g].map((x, j) => (j === i ? v : x)) }));
   const G = ({ k, title, kind, note }: { k: keyof ProfileGroups; title: string; kind: "known" | "unknown" | "uncertain"; note: string }) => (
@@ -36,7 +36,7 @@ export function Confirm({ text, onBack, onNext }: { text: string; onBack: () => 
             <details className="disclose" open>
               <summary>What you wrote</summary>
               <div className="in">
-                <p style={{ margin: 0, font: "400 17px/27px var(--font-sans)", color: "var(--muted-foreground)", textWrap: "pretty" }}>{text || SAMPLE_TEXT}</p>
+                <p style={{ margin: 0, font: "400 17px/27px var(--font-sans)", color: "var(--muted-foreground)", textWrap: "pretty" }}>{SAMPLE_TEXT}</p>
               </div>
             </details>
             <div className="panel stack g24" style={{ borderRadius: "var(--radius-panel)" }}>

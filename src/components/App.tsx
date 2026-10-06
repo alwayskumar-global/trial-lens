@@ -5,15 +5,14 @@ import { Describe } from "./screens/Describe";
 import { Detail } from "./screens/Detail";
 import { Processing } from "./screens/Processing";
 import { Results } from "./screens/Results";
-import { MOVES, SAMPLE_TEXT, TRIALS } from "@/lib/sample/triallens-sample";
+import { MOVES, TRIALS } from "@/lib/sample/triallens-sample";
 import type { Tier } from "./status/TierBadge";
 
 type Screen = "describe" | "confirm" | "processing" | "results" | "detail";
 
-/** Describe → Confirm → Processing → Results → Detail. Patient text lives only in this component's memory (never stored or sent). */
+/** Describe → Confirm → Processing → Results → Detail. Demo only: fixed fictional profile and results; nothing the visitor types is read, stored or sent. */
 export function App() {
   const [screen, setScreen] = useState<Screen>("describe");
-  const [text, setText] = useState(SAMPLE_TEXT);
   const [tiers, setTiers] = useState<Record<string, Tier>>({});
   const [answer, setAnswer] = useState<string | null>(null);
   const [updated, setUpdated] = useState<string[]>([]);
@@ -55,8 +54,8 @@ export function App() {
   const toResults = useCallback(() => setScreen("results"), []);
 
   let view;
-  if (screen === "describe") view = <Describe text={text} setText={setText} onNext={() => setScreen("confirm")} />;
-  else if (screen === "confirm") view = <Confirm text={text} onBack={() => setScreen("describe")} onNext={toProcessing} />;
+  if (screen === "describe") view = <Describe onNext={() => setScreen("confirm")} />;
+  else if (screen === "confirm") view = <Confirm onBack={() => setScreen("describe")} onNext={toProcessing} />;
   else if (screen === "processing") view = <Processing onDone={toResults} />;
   else if (screen === "detail") view = <Detail trial={trials.find((t) => t.id === open) ?? trials[0]!} onBack={() => setScreen("results")} />;
   else view = <Results trials={trials} answer={answer} onAnswer={onAnswer} updated={updated} onOpen={(id) => { setOpen(id); setScreen("detail"); }} toast={toast} setToast={setToast} />;

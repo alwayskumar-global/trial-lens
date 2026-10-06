@@ -62,7 +62,7 @@ export function Results({ trials, answer, onAnswer, updated, onOpen, toast, setT
                     </section>
                   );
                 })}
-              {shown.some((t) => t.k === "mismatch") && (
+              {shown.some((t) => t.k === "mismatch") && counts.mismatch > 0 && (
                 <details className="disclose" open={filter === "mismatch" || undefined}>
                   <summary>{counts.mismatch} likely mismatches (see why)</summary>
                   <div className="in stack g16">

@@ -7,16 +7,9 @@ import type { Tier } from "@/components/status/TierBadge";
 export const SAMPLE_TEXT =
   "I'm 52 and was diagnosed with stage III HER2-positive breast cancer. I had surgery four months ago and I'm taking trastuzumab. No heart problems that I know of. I live near a mid-sized city and can travel about 100 miles.";
 
-/** Only this sample has prepared demo results (PROFILE + TRIALS). The other samples are not wired to any results. */
-export const DEMO_SAMPLE_TEXT_KEY = "Stage III, HER2-positive";
+export const DEMO_SAMPLE_NAME = "Stage III, HER2-positive";
 export const DEMO_LABEL = "Fixed fictional demo: not your results";
 export const DEMO_BANNER = "This demo compares fictional trial criteria with a fictional profile. It can't confirm eligibility. Only a study team can.";
-
-export const SAMPLES: ReadonlyArray<{ n: string; t: string }> = [
-  { n: "Stage III, HER2-positive", t: SAMPLE_TEXT },
-  { n: "Stage II, hormone-positive", t: "I'm 61 with stage II breast cancer that is hormone receptor positive and HER2 negative. I finished radiation last month and just started an aromatase inhibitor. I can travel about 50 miles." },
-  { n: "Caregiver for my mother", t: "I'm helping my mother, who is 68. She has triple-negative breast cancer, and chemotherapy before surgery ended six weeks ago. She is active and walks daily. We can drive up to 75 miles." },
-];
 
 export interface ProfileGroups {
   known: string[];
@@ -53,17 +46,12 @@ const named: SampleTrial[] = [
   { id: "t2", n: 2, title: "Adding an oral targeted therapy to standard HER2 treatment", short: "Oral add-on therapy", tier: "possible", phase: "Phase 2", site: "Sample Regional Clinic", distance: "18 miles", nct: "NCT0000002", unknown: "Activity level and blood counts", why: [{ status: "meets", text: "HER2-positive disease" }, { status: "unknown", text: "Activity level (ECOG) not known" }, { status: "unknown", text: "Recent blood counts not known" }] },
   { id: "t3", n: 3, title: "Immunotherapy plus targeted therapy for residual disease", short: "Immunotherapy, residual disease", tier: "uncertain", phase: "Phase 2", site: "Sample University Hospital", distance: "63 miles", nct: "NCT0000003", unknown: "Whether residual disease was found at surgery", why: [{ status: "meets", text: "Age and HER2 status fit" }, { status: "unknown", text: "Residual disease not known" }, { status: "judgment", text: "Prior treatment needs clinical review" }] },
   { id: "t4", n: 4, title: "Treatment de-escalation after complete response", short: "De-escalation", tier: "possible", phase: "Phase 3", site: "Sample Cancer Institute", distance: "77 miles", nct: "NCT0000004", unknown: "Pathology response", why: [{ status: "meets", text: "Stage and HER2 status fit" }, { status: "unknown", text: "Pathology response not known" }, { status: "meets", text: "Within your travel distance" }] },
-  { id: "t5", n: 5, title: "Second-line therapy for metastatic HER2-positive disease", short: "Second-line, metastatic", tier: "mismatch", phase: "Phase 3", site: "Sample Oncology Center", distance: "30 miles", nct: "NCT0000005", reason: "This study is for metastatic disease. Your description is of stage III disease after surgery.", why: [] },
   { id: "t6", n: 6, title: "Oral maintenance therapy after surgery in HER2-positive disease", short: "Oral maintenance", tier: "possible", phase: "Phase 2", site: "Sample Regional Clinic", distance: "55 miles", nct: "NCT0000006", unknown: "Recent blood counts", why: [{ status: "meets", text: "HER2-positive, post-surgery" }, { status: "unknown", text: "Blood counts not known" }] },
   { id: "t7", n: 7, title: "Extended HER2 therapy after standard treatment", short: "Extended HER2 therapy", tier: "possible", phase: "Phase 3", site: "Sample Medical Center", distance: "88 miles", nct: "NCT0000007", unknown: "Activity level (ECOG)", why: [{ status: "meets", text: "HER2-positive, stage III" }, { status: "unknown", text: "Activity level not known" }] },
   { id: "t8", n: 8, title: "Targeted therapy for high-risk early breast cancer", short: "High-risk early disease", tier: "uncertain", phase: "Phase 2", site: "Sample University Hospital", distance: "71 miles", nct: "NCT0000008", unknown: "Heart ultrasound result", why: [{ status: "meets", text: "Age fits" }, { status: "unknown", text: "Heart function not known" }] },
   { id: "t9", n: 9, title: "Vaccine plus HER2 therapy after surgery", short: "Vaccine plus HER2 therapy", tier: "uncertain", phase: "Phase 2", site: "Sample Cancer Institute", distance: "94 miles", nct: "NCT0000009", unknown: "Time since last HER2 treatment", why: [{ status: "meets", text: "HER2-positive" }, { status: "judgment", text: "Treatment timing needs clinical review" }] },
 ];
-const filler: SampleTrial[] = Array.from({ length: 22 }, (_, i) => ({
-  id: "m" + i, n: 10 + i, title: "Sample trial " + (10 + i) + " for a different situation", short: "Sample trial " + (10 + i), tier: "mismatch" as const,
-  phase: "Phase 2", site: "Sample site", distance: "—", nct: "NCT00000" + (10 + i), why: [],
-}));
-export const TRIALS: readonly SampleTrial[] = [...named, ...filler];
+export const TRIALS: readonly SampleTrial[] = named;
 
 /** Tier changes caused by each answer to the adaptive question (design: MOVES). */
 export const MOVES: Readonly<Record<string, Readonly<Record<string, Tier>>>> = {

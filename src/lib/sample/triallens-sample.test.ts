@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MOVES, SAMPLES, TRIALS, DEMO_SAMPLE_TEXT_KEY } from "./triallens-sample";
+import { MOVES, TRIALS } from "./triallens-sample";
 
 // The sample is a fixed fictional fixture, not engine output. It must not depict a result the engine's conservative
 // tier rules would not produce (0 STRONG in every measured cohort; LIKELY_MISMATCH only with a verified FAIL).
@@ -16,7 +16,7 @@ describe("sample fixture honesty", () => {
       if (t.why.some((w) => w.status === "conflict" || w.status === "judgment")) expect(["uncertain", "mismatch"]).toContain(t.tier);
     }
   });
-  it("has exactly one sample wired to prepared results", () => {
-    expect(SAMPLES.filter((s) => s.n === DEMO_SAMPLE_TEXT_KEY)).toHaveLength(1);
+  it("contains no LIKELY_MISMATCH entries (no Rule D check backs any fixture mismatch)", () => {
+    expect(TRIALS.some((t) => t.tier === "mismatch")).toBe(false);
   });
 });
