@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FIT_ZONES, fitLinePositions } from "@/lib/ui/fit-line";
 import { TIER_LABELS, type Tier } from "../status/TierBadge";
 
@@ -42,7 +42,18 @@ export function FitLine<T extends FitLineTrial>({ trials, onSelect, onMoved }: F
     // eslint-disable-next-line react-hooks/exhaustive-deps -- run when the tier assignment changes
   }, [trials]);
 
-  const { pos, starts } = fitLinePositions(trials);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [trackPx, setTrackPx] = useState(1000);
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const measure = () => setTrackPx(el.clientWidth || 1000);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const { pos, starts, height } = fitLinePositions(trials, trackPx);
   const count = (k: Tier) => trials.filter((t) => t.tier === k).length;
   return (
     <div className="tl-fitline" role="group" aria-label="Fit line: where each analyzed trial sits">
@@ -54,7 +65,7 @@ export function FitLine<T extends FitLineTrial>({ trials, onSelect, onMoved }: F
           </div>
         ))}
       </div>
-      <div className="tl-fitline__track">
+      <div className="tl-fitline__track" ref={trackRef} style={{ height }}>
         {FIT_ZONES.map((z) => (
           <div key={z.k} className={"tl-fitline__zone tl-fitline__zone--" + z.k} style={{ left: starts[z.k] + 0.3 + "%", width: z.w - 0.6 + "%" }} />
         ))}

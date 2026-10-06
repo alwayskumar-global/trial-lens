@@ -121,7 +121,7 @@
 .tl-fitline__head--uncertain .tl-fitline__count{color:var(--tier-uncertain-fg)}
 .tl-fitline__head--mismatch .tl-fitline__count{color:var(--tier-mismatch-fg);font-size:26px}
 .tl-fitline__zname{font:600 14px/20px var(--font-sans);color:var(--foreground)}
-.tl-fitline__track{position:relative;height:96px;border-radius:var(--radius-card);overflow:visible}
+.tl-fitline__track{position:relative;min-height:96px;border-radius:var(--radius-card);overflow:visible}
 .tl-fitline__zone{position:absolute;top:0;bottom:0;border-radius:var(--radius-card)}
 .tl-fitline__zone--mismatch{background:var(--tier-mismatch-bg);opacity:.55}
 .tl-fitline__zone--uncertain{background:var(--tier-uncertain-bg);opacity:.75}
@@ -130,10 +130,10 @@
 .tl-fitline__axis{position:absolute;left:0;right:0;top:50%;height:1.5px;background:var(--border-strong);opacity:.35}
 .tl-dot{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;padding:0;border:0;border-radius:50%;cursor:pointer;transition:left var(--dur-signature) var(--ease-signature),top var(--dur-signature) var(--ease-signature),background var(--dur-ui),opacity var(--dur-signature);transition-delay:var(--dd,0ms)}
 .tl-dot::after{content:"";position:absolute;inset:-16px}
-.tl-dot--strong{background:var(--tier-strong-fg);width:16px;height:16px;margin:-8px 0 0 -8px}
+.tl-dot--strong{background:var(--tier-strong-fg)}
 .tl-dot--possible{background:var(--tier-possible-fg)}
 .tl-dot--uncertain{background:var(--tier-uncertain-fg)}
-.tl-dot--mismatch{background:var(--tier-mismatch-fg);width:7px;height:7px;margin:-3.5px 0 0 -3.5px;opacity:.55}
+.tl-dot--mismatch{background:var(--tier-mismatch-fg);opacity:.75}
 .tl-dot--ring{box-shadow:0 0 0 4px var(--card),0 0 0 6px var(--primary)}
 .tl-dot__tip{position:absolute;bottom:calc(100% + 12px);left:50%;transform:translateX(-50%);background:var(--foreground);color:var(--background);padding:6px 10px;border-radius:8px;font:500 13px/18px var(--font-sans);white-space:nowrap;pointer-events:none;opacity:0;transition:opacity var(--dur-micro);z-index:5;text-align:left}
 .tl-dot:hover .tl-dot__tip,.tl-dot:focus-visible .tl-dot__tip{opacity:1}

@@ -40,7 +40,7 @@
 @container (max-width:700px){.wrap{padding:0 20px}.page{padding-top:16px}}
 
 /* Live / replay / pending states (approved mockups, docs/live-ui-proposal.md rev 2) */
-.tl-dot--dashed{background:transparent!important;border:2px dashed var(--tier-uncertain-fg);width:14px;height:14px;margin:-7px 0 0 -7px}
+.tl-dot--dashed{background:transparent!important;border:2px dashed var(--tier-uncertain-fg);box-sizing:border-box}
 .tl-stage{grid-template-columns:28px 1fr;row-gap:2px}
 .tl-stage__count{grid-column:2;grid-row:2}
 .tl-stage__count:empty{display:none}
