@@ -1,7 +1,7 @@
 // POST /api/run handler (SSE). Framework-agnostic and dependency-injected so the whole flow is testable offline.
 //
 // Contract: body {text} (live run from text; extraction is stage 1), {replay_id} (stored replay of a fictional profile), or
-// {profile, extract_token?} (live run from a profile the visitor reviewed on the Confirm screen; no extraction call). Events: mode,
+// {profile, extract_token} (live run from a profile the visitor reviewed on the Confirm screen; no extraction call; the token is required). Events: mode,
 // stage, counts, profile, trial_result, question, done, error. For text runs, a guard refusal or provider outage falls back to a
 // LABELLED replay. For profile runs there is NO silent replay (someone else's results would mislead): refusals are HTTP 429/503
 // and failures are an error event. Which facts the visitor edited is derived by the server from the signed extraction
@@ -87,13 +87,17 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
   if (replay_id !== undefined && !isReplayId(replay_id)) return json(400, "bad_request");
   if (text !== undefined && deps.visitorInputMode === "samples" && !isPreparedText(text)) return json(403, "visitor_input_disabled");
 
-  // Policy R basis: the server compares the profile with its own signed extraction. No valid token ⇒ every known fact is edited.
+  // A profile run is authenticated by the server's own signed extraction: a missing, forged or expired token is refused (the visitor
+  // simply re-runs extraction), never run as an unauthenticated profile. The server then derives, by comparison, which facts were
+  // edited. Samples mode accepts only an UNCHANGED profile from a token issued for a prepared fictional sample.
   let input: PipelineInput | undefined;
   if (profile !== undefined) {
-    const extracted = verifyExtraction(extract_token, deps.signingSecret, deps.now?.());
-    if (deps.visitorInputMode === "samples" && extracted === null) return json(403, "visitor_input_disabled");
+    const verified = verifyExtraction(extract_token, deps.signingSecret, deps.now?.());
+    if (verified === null) return json(401, "invalid_token");
     const clean: PatientProfile = { facts: profile.facts as PatientProfile["facts"] };
-    input = { profile: clean, selfEdited: selfEditedKeys(clean, extracted) };
+    const edited = selfEditedKeys(clean, verified.facts);
+    if (deps.visitorInputMode === "samples" && (!verified.sample || edited.size > 0)) return json(403, "visitor_input_disabled");
+    input = { profile: clean, selfEdited: edited };
   }
   const visitorRun = input !== undefined; // no silent replay for these
 

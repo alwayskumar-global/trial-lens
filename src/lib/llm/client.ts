@@ -97,6 +97,19 @@ export interface JsonCallArgs<T> {
   maxTokens?: number;
   /** Extra request body fields (e.g. THINKING_OFF). VERIFY: Token Factory honours chat_template_kwargs for Nemotron. */
   extraBody?: Record<string, unknown>;
+  /**
+   * On the single validation retry, send the model's previous output back as an assistant turn plus Zod's messages (default, the
+   * measured spike behaviour). Set false for any call whose output can carry visitor-supplied text (profile extraction): the retry
+   * then re-sends only the original messages with a fixed note naming schema paths and issue codes, so model output that may repeat
+   * or obey injected text is never fed back into the conversation.
+   */
+  echoOnRetry?: boolean;
+}
+
+/** Fixed-vocabulary description of validation problems: schema-key paths (or indices) and Zod issue codes, never values or messages. */
+export function safeProblem(issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; code: string }>): string {
+  const seg = (p: PropertyKey) => (typeof p === "number" ? String(p) : typeof p === "string" && /^[a-z_]{1,24}$/.test(p) ? p : "?");
+  return issues.slice(0, 5).map((i) => `${i.path.map(seg).join(".") || "(root)"}: ${i.code}`).join("; ");
 }
 
 export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null; stats: CallStats }> {
@@ -135,16 +148,21 @@ export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null;
         stats.finalValid = true;
         return { data: parsed.data, stats };
       }
-      problem = parsed.error.issues.slice(0, 5).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
+      problem = a.echoOnRetry === false ? safeProblem(parsed.error.issues) : parsed.error.issues.slice(0, 5).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
     } catch {
       problem = "output was not valid JSON";
     }
     stats.problems.push(problem);
     if (attempt === 1) {
-      messages.push(
-        { role: "assistant", content: content.slice(0, 4000) },
-        { role: "user", content: `Your output failed validation: ${problem}. Return corrected JSON only.` },
-      );
+      if (a.echoOnRetry === false) {
+        // No model output is fed back: same system and user messages, plus a fixed note.
+        messages.splice(1, messages.length - 1, { role: "user", content: `${a.user}\n\n[Format check] Your previous reply did not match the required JSON schema (${problem}). Reply with ONLY the corrected JSON object, nothing else.` });
+      } else {
+        messages.push(
+          { role: "assistant", content: content.slice(0, 4000) },
+          { role: "user", content: `Your output failed validation: ${problem}. Return corrected JSON only.` },
+        );
+      }
     } else {
       stats.errorKind = "ZOD_INVALID_AFTER_RETRY";
     }

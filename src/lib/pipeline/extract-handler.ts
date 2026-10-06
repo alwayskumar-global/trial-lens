@@ -72,5 +72,5 @@ export async function handleExtract(req: Request, deps: ExtractHandlerDeps): Pro
     return f.state === "unknown" || f.value === undefined ? { key: k, state: "unknown" as const } : { key: k, state: f.state, value: f.value };
   });
   deps.log({ evt: "extract", ok: true, facts: facts.filter((f) => f.state !== "unknown").length, calls: llm.used(), ms: Date.now() - t0 });
-  return Response.json({ profile: { facts: Object.fromEntries(facts.map((f) => [f.key, f])) }, extract_token: signExtraction(profile, deps.signingSecret, deps.now?.()) }, { headers: { "cache-control": "no-store" } });
+  return Response.json({ profile: { facts: Object.fromEntries(facts.map((f) => [f.key, f])) }, extract_token: signExtraction(profile, deps.signingSecret, deps.now?.(), { sample: isPreparedText(text) }) }, { headers: { "cache-control": "no-store" } });
 }

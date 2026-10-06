@@ -40,15 +40,18 @@ export function makeParse(t: string): LlmClauseCriterion {
   return { category: "other", blocks: [{ when: [], combine: "all", items: [text(t)], except: [] }] };
 }
 
-export function fakeLlm(script: Script = {}): LlmPort & { calls: Array<{ name: string; tier: string }> } {
+export function fakeLlm(script: Script = {}): LlmPort & { calls: Array<{ name: string; tier: string }>; seen: Array<{ name: string; system: string; user: string; echoOnRetry: boolean | undefined }> } {
   let used = 0;
   const calls: Array<{ name: string; tier: string }> = [];
+  const seen: Array<{ name: string; system: string; user: string; echoOnRetry: boolean | undefined }> = [];
   return {
     calls,
+    seen,
     used: () => used,
     async call<T>(a: LlmCallArgs<T>) {
       used++;
       calls.push({ name: a.schemaName, tier: a.tier });
+      seen.push({ name: a.schemaName, system: a.system, user: a.user, echoOnRetry: a.echoOnRetry });
       const ok = (o: unknown) => ({ data: (a.schema as z.ZodType<T>).parse(o), stats: stats() });
       const bad = { data: null, stats: stats("HTTP_503") };
       const lines = a.user.split("\n").filter((l) => l.startsWith("{"));

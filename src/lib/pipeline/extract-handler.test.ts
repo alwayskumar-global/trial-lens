@@ -37,7 +37,7 @@ describe("POST /api/extract", () => {
     expect(body.profile.facts.stage).toEqual({ key: "stage", state: "unknown" });
     expect(Object.values(body.profile.facts).some((f) => "note" in f)).toBe(false);
     expect(llms[0]!.calls).toEqual([{ name: "facts", tier: "FAST" }]);
-    expect([...verifyExtraction(body.extract_token, SECRET, NOW)!.keys()].sort()).toEqual(["age", "her2_status", "sex"]);
+    expect([...verifyExtraction(body.extract_token, SECRET, NOW)!.facts.keys()].sort()).toEqual(["age", "her2_status", "sex"]);
     expect(logs).toEqual([{ evt: "extract", ok: true, facts: 3, calls: 1, ms: expect.any(Number) }]);
   });
 
@@ -51,6 +51,14 @@ describe("POST /api/extract", () => {
     };
     expect(await tier(body.profile)).toBe("STRONG");
     expect(await tier({ facts: { ...body.profile.facts, age: { key: "age", state: "known", value: 50 } } })).toBe("POSSIBLE");
+  });
+
+  it("the token is flagged as a sample only for a prepared fictional text", async () => {
+    const { deps } = setup();
+    const sample = (await (await handleExtract(post({ text: SAMPLE_TEXT }), deps)).json()) as { extract_token: string };
+    const other = (await (await handleExtract(post({ text: "some other fictional text" }), deps)).json()) as { extract_token: string };
+    expect(verifyExtraction(sample.extract_token, SECRET, NOW)!.sample).toBe(true);
+    expect(verifyExtraction(other.extract_token, SECRET, NOW)!.sample).toBe(false);
   });
 
   it("rejects malformed, empty, oversized and unknown-key bodies with fixed codes", async () => {

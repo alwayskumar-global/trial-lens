@@ -46,6 +46,8 @@ export interface LlmCallArgs<T> {
   schema: z.ZodType<T>;
   schemaName: string;
   maxTokens: number;
+  /** See JsonCallArgs.echoOnRetry (false = never feed model output back on the validation retry). */
+  echoOnRetry?: boolean;
 }
 export interface LlmPort {
   call<T>(a: LlmCallArgs<T>): Promise<{ data: T | null; stats: CallStats }>;
