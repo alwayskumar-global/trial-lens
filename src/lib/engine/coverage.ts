@@ -16,7 +16,11 @@
 // VERIFY: the word lists are English-only, built from the Phase 1 development cohorts; extend on evidence and re-freeze
 // before any untouched-cohort measurement.
 import type { LlmBlock, LlmClauseCriterion, LlmLeaf } from "@/schema/clause";
+import { CUES } from "./atom-checks";
 import { normaliseForCompare } from "./checks";
+
+/** Bump on ANY change to the word lists or rules below: parsed-criteria caches must include it (with the prompt version). */
+export const COVERAGE_CHECK_VERSION = "cov-1";
 
 export type VetStatus = "ok" | "atoms_downgraded" | "coverage_failed" | "when_on_exclusion";
 
@@ -46,6 +50,60 @@ const COMPARATOR_PHRASES = [
 const NEGATION = /\b(?:no|not|non|without|never|none|neither|nor|cannot|can't|unable|absence|absent|free of)\b|\bnon-?\p{L}/iu;
 const CONNECTIVES = /\b(?:and|or|but|unless|except|excluding|if|when|whenever|who|whose|whom|which|provided|only|also|plus|either|both|other than|apart from)\b/i;
 const TIMING = /\b(?:within|before|after|prior to|since|during|ago|past|last|recent|recently|until|baseline|screening|time of|following|daily|weekly|monthly|cycles?)\b/i;
+
+// Relational words/symbols → the operators they justify. Longest/most specific first; matches are consumed.
+const OP_MARKERS: Array<[RegExp, string[]]> = [
+  [/\b(?:no more than|not more than|no greater than|no higher than|not exceeding|at most|maximum|up to)\b|≤|<=|=<|\bor (?:younger|less|fewer|below|lower|under)\b/g, ["lte"]],
+  [/\b(?:no less than|not less than|no fewer than|no lower than|at least|minimum)\b|≥|>=|=>|\bor (?:older|more|greater|above|higher|over)\b/g, ["gte"]],
+  [/\b(?:more than|greater than|older than|higher than|exceeding|exceeds|over|above)\b|(?<![<>=])>(?!=)/g, ["gt"]],
+  [/\b(?:less than|fewer than|younger than|lower than|under|below)\b|(?<![<>=])<(?!=)/g, ["lt"]],
+  [/\bbetween\b|\d\s*(?:-|–|to)\s*\d/g, ["gte", "lte"]],
+  [/\bwithin\b/g, ["lte", "lt"]],
+  [/\bequals?\b|\bexactly\b|(?<![<>=!])=(?![<>=])/g, ["eq"]],
+];
+function impliedOperators(src: string): Set<string> {
+  const out = new Set<string>();
+  let t = src;
+  for (const [re, ops] of OP_MARKERS) {
+    if (re.test(t)) {
+      ops.forEach((o) => out.add(o));
+      t = t.replace(re, " ⟂ ");
+    }
+    re.lastIndex = 0;
+  }
+  return out;
+}
+const MODAL_OR_RELATIVE = /\b(?:that|would|could|might|may|should|can|will|otherwise|whether)\b/i;
+// Words that may sit next to a fact's own cue words without adding a qualifier.
+const GENERIC = new Set(["status", "level", "levels", "count", "counts", "value", "disease", "cancer", "carcinoma", "breast", "tumor", "tumour", "score", "absolute", "prior", "history", "received", "having", "present", "per"]);
+
+// Head nouns that are part of one fact's own meaning but would be a qualifier for other facts.
+const HEAD_NOUNS: Record<string, string[]> = { cns_mets: ["metastases", "metastasis", "metastatic"] };
+
+/** Content words of the atom's source that neither the fact's own vocabulary, its value, its unit nor filler account for. */
+function unaccountedWords(a: LlmLeaf, src: string): string[] {
+  const cue = CUES[a.fact_key as keyof typeof CUES];
+  if (!cue) return ["unknown_fact"];
+  let t = src
+    // remove the WHOLE word around each cue match ("chemo" inside "chemotherapy"), and version strings ("v1.1")
+    .replace(new RegExp(`[\\p{L}\\d-]*(?:${cue.source})[\\p{L}\\d-]*`, "giu"), " ")
+    .replace(/\bv\d+(?:\.\d+)*\b/gi, " ")
+    .replace(/[\p{L}]+\d+\s*\/\s*\d+/gu, " ")
+    .replace(/(?:x|×)\s*10\s*\^?\s*\d+/gi, " ")
+    .replace(/10\s*\^\s*\d+/g, " ");
+  t = t.toLowerCase();
+  const vals = (Array.isArray(a.value) ? a.value : [a.value]).filter((v): v is string => typeof v === "string").flatMap((v) => v.toLowerCase().split(/[_\s]+/));
+  const unitToks = a.unit ? [...a.unit.toLowerCase().matchAll(TOKEN)].map((m) => m[0]) : [];
+  const ok = new Set<string>([...FILLER, ...GENERIC, ...(HEAD_NOUNS[a.fact_key as string] ?? []), ...vals, ...unitToks, "and", "or", "between", "within", "x"]);
+  const out: string[] = [];
+  for (const m of t.matchAll(TOKEN)) {
+    const w = m[0];
+    if (/^\d/.test(w) || /^[≥≤<>=±%+×]$/.test(w) || ok.has(w)) continue;
+    out.push(w);
+  }
+  return out;
+}
+const flatUnit = (u: string) => u.toLowerCase().replace(/[\s^]/g, "").replace(/×/g, "x");
 
 function numbersIn(s: string): number[] {
   const t = s
@@ -87,9 +145,17 @@ export function atomScopeProblems(a: LlmLeaf, siblings: readonly LlmLeaf[] = [])
     if (!accountedOr && !accountedAnd) p.push(`unaccounted_connective:${c}`);
   }
   if (a.fact_key !== "days_since_last_systemic_therapy" && TIMING.test(src)) p.push("timing_in_source");
+  if (MODAL_OR_RELATIVE.test(src)) p.push("modal_or_relative_in_source");
+  if (typeof a.value === "number" && numericOp) {
+    // the operator must be justified by the cited words, and the unit must literally appear in them
+    const implied = impliedOperators(norm(a.source));
+    if (!implied.has(a.operator as string)) p.push("operator_not_in_source");
+    if (a.unit && !flatUnit(norm(a.source)).includes(flatUnit(a.unit))) p.push("unit_not_in_source");
+  }
   const allowed = new Set<number>([...valueNumbers(a), ...siblings.flatMap(valueNumbers)]);
   for (const n of numbersIn(src)) if (!allowed.has(n)) p.push("unaccounted_number");
   if (hadComparator && !numericOp && !setOp) p.push("comparator_on_non_numeric");
+  if (unaccountedWords(a, src).length > 0) p.push("unaccounted_qualifier");
   // An asserted FALSE / neq / not_in can only be justified by negation language, which this check excludes: not provable.
   if (a.value === false || a.operator === "neq" || a.operator === "not_in") p.push("negated_assertion");
   // Receptor / BRCA polarity: the value's polarity must appear in the cited text, and the opposite polarity must not.

@@ -12,6 +12,7 @@ import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getNebiusEnv, getPipelineEnv } from "../../src/lib/env";
 import { dependsOn, leaves } from "../../src/lib/engine/clause";
+import { COVERAGE_CHECK_VERSION } from "../../src/lib/engine/coverage";
 import { reconcileBatch, type ParseOutcome, type SourceCriterion } from "../../src/lib/engine/reconcile";
 import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt, CLAUSE_PARSE_PROMPT_VERSION } from "../../src/prompts/clause-parse";
 import { makeClauseBatchSchema } from "../../src/schema/clause";
@@ -129,7 +130,7 @@ async function main(): Promise<void> {
   const headline = scoring.filter(isReviewedFull).length / scoring.length;
 
   const lines: string[] = [
-    `\n## ${new Date().toISOString()} — 04c-coverage-clauses (${COHORT} cohort; clause representation; splitter + atom-semantics guards active)\n`,
+    `\n## ${new Date().toISOString()} — 04c-coverage-clauses (${COHORT} cohort; clause representation; splitter + atom-semantics guards + coverage checks ${COVERAGE_CHECK_VERSION} active)\n`,
     `- Command: \`pnpm spike:coverage2\` (COVERAGE_CHUNK=${CHUNK}, COVERAGE_REASONING=${REASONING}, max_tokens ${MAX_TOKENS}; judge reasoning default ON). Parser MID \`${env.NEMOTRON_MODEL_MID}\`, prompt \`${CLAUSE_PARSE_PROMPT_VERSION}\`, json_schema mode, ${chunks.length} batch calls; judge DEEP \`${env.NEMOTRON_MODEL_DEEP}\` on code-evaluable criteria only.`,
     `- Batch validation (index set exact + every leaf source is a verbatim fragment): first-attempt valid ${firstValid}/${chunks.length}; valid after the one retry ${retriedOk}; **rejected after retry ${rejected}** (all their criteria → UNRESOLVED → UNKNOWN; last-attempt reasons: ${[...why].map(([k, v]) => `${k}×${v}`).join(", ") || "n/a"}); truncated outputs ${truncated}; judge batches failed ${judgeFailed}.`,
     `- Tokens (parse): prompt ${tokensIn}, completion ${tokensOut}; parse wall ${parseWall} ms at concurrency ${conc}; total HTTP calls ${cap.used}/${MAX_CALLS}.`,

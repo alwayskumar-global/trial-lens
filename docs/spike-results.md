@@ -846,3 +846,158 @@ Single runs; extractor/verifier variance; one fictional profile (so verified mis
 - **Protocol for the untouched cohort (pre-registered, not yet fetched):** same CT.gov query and filter, pages 5–8 of the result list, excluding every NCT id in the original and fresh fixtures, every k-th trial to 30, fetched only when the configuration is frozen; run once with the frozen config (no prompt, cue, splitter or engine edits in between); report coverage and mismatch counts with the same definitions; labels must be by a reviewer who did not tune the system.
 - The statement "7 of 7 verified mismatches are true" is a **manual assessment by the agent** against one fictional profile, **not measured verifier accuracy**. Likewise the "9/10, 13/14 true mismatches" and recall figures are agent labels on development data.
 - **Not pursued (Kumar's decision):** four-trial verifier batching and raising `MAX_LLM_CALLS_PER_RUN` on the strength of the capacity projections. Rule D and the 80-call cap stay; capacity overflow remains UNCERTAIN. The projections above are retained as measurements only.
+
+## 2026-10-06T04:12:45.674Z — 04c-coverage-clauses (original cohort; clause representation; splitter + atom-semantics guards active)
+
+- Command: `pnpm spike:coverage2` (COVERAGE_CHUNK=15, COVERAGE_REASONING=low, max_tokens 8192; judge reasoning default ON). Parser MID `nvidia/nemotron-3-super-120b-a12b`, prompt `spike-4`, json_schema mode, 46 batch calls; judge DEEP `nvidia/Nemotron-3-Ultra-550b-a55b` on code-evaluable criteria only.
+- Batch validation (index set exact + every leaf source is a verbatim fragment): first-attempt valid 38/46; valid after the one retry 6; **rejected after retry 2** (all their criteria → UNRESOLVED → UNKNOWN; last-attempt reasons: missing indices×1, leaf source not verbatim×1); truncated outputs 0; judge batches failed 0.
+- Tokens (parse): prompt 112005, completion 83103; parse wall 87919 ms at concurrency 6; total HTTP calls 67/400.
+- Denominator: 431 bullet-level criteria in the fixed cohort (30 trials; regex split). Parsed 407, **unresolved 24** (kept as UNKNOWN scoring criteria). Non-scoring (category consent_logistics, derived in code): 53; scoring denominator = 378 (non-consent parsed + all unresolved).
+- Definitions: **code-evaluable** = every leaf is an atom whose operator/value/unit are valid and convertible in code (no text/timing leaves) · **reviewed full-logic (headline)** = code-evaluable AND the independent DEEP judge says the clause captures the entire criterion · **partial-typed** = ≥1 atom leaf but not fully executable (text/timing remain on the free-text path).
+
+| Stratum (scoring, unresolved included) | n | unresolved | code-evaluable | reviewed full-logic (headline) | ≥1 atom (partial-typed) |
+|---|---|---|---|---|---|
+| all scoring (incl. unresolved) | 378 | 24/378 (6.3%) | 21/378 (5.6%) | 17/378 (4.5%) | 24/378 (6.3%) |
+| inclusion | 187 | 12/187 (6.4%) | 19/187 (10.2%) | 16/187 (8.6%) | 22/187 (11.8%) |
+| exclusion | 191 | 12/191 (6.3%) | 2/191 (1%) | 1/191 (0.5%) | 2/191 (1%) |
+| simple wording (heuristic) | 220 | 13/220 (5.9%) | 19/220 (8.6%) | 16/220 (7.3%) | 21/220 (9.5%) |
+| compound wording (heuristic) | 158 | 11/158 (7%) | 2/158 (1.3%) | 1/158 (0.6%) | 3/158 (1.9%) |
+
+**Gate (reviewed full-logic over all scoring incl. unresolved): 17/378 (4.5%) → STOP AND REASSESS (<40%).** Schedule gate only; not an accuracy or safety claim. The earlier 5.7% used a different denominator (parser-scoring only, 20 missing excluded) and a single-fact representation, so it is not directly comparable.
+- Judge on 21 code-evaluable criteria: full 17, partial 2, wrong 2, unjudged 0.
+- Vocabulary-touch proxy (any leaf touches a vocabulary key, parsed criteria): 40/378 (10.6%). **Unvalidated proxy, not a typed rate.**
+- Coverage/scope vetting of parsed criteria (no tuned percentage; any omitted substantive logic fails): ok×353, coverage_failed×43, atoms_downgraded×11. coverage_failed ⇒ whole criterion became one text leaf (UNKNOWN).
+- Leaf kinds across parsed criteria: text×400, atom×32, timing×3.
+
+## 2026-10-06T04:14:34.324Z — 04c-coverage-clauses (fresh cohort; clause representation; splitter + atom-semantics guards active)
+
+- Command: `pnpm spike:coverage2` (COVERAGE_CHUNK=15, COVERAGE_REASONING=low, max_tokens 8192; judge reasoning default ON). Parser MID `nvidia/nemotron-3-super-120b-a12b`, prompt `spike-4`, json_schema mode, 46 batch calls; judge DEEP `nvidia/Nemotron-3-Ultra-550b-a55b` on code-evaluable criteria only.
+- Batch validation (index set exact + every leaf source is a verbatim fragment): first-attempt valid 37/46; valid after the one retry 7; **rejected after retry 2** (all their criteria → UNRESOLVED → UNKNOWN; last-attempt reasons: leaf source not verbatim×2); truncated outputs 0; judge batches failed 0.
+- Tokens (parse): prompt 116701, completion 95753; parse wall 97234 ms at concurrency 6; total HTTP calls 64/400.
+- Denominator: 487 bullet-level criteria in the fixed cohort (30 trials; regex split). Parsed 465, **unresolved 22** (kept as UNKNOWN scoring criteria). Non-scoring (category consent_logistics, derived in code): 56; scoring denominator = 431 (non-consent parsed + all unresolved).
+- Definitions: **code-evaluable** = every leaf is an atom whose operator/value/unit are valid and convertible in code (no text/timing leaves) · **reviewed full-logic (headline)** = code-evaluable AND the independent DEEP judge says the clause captures the entire criterion · **partial-typed** = ≥1 atom leaf but not fully executable (text/timing remain on the free-text path).
+
+| Stratum (scoring, unresolved included) | n | unresolved | code-evaluable | reviewed full-logic (headline) | ≥1 atom (partial-typed) |
+|---|---|---|---|---|---|
+| all scoring (incl. unresolved) | 431 | 22/431 (5.1%) | 25/431 (5.8%) | 16/431 (3.7%) | 43/431 (10%) |
+| inclusion | 213 | 2/213 (0.9%) | 20/213 (9.4%) | 14/213 (6.6%) | 37/213 (17.4%) |
+| exclusion | 218 | 20/218 (9.2%) | 5/218 (2.3%) | 2/218 (0.9%) | 6/218 (2.8%) |
+| simple wording (heuristic) | 263 | 9/263 (3.4%) | 21/263 (8%) | 13/263 (4.9%) | 36/263 (13.7%) |
+| compound wording (heuristic) | 168 | 13/168 (7.7%) | 4/168 (2.4%) | 3/168 (1.8%) | 7/168 (4.2%) |
+
+**Gate (reviewed full-logic over all scoring incl. unresolved): 16/431 (3.7%) → STOP AND REASSESS (<40%).** Schedule gate only; not an accuracy or safety claim. The earlier 5.7% used a different denominator (parser-scoring only, 20 missing excluded) and a single-fact representation, so it is not directly comparable.
+- Judge on 25 code-evaluable criteria: full 16, partial 4, wrong 5, unjudged 0.
+- Vocabulary-touch proxy (any leaf touches a vocabulary key, parsed criteria): 54/431 (12.5%). **Unvalidated proxy, not a typed rate.**
+- Coverage/scope vetting of parsed criteria (no tuned percentage; any omitted substantive logic fails): ok×418, coverage_failed×35, atoms_downgraded×12. coverage_failed ⇒ whole criterion became one text leaf (UNKNOWN).
+- Leaf kinds across parsed criteria: text×446, atom×50, timing×4.
+
+## 2026-10-06T04:17:27.518Z — 04c-coverage-clauses (original cohort; clause representation; splitter + atom-semantics guards active)
+
+- Command: `pnpm spike:coverage2` (COVERAGE_CHUNK=15, COVERAGE_REASONING=low, max_tokens 8192; judge reasoning default ON). Parser MID `nvidia/nemotron-3-super-120b-a12b`, prompt `spike-4`, json_schema mode, 46 batch calls; judge DEEP `nvidia/Nemotron-3-Ultra-550b-a55b` on code-evaluable criteria only.
+- Batch validation (index set exact + every leaf source is a verbatim fragment): first-attempt valid 40/46; valid after the one retry 6; **rejected after retry 0** (all their criteria → UNRESOLVED → UNKNOWN; last-attempt reasons: n/a); truncated outputs 0; judge batches failed 0.
+- Tokens (parse): prompt 104992, completion 81630; parse wall 89255 ms at concurrency 6; total HTTP calls 64/400.
+- Denominator: 431 bullet-level criteria in the fixed cohort (30 trials; regex split). Parsed 431, **unresolved 0** (kept as UNKNOWN scoring criteria). Non-scoring (category consent_logistics, derived in code): 55; scoring denominator = 376 (non-consent parsed + all unresolved).
+- Definitions: **code-evaluable** = every leaf is an atom whose operator/value/unit are valid and convertible in code (no text/timing leaves) · **reviewed full-logic (headline)** = code-evaluable AND the independent DEEP judge says the clause captures the entire criterion · **partial-typed** = ≥1 atom leaf but not fully executable (text/timing remain on the free-text path).
+
+| Stratum (scoring, unresolved included) | n | unresolved | code-evaluable | reviewed full-logic (headline) | ≥1 atom (partial-typed) |
+|---|---|---|---|---|---|
+| all scoring (incl. unresolved) | 376 | 0/376 (0%) | 16/376 (4.3%) | 14/376 (3.7%) | 24/376 (6.4%) |
+| inclusion | 186 | 0/186 (0%) | 16/186 (8.6%) | 14/186 (7.5%) | 23/186 (12.4%) |
+| exclusion | 190 | 0/190 (0%) | 0/190 (0%) | 0/190 (0%) | 1/190 (0.5%) |
+| simple wording (heuristic) | 220 | 0/220 (0%) | 12/220 (5.5%) | 12/220 (5.5%) | 19/220 (8.6%) |
+| compound wording (heuristic) | 156 | 0/156 (0%) | 4/156 (2.6%) | 2/156 (1.3%) | 5/156 (3.2%) |
+
+**Gate (reviewed full-logic over all scoring incl. unresolved): 14/376 (3.7%) → STOP AND REASSESS (<40%).** Schedule gate only; not an accuracy or safety claim. The earlier 5.7% used a different denominator (parser-scoring only, 20 missing excluded) and a single-fact representation, so it is not directly comparable.
+- Judge on 17 code-evaluable criteria: full 15, partial 1, wrong 1, unjudged 0.
+- Vocabulary-touch proxy (any leaf touches a vocabulary key, parsed criteria): 44/376 (11.7%). **Unvalidated proxy, not a typed rate.**
+- Coverage/scope vetting of parsed criteria (no tuned percentage; any omitted substantive logic fails): ok×368, coverage_failed×51, atoms_downgraded×12. coverage_failed ⇒ whole criterion became one text leaf (UNKNOWN).
+- Leaf kinds across parsed criteria: text×426, atom×40, timing×2.
+
+## 2026-10-06T04:19:16.716Z — 04c-coverage-clauses (fresh cohort; clause representation; splitter + atom-semantics guards active)
+
+- Command: `pnpm spike:coverage2` (COVERAGE_CHUNK=15, COVERAGE_REASONING=low, max_tokens 8192; judge reasoning default ON). Parser MID `nvidia/nemotron-3-super-120b-a12b`, prompt `spike-4`, json_schema mode, 46 batch calls; judge DEEP `nvidia/Nemotron-3-Ultra-550b-a55b` on code-evaluable criteria only.
+- Batch validation (index set exact + every leaf source is a verbatim fragment): first-attempt valid 33/46; valid after the one retry 11; **rejected after retry 2** (all their criteria → UNRESOLVED → UNKNOWN; last-attempt reasons: leaf source not verbatim×2); truncated outputs 0; judge batches failed 0.
+- Tokens (parse): prompt 129033, completion 100645; parse wall 103143 ms at concurrency 6; total HTTP calls 69/400.
+- Denominator: 487 bullet-level criteria in the fixed cohort (30 trials; regex split). Parsed 465, **unresolved 22** (kept as UNKNOWN scoring criteria). Non-scoring (category consent_logistics, derived in code): 49; scoring denominator = 438 (non-consent parsed + all unresolved).
+- Definitions: **code-evaluable** = every leaf is an atom whose operator/value/unit are valid and convertible in code (no text/timing leaves) · **reviewed full-logic (headline)** = code-evaluable AND the independent DEEP judge says the clause captures the entire criterion · **partial-typed** = ≥1 atom leaf but not fully executable (text/timing remain on the free-text path).
+
+| Stratum (scoring, unresolved included) | n | unresolved | code-evaluable | reviewed full-logic (headline) | ≥1 atom (partial-typed) |
+|---|---|---|---|---|---|
+| all scoring (incl. unresolved) | 438 | 22/438 (5%) | 15/438 (3.4%) | 13/438 (3%) | 25/438 (5.7%) |
+| inclusion | 216 | 2/216 (0.9%) | 14/216 (6.5%) | 13/216 (6%) | 23/216 (10.6%) |
+| exclusion | 222 | 20/222 (9%) | 1/222 (0.5%) | 0/222 (0%) | 2/222 (0.9%) |
+| simple wording (heuristic) | 269 | 9/269 (3.3%) | 14/269 (5.2%) | 12/269 (4.5%) | 22/269 (8.2%) |
+| compound wording (heuristic) | 169 | 13/169 (7.7%) | 1/169 (0.6%) | 1/169 (0.6%) | 3/169 (1.8%) |
+
+**Gate (reviewed full-logic over all scoring incl. unresolved): 13/438 (3%) → STOP AND REASSESS (<40%).** Schedule gate only; not an accuracy or safety claim. The earlier 5.7% used a different denominator (parser-scoring only, 20 missing excluded) and a single-fact representation, so it is not directly comparable.
+- Judge on 15 code-evaluable criteria: full 13, partial 2, wrong 0, unjudged 0.
+- Vocabulary-touch proxy (any leaf touches a vocabulary key, parsed criteria): 45/438 (10.3%). **Unvalidated proxy, not a typed rate.**
+- Coverage/scope vetting of parsed criteria (no tuned percentage; any omitted substantive logic fails): ok×408, coverage_failed×36, atoms_downgraded×21. coverage_failed ⇒ whole criterion became one text leaf (UNKNOWN).
+- Leaf kinds across parsed criteria: text×459, atom×26, timing×6.
+
+## 2026-10-06T04:22:32.094Z — 04c-coverage-clauses (original cohort; clause representation; splitter + atom-semantics guards + coverage checks cov-1 active)
+
+- Command: `pnpm spike:coverage2` (COVERAGE_CHUNK=15, COVERAGE_REASONING=low, max_tokens 8192; judge reasoning default ON). Parser MID `nvidia/nemotron-3-super-120b-a12b`, prompt `spike-4`, json_schema mode, 46 batch calls; judge DEEP `nvidia/Nemotron-3-Ultra-550b-a55b` on code-evaluable criteria only.
+- Batch validation (index set exact + every leaf source is a verbatim fragment): first-attempt valid 41/46; valid after the one retry 4; **rejected after retry 1** (all their criteria → UNRESOLVED → UNKNOWN; last-attempt reasons: leaf source not verbatim×1); truncated outputs 0; judge batches failed 0.
+- Tokens (parse): prompt 102562, completion 81566; parse wall 82528 ms at concurrency 6; total HTTP calls 55/400.
+- Denominator: 431 bullet-level criteria in the fixed cohort (30 trials; regex split). Parsed 416, **unresolved 15** (kept as UNKNOWN scoring criteria). Non-scoring (category consent_logistics, derived in code): 47; scoring denominator = 384 (non-consent parsed + all unresolved).
+- Definitions: **code-evaluable** = every leaf is an atom whose operator/value/unit are valid and convertible in code (no text/timing leaves) · **reviewed full-logic (headline)** = code-evaluable AND the independent DEEP judge says the clause captures the entire criterion · **partial-typed** = ≥1 atom leaf but not fully executable (text/timing remain on the free-text path).
+
+| Stratum (scoring, unresolved included) | n | unresolved | code-evaluable | reviewed full-logic (headline) | ≥1 atom (partial-typed) |
+|---|---|---|---|---|---|
+| all scoring (incl. unresolved) | 384 | 15/384 (3.9%) | 4/384 (1%) | 4/384 (1%) | 9/384 (2.3%) |
+| inclusion | 189 | 15/189 (7.9%) | 4/189 (2.1%) | 4/189 (2.1%) | 9/189 (4.8%) |
+| exclusion | 195 | 0/195 (0%) | 0/195 (0%) | 0/195 (0%) | 0/195 (0%) |
+| simple wording (heuristic) | 222 | 11/222 (5%) | 3/222 (1.4%) | 3/222 (1.4%) | 8/222 (3.6%) |
+| compound wording (heuristic) | 162 | 4/162 (2.5%) | 1/162 (0.6%) | 1/162 (0.6%) | 1/162 (0.6%) |
+
+**Gate (reviewed full-logic over all scoring incl. unresolved): 4/384 (1%) → STOP AND REASSESS (<40%).** Schedule gate only; not an accuracy or safety claim. The earlier 5.7% used a different denominator (parser-scoring only, 20 missing excluded) and a single-fact representation, so it is not directly comparable.
+- Judge on 4 code-evaluable criteria: full 4, partial 0, wrong 0, unjudged 0.
+- Vocabulary-touch proxy (any leaf touches a vocabulary key, parsed criteria): 24/384 (6.3%). **Unvalidated proxy, not a typed rate.**
+- Coverage/scope vetting of parsed criteria (no tuned percentage; any omitted substantive logic fails): ok×350, coverage_failed×47, atoms_downgraded×19. coverage_failed ⇒ whole criterion became one text leaf (UNKNOWN).
+- Leaf kinds across parsed criteria: text×440, timing×1, atom×12.
+
+## 2026-10-06T04:24:15.380Z — 04c-coverage-clauses (fresh cohort; clause representation; splitter + atom-semantics guards + coverage checks cov-1 active)
+
+- Command: `pnpm spike:coverage2` (COVERAGE_CHUNK=15, COVERAGE_REASONING=low, max_tokens 8192; judge reasoning default ON). Parser MID `nvidia/nemotron-3-super-120b-a12b`, prompt `spike-4`, json_schema mode, 46 batch calls; judge DEEP `nvidia/Nemotron-3-Ultra-550b-a55b` on code-evaluable criteria only.
+- Batch validation (index set exact + every leaf source is a verbatim fragment): first-attempt valid 34/46; valid after the one retry 10; **rejected after retry 2** (all their criteria → UNRESOLVED → UNKNOWN; last-attempt reasons: leaf source not verbatim×2); truncated outputs 0; judge batches failed 0.
+- Tokens (parse): prompt 126015, completion 102183; parse wall 99428 ms at concurrency 6; total HTTP calls 63/400.
+- Denominator: 487 bullet-level criteria in the fixed cohort (30 trials; regex split). Parsed 457, **unresolved 30** (kept as UNKNOWN scoring criteria). Non-scoring (category consent_logistics, derived in code): 52; scoring denominator = 435 (non-consent parsed + all unresolved).
+- Definitions: **code-evaluable** = every leaf is an atom whose operator/value/unit are valid and convertible in code (no text/timing leaves) · **reviewed full-logic (headline)** = code-evaluable AND the independent DEEP judge says the clause captures the entire criterion · **partial-typed** = ≥1 atom leaf but not fully executable (text/timing remain on the free-text path).
+
+| Stratum (scoring, unresolved included) | n | unresolved | code-evaluable | reviewed full-logic (headline) | ≥1 atom (partial-typed) |
+|---|---|---|---|---|---|
+| all scoring (incl. unresolved) | 435 | 30/435 (6.9%) | 7/435 (1.6%) | 7/435 (1.6%) | 13/435 (3%) |
+| inclusion | 217 | 14/217 (6.5%) | 6/217 (2.8%) | 6/217 (2.8%) | 12/217 (5.5%) |
+| exclusion | 218 | 16/218 (7.3%) | 1/218 (0.5%) | 1/218 (0.5%) | 1/218 (0.5%) |
+| simple wording (heuristic) | 266 | 19/266 (7.1%) | 6/266 (2.3%) | 6/266 (2.3%) | 12/266 (4.5%) |
+| compound wording (heuristic) | 169 | 11/169 (6.5%) | 1/169 (0.6%) | 1/169 (0.6%) | 1/169 (0.6%) |
+
+**Gate (reviewed full-logic over all scoring incl. unresolved): 7/435 (1.6%) → STOP AND REASSESS (<40%).** Schedule gate only; not an accuracy or safety claim. The earlier 5.7% used a different denominator (parser-scoring only, 20 missing excluded) and a single-fact representation, so it is not directly comparable.
+- Judge on 7 code-evaluable criteria: full 7, partial 0, wrong 0, unjudged 0.
+- Vocabulary-touch proxy (any leaf touches a vocabulary key, parsed criteria): 54/435 (12.4%). **Unvalidated proxy, not a typed rate.**
+- Coverage/scope vetting of parsed criteria (no tuned percentage; any omitted substantive logic fails): ok×399, coverage_failed×24, atoms_downgraded×34. coverage_failed ⇒ whole criterion became one text leaf (UNKNOWN).
+- Leaf kinds across parsed criteria: text×469, timing×6, atom×18.
+
+## 2026-10-06T04:25Z — Conditional blocks, coverage/scope vetting, adversarial cases: results and FREEZE
+
+**Process.** Per Kumar's review: adversarial regression cases were written BEFORE the implementation (`coverage.test.ts`, `blocks.test.ts`), then the schema, engine, guard, prompt (`spike-4`) and checks (`cov-1`) were implemented. Rule D and the 80-call cap are unchanged; tier logic is unchanged.
+
+**Exploits found by deliberately attacking the first design (each is now a test):** negation isolated in its own text leaf ("No" + an atom) tiles the sentence but yields a false FAIL for a patient with no chemotherapy; negation split from what it governs; a leaf made only of logic words; receptor polarity inverted; a `false`/`neq` assertion that only negation could justify; a qualifier hidden inside an atom's source ("of childbearing potential" inside `sex = female`). From the development cohorts' judge-"wrong" parses: no relational marker for the operator (`eq 100` from "Platelets - 100 …"), a hallucinated unit (`g/dL` for a 10⁹/L source), "over 18" parsed as ≥, "within 28 days" parsed as ≥ 28, an unmodelled relative clause. All closed deterministically.
+
+**Development-cohort coverage (both cohorts are DEVELOPMENT data; same CT.gov cohorts as before; reasoning=low, chunk 15; denominators include unresolved parses):**
+
+| Configuration | Original: reviewed full-logic | Fresh: reviewed full-logic | Judge "wrong" (orig / fresh) | coverage_failed (orig / fresh) |
+|---|---|---|---|---|
+| Before this round (`spike-3`, no vetting) | 6.5% (25/385) | 8.7% (38/436) | 6 / 3 | n/a |
+| `spike-4` blocks + coverage vetting | 4.5% (17/378) | 3.7% (16/431) | 2 / 5 | 43 / 35 |
+| + operator, unit, modal/relative checks | 3.7% (14/376) | 3.0% (13/438) | 1 / 0 | 51 / 36 |
+| **FROZEN: + atom purity (`cov-1`)** | **1.0% (4/384)** | **1.6% (7/435)** | 0 / 0 (judge full 4/4, 7/7) | 47 / 24 |
+
+Frozen run detail: original: unresolved 15 (3.9%), code-evaluable 4, ≥1 atom 9 (2.3%), vet ok 350 / coverage_failed 47 / atoms_downgraded 19, leaf kinds text 440 / atom 12 / timing 1, criteria with a conditional block 6. Fresh: unresolved 30 (6.9%; 2 rejected batches), code-evaluable 7, ≥1 atom 13 (3%), vet ok 399 / coverage_failed 24 / atoms_downgraded 34, text 469 / atom 18 / timing 6, conditional blocks 4. Exclusion criteria are ~0% typed (they are negation-heavy, and an asserted negation is never provable). The unresolved count varies run to run (batch rejections).
+
+**Reading.** Soundness-first checking removed essentially every executable parse that the judge or my reading found unsound, at the price of nearly all typed coverage: with a 35-key vocabulary, almost every real criterion carries a qualifier, negation, threshold or timing the vocabulary cannot represent, so it correctly falls to the free-text path. **Typed code evaluation is now ~1–2% of criteria**; the product's value rests on the free-text path (LLM evaluation + rule-D verification), not on typed facts. This bears directly on the adaptive-question demo scope (only a handful of criteria reference askable typed facts). Real parses now produce the audited conditional shapes as blocks: the pregnancy-test bullet becomes two blocks with the 7-day timing and the contraception requirement preserved (52 F, `pregnant=false` ⇒ block 1 `not_applicable` via the stated age band, block 2 unknown ⇒ **UNKNOWN**), and the anti-HER2 bullet is no longer a false FAIL (UNKNOWN here because its `when` was parsed as text; a HER2-negative patient would only be PASS if the `when` were an atom).
+
+**FROZEN (before any untouched-cohort measurement):** parser prompt `spike-4`; coverage/scope checks `cov-1`; section splitter; atom-semantics guards; rule D; tier logic; 80-call cap. No further change without bumping the version and treating the result as development data. The untouched-cohort protocol above applies (pages 5–8, excluding all used ids, run once).
+
+**Not re-measured this round:** the end-to-end run and mismatch audit (they were last run with `spike-3`); the untouched cohort (not fetched); verifier accuracy; UI (design export not yet attached).

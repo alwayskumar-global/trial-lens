@@ -8,7 +8,7 @@ import type { FactKey } from "@/schema/vocabulary";
 
 // Lexical cues: the atom's `source` fragment must match at least one for its fact_key.
 // VERIFY: cue lists are English-only and tuned on the Phase 1 cohort; widen on evidence, not by feel.
-const CUES: Record<FactKey, RegExp> = {
+export const CUES: Record<FactKey, RegExp> = {
   age: /\bage\b|\baged\b|\byears?\b|\byrs?\b|\bolder\b|\badults?\b/i,
   sex: /\b(?:males?|females?|men|women|woman|man|sex|gender)\b/i,
   stage: /\bstage\b|\bAJCC\b|\bTNM\b|\b[cpy]?T[0-4x]|\bM[01]\b|\bN[0-3x]/i,

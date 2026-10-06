@@ -1,6 +1,6 @@
-# Proposal for review (revision 2): conditional criteria ("if A, then B")
+# Conditional criteria ("if A, then B"): APPROVED design, implemented (revision 3)
 
-**Status: proposal only. The clause schema is NOT changed.** Revision 2 corrects revision 1 after review. Interim safety nets already in code: rule D (every FAIL independently verified, applicability must be established), the splitter fix, and the atom-semantics guards, including the new guard that a pregnancy *test* wording cannot be typed as `pregnant` status.
+**Status: approved by Kumar and implemented** (`src/schema/clause.ts`, `src/lib/engine/{clause,coverage,reconcile,guard}.ts`, parser prompt `spike-4`, checks `cov-1`). Approved: per-block structure; per-block applicability with cited evidence; proven non-applicability from a known-false atom in the criterion's own explicitly scoped, conjunctive `when`; no derived `childbearing_potential`. **Changed in rev 3:** the coverage check (below). Revision 2 corrected revision 1. Interim safety nets already in code: rule D (every FAIL independently verified, applicability must be established), the splitter fix, and the atom-semantics guards, including the new guard that a pregnancy *test* wording cannot be typed as `pregnant` status.
 
 ## What revision 1 got wrong
 Revision 1's T1 let a 52-year-old with `pregnant = false` reach PASS on the "women of childbearing potential … must have a negative pregnancy test within 7 days … must use contraception" criterion. That is unsound for three reasons:
@@ -26,7 +26,8 @@ criterion  = AND over blocks
 - Engine tree: `{ kind: "if", when: ClauseNode, then: ClauseNode }`, blocks joined with `all`.
 - **`when` is inclusion-only.** Exclusion statements read as conjunctions or `except`. A `when` on an exclusion criterion is rejected by the batch schema (retry) and, if it persists, downgraded to a single `text` leaf.
 - Nested conditionals stay a single `text` leaf. Completeness is `full` only if every leaf in every `when` and `then` is an executable atom; otherwise `partial`.
-- **Coverage check (code, proposed):** the leaf `source` spans must jointly cover the criterion text (normalised, ignoring list markers and connectives). Uncovered substantive text (for example a dropped contraception sentence) ⇒ the whole criterion is downgraded to one `text` leaf ⇒ UNKNOWN. The threshold is to be tuned on development data, then frozen.
+- **Coverage check (code; rev 3, replaces the percentage idea):** there is **no tuned percentage**. Whitespace, list markers, markdown escapes, case and full-width punctuation are normalised; **connectives, negation, exceptions, thresholds and timing are never discarded**. The leaf `source` spans must tile the criterion: every uncovered word must be plain filler (articles, copulas, "must", generic nouns such as "patients") or a connective the block structure justifies (`and` ⇒ same `all` list or different blocks; `or` ⇒ same `any`/`except` list; `unless/except` ⇒ an except leaf; `who/with/if/for` ⇒ a `when` leaf). Any other uncovered word (negation, number, timing, population, modal, noun) fails the criterion. A word cannot be claimed twice; a leaf made only of logic words is rejected; negation inside a text/timing leaf downgrades every atom in its block. **If the parser cannot prove every requirement and its logical scope survived, the WHOLE criterion becomes one text leaf holding the verbatim original ⇒ UNKNOWN.**
+- **Atom purity (code):** an executable atom is ONE affirmative proposition. Its source may contain no negation, connective (except an `in`-set "or" or a numeric "between … and"), time window, relative clause or modal, no number the atom does not carry, and no content word the fact, value or unit does not account for (so "Women of childbearing potential" is NOT `sex = female`). The operator must match the comparator words ("over 18" is `gt`; "within 28 days" is `lt/lte`), the unit must literally appear in the source, receptor polarity must match, and a `false`/`neq`/`not_in` assertion (which only negation language could justify) is never executable. A failing atom is downgraded to a text leaf in place.
 - Parser/judge prompts and `PARSER_VERSION` change with the schema (cache invalidation).
 
 ## Corrected truth table
@@ -46,7 +47,8 @@ criterion  = AND over blocks
 
 **Multi-block rule.** Blocks are evaluated independently, then ANDed. A vacuous PASS for one block never covers another block: the criterion is PASS only if every block is true; FAIL candidate if any block is false; otherwise UNKNOWN.
 
-## Regression cases for review (to be written after approval)
+## Regression cases (written BEFORE implementation; now executable)
+Implemented in `src/lib/engine/blocks.test.ts` (truth table, T1/T1b/T1c/T1d/T9, proven non-applicability, T11, guard) and `src/lib/engine/coverage.test.ts` (adversarial rounds 1–4: A1–A32, S1–S4, V1–V4). The table below is the review list that preceded them.
 Source: the pregnancy-test bullet seen in the Phase 1 audit (NCT06627712 inclusion shape), quoted by fragment only.
 
 | # | Case | Expected |

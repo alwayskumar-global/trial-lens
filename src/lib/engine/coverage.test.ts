@@ -145,6 +145,63 @@ describe("ADVERSARIAL round 2: tiling tricks that must not launder logic", () =>
   });
 });
 
+describe("ADVERSARIAL round 3: operator, unit and qualifier fidelity (from development-cohort judge-'wrong' parses)", () => {
+  it("A23 a numeric operator needs a relational marker in the cited text (no marker ⇒ not executable)", () => {
+    expect(atomScopeProblems(atom("Platelets - 100 x 109/L", "platelets", "eq", 100, "10^9/L"))).not.toEqual([]);
+    expect(atomScopeProblems(atom("Platelets >= 100 x 109/L", "platelets", "gte", 100, "10^9/L"))).toEqual([]);
+  });
+  it("A24 a unit that is not in the cited text is a hallucination (g/dL for a 10^9/L source)", () => {
+    expect(atomScopeProblems(atom("Hemoglobin >= 9 x 109/L", "hemoglobin", "gte", 9, "g/dL"))).not.toEqual([]);
+    expect(atomScopeProblems(atom("Hemoglobin >= 9 g/dL", "hemoglobin", "gte", 9, "g/dL"))).toEqual([]);
+  });
+  it("A25 the operator must match the comparator words: 'over 18' is gt, not gte", () => {
+    expect(atomScopeProblems(atom("over the age of 18 years", "age", "gte", 18, "years"))).not.toEqual([]);
+    expect(atomScopeProblems(atom("over the age of 18 years", "age", "gt", 18, "years"))).toEqual([]);
+    expect(atomScopeProblems(atom("aged 18 years or older", "age", "gte", 18, "years"))).toEqual([]);
+    expect(atomScopeProblems(atom("at most 2 prior lines", "metastatic_line", "gte", 2))).not.toEqual([]);
+  });
+  it("A26 'within N days' means lte/lt, never gte (inverted timing)", () => {
+    expect(atomScopeProblems(atom("Receiving any anti-tumor therapy within 28 days before enrollment", "days_since_last_systemic_therapy", "gte", 28, "days"))).not.toEqual([]);
+    expect(atomScopeProblems(atom("therapy within 28 days", "days_since_last_systemic_therapy", "gte", 28, "days"))).not.toEqual([]);
+    expect(atomScopeProblems(atom("therapy within 28 days", "days_since_last_systemic_therapy", "lt", 28, "days"))).toEqual([]);
+  });
+  it("A27 relative clauses and modals inside an atom source are unmodelled qualifiers", () => {
+    expect(atomScopeProblems(atom("symptoms that are concerning for brain metastases that would otherwise be referred", "cns_mets", "eq", "active"))).not.toEqual([]);
+    expect(atomScopeProblems(atom("Active brain metastases", "cns_mets", "eq", "active"))).toEqual([]);
+  });
+  it("A28 ranges and legitimate forms stay executable", () => {
+    const lo = atom("aged 18-75 years", "age", "gte", 18, "years");
+    const hi = atom("aged 18-75 years", "age", "lte", 75, "years");
+    expect(atomScopeProblems(lo, [hi])).toEqual([]);
+    expect(atomScopeProblems(hi, [lo])).toEqual([]);
+    expect(atomScopeProblems(atom("ANC >= 1,500/mm3", "anc", "gte", 1500, "/mm3"))).toEqual([]);
+    expect(atomScopeProblems(atom("bilirubin <= 1.5 x ULN", "bilirubin_x_uln", "lte", 1.5, "x ULN"))).toEqual([]);
+    expect(atomScopeProblems(atom("LVEF >= 50%", "lvef_percent", "gte", 50, "%"))).toEqual([]);
+  });
+});
+
+describe("ADVERSARIAL round 4: an atom must account for EVERY content word of its source (no silent qualifiers)", () => {
+  it("A29 population qualifier dropped inside an atom: 'Women of childbearing potential' is NOT sex = female", () => {
+    expect(atomScopeProblems(atom("Women of childbearing potential", "sex", "eq", "female"))).not.toEqual([]);
+    expect(atomScopeProblems(atom("Women", "sex", "eq", "female"))).toEqual([]);
+  });
+  it("A30 diagnostic-confirmation / severity qualifiers are not representable by the fact", () => {
+    expect(atomScopeProblems(atom("histologically confirmed HER2-negative", "her2_status", "eq", "negative"))).not.toEqual([]);
+    expect(atomScopeProblems(atom("symptomatic brain metastases", "cns_mets", "eq", "active"))).not.toEqual([]);
+    expect(atomScopeProblems(atom("Active brain metastases", "cns_mets", "eq", "active"))).toEqual([]);
+  });
+  it("A31 ordinary lab / performance wording stays executable", () => {
+    expect(atomScopeProblems(atom("Absolute neutrophil count (ANC) >= 1,000/mm3", "anc", "gte", 1000, "/mm3"))).toEqual([]);
+    expect(atomScopeProblems(atom("ECOG performance status 0-1", "ecog", "in", ["0", "1"]))).toEqual([]);
+    expect(atomScopeProblems(atom("Platelet count >= 100 x 109/L", "platelets", "gte", 100, "10^9/L"))).toEqual([]);
+    expect(atomScopeProblems(atom("Measurable disease per RECIST v1.1", "measurable_disease", "eq", true))).toEqual([]);
+  });
+  it("A32 vetCriterion: the audited T1 'when' atom (sex with a qualifier) is downgraded to text, so applicability stays unknown for a 30-year-old", () => {
+    const r = vetCriterion("Women of childbearing potential must have a negative pregnancy test", "inclusion", critBlocks([block([atom("Women of childbearing potential", "sex", "eq", "female")], [text("must have a negative pregnancy test")])]));
+    expect(r.criterion.blocks[0]!.when[0]!.kind).toBe("text");
+  });
+});
+
 describe("atom scope: an executable atom must be ONE proposition whose logic words are accounted for", () => {
   const leaf = atom;
   it("S1 a compound sentence as a single atom is not executable (and/or/unless/negation/timing/numbers)", () => {

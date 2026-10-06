@@ -55,7 +55,7 @@ Anything not mappable → kept as a `text` leaf (see `docs/clause-representation
 
 `Fact` invariants (enforced by Zod): `state: "known"` requires a `value` that conforms to the vocabulary type (number finite, bool boolean, enum in `values`); `state: "unknown"` must not carry a value.
 
-Compound criteria: `ParsedCriterion` gains a `clause` (tree of `atom | text | timing` leaves joined by `all | any | except`, every leaf with an exact `source` fragment); `scoring` is derived (`category !== consent_logistics`), not model output; parse completeness is `full | partial | unresolved`.
+Compound and conditional criteria: a criterion is 1–4 BLOCKS (all must hold); a block is `when` (optional, inclusion only, conjunctive) → `items` (all|any) minus `except`; evaluation per block is `¬when ∨ requirement`, findings carry per-block `applicability` with cited known-fact evidence; a `ParsedCriterion` gains a `clause` (tree of `atom | text | timing` leaves joined by `all | any | except`, every leaf with an exact `source` fragment); `scoring` is derived (`category !== consent_logistics`), not model output; parse completeness is `full | partial | unresolved`.
 
 ## 2. Types (Zod-equivalent TS)
 
