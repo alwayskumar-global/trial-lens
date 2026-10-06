@@ -24,7 +24,9 @@ mm.forEach((t, ti) => {
   const fails = t.criteria.filter((c) => c.finding.status === "FAIL");
   console.log(`#${ti + 1} ${t.nct_id} flags=[${t.flags}] FAILs=${fails.length}`);
   fails.forEach((c) => {
-    nFail++; c.finding.source === "code" ? code++ : llm++;
+    nFail++;
+    if (c.finding.source === "code") code++;
+    else llm++;
     const ev = c.finding.evidence.map((k) => `${k}=${JSON.stringify(pv.get(k)?.value)}${pv.get(k)?.state === "uncertain" ? "(uncertain)" : ""}`).join(", ");
     console.log(`   - [${c.finding.source}] ${c.id.split(":").slice(1).join(":")} (${c.type}, ${c.completeness}, ${c.category})\n       TEXT: ${c.text.replace(/\s+/g, " ").slice(0, 190)}\n       EVIDENCE: ${ev || "(none)"}${c.finding.source === "code" ? `\n       CLAUSE: ${fmt(c.clause)}` : ""}`);
   });
