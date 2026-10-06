@@ -23,3 +23,15 @@ describe("UI copy audit", () => {
     });
   }
 });
+
+// Live mode analyzes a PREPARED FICTIONAL profile; visitors provide no information. Live screens must never imply they did.
+describe("live copy refers to the prepared fictional profile, not the visitor", () => {
+  const BAD = [/what you told us/i, /your information/i, /your info\b/i, /your age and sex/i, /Reading your description/i];
+  const LIVE_FILES = [...files("src/components/live"), ...files("src/lib/live")];
+  for (const f of LIVE_FILES) {
+    it(f, () => {
+      const src = readFileSync(f, "utf8");
+      for (const re of BAD) expect(src, String(re)).not.toMatch(re);
+    });
+  }
+});

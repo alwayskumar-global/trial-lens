@@ -6,7 +6,7 @@ export function CoverageRow({ run, replay }: { run: Pick<RunState, "counts" | "t
   const { discovered, filtered, selected } = run.counts;
   const parts = [
     discovered !== undefined && `${discovered} recruiting studies found`,
-    filtered !== undefined && `${filtered} fit ${replay ? "this profile's" : "your"} age and sex`,
+    filtered !== undefined && `${filtered} fit ${replay ? "this profile's" : "the prepared fictional profile's"} age and sex`,
     selected !== undefined && `${selected} selected for review`,
   ].filter(Boolean);
   return (

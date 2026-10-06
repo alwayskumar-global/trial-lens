@@ -2,8 +2,8 @@ import { StatusGlyph } from "../status/StatusGlyph";
 import { ASK_TEAM, FAILED_TAG } from "@/lib/live/copy";
 import { factLabel, rowTitle, type RowModel, type TrialKind } from "@/lib/live/model";
 
-/** Criterion row for live/replay Detail: Original wording | From your info (+ Automated note). No plain-language column until rewrites exist. */
-export function CriterionRow({ row, subject, kind, defaultOpen }: { row: RowModel; subject: "your info" | "the fictional profile"; kind: TrialKind; defaultOpen?: boolean }) {
+/** Criterion row for live/replay Detail: Original wording | From the profile (+ Automated note). No plain-language column until rewrites exist. */
+export function CriterionRow({ row, subject, kind, defaultOpen }: { row: RowModel; subject: string; kind: TrialKind; defaultOpen?: boolean }) {
   const t = rowTitle(row.text);
   const notAnalyzed = row.status === "not_analyzed";
   const status = notAnalyzed ? "unknown" : row.status;
@@ -30,7 +30,7 @@ export function CriterionRow({ row, subject, kind, defaultOpen }: { row: RowMode
           <blockquote className="tl-strip__orig">{row.text}</blockquote>
         </div>
         <div className="tl-strip__col">
-          <h4>{subject === "your info" ? "From your info" : "From the fictional profile"}</h4>
+          <h4>From {subject}</h4>
           {notAnalyzed ? (
             <span className="tl-chip tl-chip--dashed">Not compared</span>
           ) : row.evidence.length > 0 ? (

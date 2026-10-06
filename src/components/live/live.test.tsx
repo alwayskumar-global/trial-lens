@@ -24,14 +24,15 @@ const noop = () => {};
 describe("LiveProcessing", () => {
   it("lists only started steps, shows counts only once received, never a percentage or duration", () => {
     const early = html(<LiveProcessing run={run({ type: "mode", mode: "live" }, { type: "stage", stage: "extraction", status: "start" })} />);
-    expect(early).toContain("Reading your description");
+    expect(early).toContain("Reading the prepared fictional profile");
     expect(early).not.toContain("Finding recruiting studies"); // not started: no waiting rows
     expect(early).not.toMatch(/details found|\bfound\b.*selected/); // counts not received yet
     const later = html(
       <LiveProcessing run={run({ type: "mode", mode: "live" }, { type: "stage", stage: "extraction", status: "done" }, { type: "profile", facts: [{ key: "age", state: "known", value: 52 }, { key: "sex", state: "known", value: "female" }] }, { type: "stage", stage: "discovery", status: "done" }, { type: "counts", discovered: 120, filtered: 115, selected: 30 }, { type: "stage", stage: "parse", status: "start" })} />,
     );
     expect(later).toContain("2 details found");
-    expect(later).toContain("120 found · 115 fit your age and sex · 30 selected");
+    expect(later).toContain("Reading the prepared fictional profile");
+    expect(later).toContain("120 found · 115 fit the prepared fictional profile&#x27;s age and sex · 30 selected");
     for (const h of [early, later]) {
       expect(h).not.toMatch(/\d\s?%/);
       expect(h).not.toMatch(/under a minute|usually takes|seconds|Skip/i);
@@ -43,8 +44,8 @@ describe("LiveProcessing", () => {
 
 describe("LiveCard", () => {
   it("pending and failed cards keep distinct text, tags and stay Uncertain", () => {
-    const p = html(<LiveCard m={cardModel(pending)} subject="your information" onOpen={noop} />);
-    const f = html(<LiveCard m={cardModel(failed)} subject="your information" onOpen={noop} />);
+    const p = html(<LiveCard m={cardModel(pending)} subject="the prepared fictional profile" onOpen={noop} />);
+    const f = html(<LiveCard m={cardModel(failed)} subject="the prepared fictional profile" onOpen={noop} />);
     expect(p).toContain("Not analyzed this run");
     expect(p).toContain("didn&#x27;t have capacity");
     expect(f).toContain("Couldn&#x27;t be read");
@@ -58,16 +59,16 @@ describe("LiveCard", () => {
   });
 
   it("no 'meets' tick when zero criteria are met; the tick appears once one is", () => {
-    const zero = html(<LiveCard m={cardModel(noMet)} subject="your information" onOpen={noop} />);
+    const zero = html(<LiveCard m={cardModel(noMet)} subject="the prepared fictional profile" onOpen={noop} />);
     expect(zero).toContain("0 criteria look fine so far");
     expect(zero).toContain("tl-glyph--unknown");
     expect(zero).not.toContain("tl-glyph--meets");
-    const some = html(<LiveCard m={cardModel(assessedPossible)} subject="your information" onOpen={noop} />);
+    const some = html(<LiveCard m={cardModel(assessedPossible)} subject="the prepared fictional profile" onOpen={noop} />);
     expect(some).toContain("tl-glyph--meets");
   });
 
   it("quotes only whole criteria, labelled 'Criterion excerpt'; a long one is never cut off", () => {
-    const h = html(<LiveCard m={cardModel(assessedPossible)} subject="your information" onOpen={noop} />);
+    const h = html(<LiveCard m={cardModel(assessedPossible)} subject="the prepared fictional profile" onOpen={noop} />);
     expect(h).toContain("Criterion excerpt");
     expect(h).toContain("“Women 18 years or older”");
     expect(h).toContain("too long to quote here");
@@ -89,7 +90,7 @@ describe("LiveResults", () => {
     expect(h).toContain("1 not analyzed this run");
     expect(h).toContain("1 couldn&#x27;t be read");
     expect(h).toContain("5 studies selected for review");
-    expect(h).toContain("120 recruiting studies found, 115 fit your age and sex, 5 selected for review");
+    expect(h).toContain("120 recruiting studies found, 115 fit the prepared fictional profile&#x27;s age and sex, 5 selected for review");
     expect(h).toContain("Not analyzed or couldn&#x27;t be read");
     expect(h).toContain("They are not matches or mismatches");
     expect(h).toContain("Live run");
@@ -137,10 +138,10 @@ describe("LiveResults", () => {
 describe("LiveDetail", () => {
   const detail = (t: typeof assessedPossible, mode: "live" | "replay" = "live") => html(<LiveDetail run={{ ...resultsRun(mode), profile: [{ key: "age", value: 52 }] }} trial={t} onBack={noop} />);
 
-  it("shows original wording and 'From your info', no plain-language column, 'Automated note', 'Not provided'", () => {
+  it("shows original wording and 'From the prepared fictional profile', no plain-language column, 'Automated note', 'Not provided'", () => {
     const h = detail(assessedPossible);
     expect(h).toContain("Original wording");
-    expect(h).toContain("From your info");
+    expect(h).toContain("From the prepared fictional profile");
     expect(h).toContain("age: 52");
     expect(h).toContain("Automated note:");
     expect(h).toContain("No data on prior genetic testing");
@@ -188,6 +189,6 @@ describe("LiveDetail", () => {
     expect(h).toContain("Saved fictional example");
     expect(h).toContain("does not use your description");
     expect(h).toContain("From the fictional profile");
-    expect(h).not.toContain("From your info");
+    expect(h).not.toContain("From the prepared fictional profile");
   });
 });

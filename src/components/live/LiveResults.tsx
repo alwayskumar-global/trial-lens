@@ -3,7 +3,7 @@ import { useState } from "react";
 import { FitBar } from "../results/FitBar";
 import { FitLine } from "../results/FitLine";
 import { TierBadge, type Tier } from "../status/TierBadge";
-import { NOT_ANALYZED_GROUP, NOT_ANALYZED_GROUP_NOTE } from "@/lib/live/copy";
+import { LIVE_SUBJECT, NOT_ANALYZED_GROUP, NOT_ANALYZED_GROUP_NOTE, REPLAY_SUBJECT } from "@/lib/live/copy";
 import { cardModel, tierCounts, trialKind, uiTier, type RunState } from "@/lib/live/model";
 import type { TrialResult } from "@/schema/assessment";
 import { CoverageRow } from "./CoverageRow";
@@ -19,7 +19,7 @@ const dashedNote = (t: TrialResult) => (trialKind(t) === "pending" ? "not analyz
 export function LiveResults({ run, onOpen }: { run: RunState; onOpen: (nct: string) => void }) {
   const [filter, setFilter] = useState<Tier | null>(null);
   const replay = run.mode === "replay";
-  const subject = replay ? "the fictional profile" : "your information";
+  const subject = replay ? REPLAY_SUBJECT : LIVE_SUBJECT;
   const trials = run.trials;
   const counts = tierCounts(trials);
   const unfinished = trials.filter((t) => trialKind(t) !== "assessed");

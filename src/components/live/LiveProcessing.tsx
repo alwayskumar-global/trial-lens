@@ -9,7 +9,7 @@ function stageCount(stage: string, s: RunState): string {
   if (stage === "extraction" && s.profile) return `${s.profile.length} details found`;
   if (stage === "discovery") {
     const { discovered, filtered, selected } = s.counts;
-    const parts = [discovered !== undefined && `${discovered} found`, filtered !== undefined && `${filtered} fit your age and sex`, selected !== undefined && `${selected} selected`].filter(Boolean);
+    const parts = [discovered !== undefined && `${discovered} found`, filtered !== undefined && `${filtered} fit the prepared fictional profile's age and sex`, selected !== undefined && `${selected} selected`].filter(Boolean);
     return parts.join(" · ");
   }
   return "";

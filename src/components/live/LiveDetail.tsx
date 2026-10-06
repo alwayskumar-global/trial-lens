@@ -3,7 +3,7 @@ import { Button } from "../actions/Button";
 import { CriterionGroup } from "../results/CriterionStrip";
 import { StatusGlyph } from "../status/StatusGlyph";
 import { TierBadge } from "../status/TierBadge";
-import { FAILED_DETAIL, FAILED_TAG, OPEN_ON_CTGOV, PENDING_DETAIL, PENDING_TAG } from "@/lib/live/copy";
+import { FAILED_DETAIL, FAILED_TAG, LIVE_SUBJECT, OPEN_ON_CTGOV, PENDING_DETAIL, PENDING_TAG, REPLAY_SUBJECT } from "@/lib/live/copy";
 import { detailModel, uiTier, type RunState } from "@/lib/live/model";
 import type { TrialResult } from "@/schema/assessment";
 import { CriterionRow } from "./CriterionRow";
@@ -12,7 +12,7 @@ import { LiveShell } from "./LiveShell";
 /** Detail for a streamed trial: verbatim criteria with what they were compared to, and the official ClinicalTrials.gov link. */
 export function LiveDetail({ run, trial: t, onBack }: { run: RunState; trial: TrialResult; onBack: () => void }) {
   const replay = run.mode === "replay";
-  const subject = replay ? "the fictional profile" : "your info";
+  const subject = replay ? REPLAY_SUBJECT : LIVE_SUBJECT;
   const m = detailModel(t, run.profile);
   const unfinished = m.kind !== "assessed";
   return (
@@ -57,7 +57,7 @@ export function LiveDetail({ run, trial: t, onBack }: { run: RunState; trial: Tr
               <div>
                 <h2 className="tl-h2">Eligibility criteria</h2>
                 <p className="tl-small" style={{ color: "var(--muted-foreground)", margin: "6px 0 0" }}>
-                  {unfinished ? "Original wording from ClinicalTrials.gov. Nothing has been compared with your information." : "Original wording from ClinicalTrials.gov, with what we compared it to. Open any row to read it."}
+                  {unfinished ? `Original wording from ClinicalTrials.gov. Nothing has been compared with ${subject}.` : "Original wording from ClinicalTrials.gov, with what we compared it to. Open any row to read it."}
                 </p>
               </div>
               {m.attention.length > 0 && (
@@ -68,7 +68,7 @@ export function LiveDetail({ run, trial: t, onBack }: { run: RunState; trial: Tr
                 </div>
               )}
               {m.unknown.length > 0 && (
-                <CriterionGroup title={replay ? "Unknown: not in the fictional profile" : "Unknown: not in your information"} count={m.unknown.length} defaultOpen>
+                <CriterionGroup title={`Unknown: not in ${subject}`} count={m.unknown.length} defaultOpen>
                   {m.unknown.map((r) => (
                     <CriterionRow key={r.id} row={r} subject={subject} kind={m.kind} />
                   ))}
@@ -101,7 +101,7 @@ export function LiveDetail({ run, trial: t, onBack }: { run: RunState; trial: Tr
                   </li>
                   <li>
                     <StatusGlyph status="unknown" />
-                    <span>{m.unknown.length} not in {replay ? "the fictional profile" : "the information given"}</span>
+                    <span>{m.unknown.length} not in {subject}</span>
                   </li>
                   {t.verified && t.tier !== "LIKELY_MISMATCH" && (
                     <li>

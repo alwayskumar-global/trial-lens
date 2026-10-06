@@ -7,20 +7,20 @@ export type ReplayReason = NonNullable<ModeEvent["reason"]>;
 
 export const TAG_LIVE = "Live run";
 export const TAG_REPLAY = "Saved fictional example";
-export const TAG_ENTRY = "Fictional profile"; // VERIFY(copy): entry screens in live mode, not in the approved mockups
-export const LIVE_BANNER = "TrialLens compares public trial criteria with what you told us. It can't confirm eligibility. Only a study team can.";
+export const TAG_ENTRY = "Fictional profile"; // approved
+export const LIVE_BANNER = "TrialLens compares public trial criteria with the prepared fictional profile. It can't confirm eligibility. Only a study team can.";
 export const REPLAY_BANNER = "This example compares public trial criteria with a fictional profile. It can't confirm eligibility. Only a study team can.";
 
-export const ANALYZE_LIVE = "Analyze live"; // VERIFY(copy): live-mode button on the Confirm screen (derived from the approved "Analyzing live")
-export const REPLAY_LOADING = "Loading the saved example."; // VERIFY(copy): neutral line while a replay streams in (no stages, no progress)
+export const ANALYZE_LIVE = "Analyze fictional profile live"; // approved by Kumar (reviewer revision)
+export const REPLAY_LOADING = "Loading the saved example."; // approved: neutral line while a replay streams in (no stages, no progress)
 
 export const PROCESSING_TITLE = "Analyzing live";
-export const PROCESSING_LEAD = "We're reading public trial criteria against what you told us. Nothing here is a decision. It's a map to bring to your care team.";
+export const PROCESSING_LEAD = "We're reading public trial criteria against the prepared fictional profile. Nothing here is a decision. It's a map to bring to your care team.";
 export const PROCESSING_FOOT = "Steps and numbers appear as they happen. Results show when the analysis finishes.";
 
 /** Patient-friendly stage names (SSE `stage` values). Unknown stage names are not shown. */
 export const STAGE_LABELS: Record<string, string> = {
-  extraction: "Reading your description",
+  extraction: "Reading the prepared fictional profile",
   discovery: "Finding recruiting studies",
   parse: "Reading each study's criteria",
   typed_evaluation: "Comparing what we can check directly",
@@ -49,13 +49,16 @@ export const FAILED_TAG = "Couldn't be read";
 export const PENDING_CARD = "This run didn't have capacity to read this study's criteria, so we can't say how it fits. It stays Uncertain. Read the original criteria on ClinicalTrials.gov or ask the study team.";
 export const FAILED_CARD = "We couldn't read this study's criteria automatically, so we can't say how it fits. It stays Uncertain. Read the original criteria on ClinicalTrials.gov or ask the study team.";
 export const PENDING_DETAIL = "This run didn't have capacity to read this study's criteria, so we can't say how it fits. It stays Uncertain, which is not a match or a mismatch. The original criteria are below. Read them on ClinicalTrials.gov or ask the study team.";
-export const FAILED_DETAIL = "We couldn't read this study's criteria automatically, so we can't say how it fits. It stays Uncertain, which is not a match or a mismatch. The original criteria are below. Read them on ClinicalTrials.gov or ask the study team."; // VERIFY(copy): detail wording for failed (mirrors the approved pending text)
+export const FAILED_DETAIL = "We couldn't read this study's criteria automatically, so we can't say how it fits. It stays Uncertain, which is not a match or a mismatch. The original criteria are below. Read them on ClinicalTrials.gov or ask the study team."; // approved: detail wording for failed (mirrors the approved pending text)
 export const NOT_ANALYZED_GROUP = "Not analyzed or couldn't be read";
 export const NOT_ANALYZED_GROUP_NOTE = "These stay Uncertain. They are not matches or mismatches.";
 
 export const LONG_WORDING = "its wording is too long to quote here. Open the criteria to read it.";
 export const OPEN_ON_CTGOV = "Open on ClinicalTrials.gov";
+/** How live screens refer to the profile. Visitors provide no information in this flow, so live copy never addresses the visitor as the source (see docs/copy-rules.md). */
+export const LIVE_SUBJECT = "the prepared fictional profile";
+export const REPLAY_SUBJECT = "the fictional profile";
 export const ASK_TEAM = "Worth asking the study team.";
 
-export const ERROR_TITLE = "Live analysis isn't available right now"; // VERIFY(copy): fallback-disabled / network failure, not in the approved mockups
-export const ERROR_BODY = "Nothing was analyzed. Please try again later.";
+export const ERROR_TITLE = "Live analysis isn't available right now"; // approved
+export const ERROR_BODY = "No results are available from this run. Please try again later."; // approved wording: "Nothing was analyzed" can be false after partial progress
