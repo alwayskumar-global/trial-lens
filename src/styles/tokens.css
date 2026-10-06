@@ -1,0 +1,114 @@
+/* TrialLens design tokens: carried over from the Claude Design handoff (tokens/colors|typography|spacing.css).
+   Only changes: fonts via next/font variables; dark tokens ALSO apply from the system preference. */
+/* TrialLens color tokens. Light = :root, dark = [data-theme="dark"]. shadcn/ui-compatible names + tier tokens. */
+:root{
+  --background:#FBF8F3; --foreground:#1E2B2F;
+  --card:#FFFFFF; --card-foreground:#1E2B2F;
+  --popover:#FFFFFF; --popover-foreground:#1E2B2F;
+  --muted:#F4EFE7; --muted-foreground:#5B6A6E;
+  --accent:#E3F1EA; --accent-foreground:#1F5C45;
+  --border:#E4DCCF; --border-strong:#857D6F; --input:#857D6F;
+  --primary:#1F5C45; --primary-hover:#184A38; --primary-foreground:#FFFFFF; --primary-soft:#E3F1EA;
+  --secondary:#F4EFE7; --secondary-foreground:#1E2B2F;
+  --ring:#1F5C45; --ring-width:2px; --ring-offset:2px;
+  --destructive:#8C4A3C; --destructive-foreground:#FFFFFF;
+  --tier-strong-fg:#1F5C45; --tier-strong-bg:#E3F1EA;
+  --tier-possible-fg:#8A6414; --tier-possible-bg:#F8EBCB;
+  --tier-uncertain-fg:#4F5E80; --tier-uncertain-bg:#E6EAF3;
+  --tier-mismatch-fg:#8C4A3C; --tier-mismatch-bg:#F5E3DE;
+  /* status aliases share the tier hues */
+  --status-meets-fg:var(--tier-strong-fg); --status-meets-bg:var(--tier-strong-bg);
+  --status-unknown-fg:var(--tier-possible-fg); --status-unknown-bg:var(--tier-possible-bg);
+  --status-judgment-fg:var(--tier-uncertain-fg); --status-judgment-bg:var(--tier-uncertain-bg);
+  --status-conflict-fg:var(--tier-mismatch-fg); --status-conflict-bg:var(--tier-mismatch-bg);
+  /* semantic aliases */
+  --surface-page:var(--background); --surface-card:var(--card); --surface-sunken:var(--muted);
+  --text-body:var(--foreground); --text-muted:var(--muted-foreground); --text-link:var(--primary);
+  --lens-ring:rgba(31,92,69,.10);
+}
+[data-theme="dark"]{
+  --background:#121A1C; --foreground:#EAF0EE;
+  --card:#1A2427; --card-foreground:#EAF0EE;
+  --popover:#1A2427; --popover-foreground:#EAF0EE;
+  --muted:#212D31; --muted-foreground:#9FB0B3;
+  --accent:#17332A; --accent-foreground:#7FD3A8;
+  --border:#2E3C41; --border-strong:#5F7378; --input:#5F7378;
+  --primary:#6FCFA0; --primary-hover:#8DDBB4; --primary-foreground:#0D1F17; --primary-soft:#17332A;
+  --secondary:#212D31; --secondary-foreground:#EAF0EE;
+  --ring:#6FCFA0;
+  --destructive:#E39A89; --destructive-foreground:#3B2420;
+  --tier-strong-fg:#7FD3A8; --tier-strong-bg:#17332A;
+  --tier-possible-fg:#E6BE63; --tier-possible-bg:#3A2F14;
+  --tier-uncertain-fg:#A9B8DB; --tier-uncertain-bg:#232C42;
+  --tier-mismatch-fg:#E39A89; --tier-mismatch-bg:#3B2420;
+  --lens-ring:rgba(111,207,160,.10);
+}
+
+@media (prefers-color-scheme: dark){
+:root:not([data-theme="light"]){
+  --background:#121A1C; --foreground:#EAF0EE;
+  --card:#1A2427; --card-foreground:#EAF0EE;
+  --popover:#1A2427; --popover-foreground:#EAF0EE;
+  --muted:#212D31; --muted-foreground:#9FB0B3;
+  --accent:#17332A; --accent-foreground:#7FD3A8;
+  --border:#2E3C41; --border-strong:#5F7378; --input:#5F7378;
+  --primary:#6FCFA0; --primary-hover:#8DDBB4; --primary-foreground:#0D1F17; --primary-soft:#17332A;
+  --secondary:#212D31; --secondary-foreground:#EAF0EE;
+  --ring:#6FCFA0;
+  --destructive:#E39A89; --destructive-foreground:#3B2420;
+  --tier-strong-fg:#7FD3A8; --tier-strong-bg:#17332A;
+  --tier-possible-fg:#E6BE63; --tier-possible-bg:#3A2F14;
+  --tier-uncertain-fg:#A9B8DB; --tier-uncertain-bg:#232C42;
+  --tier-mismatch-fg:#E39A89; --tier-mismatch-bg:#3B2420;
+  --lens-ring:rgba(111,207,160,.10);
+}
+}
+
+:root{
+  --font-display:var(--font-fraunces),"Fraunces",Georgia,"Times New Roman",serif;
+  --font-sans:var(--font-figtree),"Figtree",ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:var(--font-plex-mono),"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --text-display:44px; --lh-display:48px;
+  --text-h1:32px; --lh-h1:38px;
+  --text-h2:24px; --lh-h2:30px;
+  --text-h3:20px; --lh-h3:26px;
+  --text-body-lg:18px; --lh-body-lg:28px;
+  --text-body:16px; --lh-body:24px;
+  --text-small:14px; --lh-small:20px;
+  --text-caption:12.5px; --lh-caption:16px;
+  --text-mono:13.5px; --lh-mono:20px;
+  --tracking-display:-0.01em;
+}
+body{font-family:var(--font-sans);font-size:var(--text-body);line-height:var(--lh-body);color:var(--foreground);background:var(--background);-webkit-font-smoothing:antialiased}
+.tl-display,.tl-h1,.tl-h2,.tl-h3{font-family:var(--font-display);font-weight:500;letter-spacing:var(--tracking-display);margin:0;text-wrap:balance}
+.tl-display{font-size:var(--text-display);line-height:var(--lh-display)}
+.tl-h1{font-size:var(--text-h1);line-height:var(--lh-h1)}
+.tl-h2{font-size:var(--text-h2);line-height:var(--lh-h2)}
+.tl-h3{font-size:var(--text-h3);line-height:var(--lh-h3)}
+.tl-body-lg{font-size:var(--text-body-lg);line-height:var(--lh-body-lg)}
+.tl-small{font-size:var(--text-small);line-height:var(--lh-small)}
+.tl-caption{font-size:var(--text-caption);line-height:var(--lh-caption)}
+.tl-mono{font-family:var(--font-mono);font-size:var(--text-mono);line-height:var(--lh-mono)}
+a{color:var(--primary);text-underline-offset:3px}
+a:hover{color:var(--primary-hover)}
+@media(max-width:600px){:root{--text-display:34px;--lh-display:40px;--text-h1:28px;--lh-h1:34px}}
+
+:root{
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px; --space-7:48px; --space-8:64px; --space-9:96px;
+  --radius:8px; --radius-sm:8px; --radius-card:14px; --radius-panel:22px; --radius-pill:999px;
+  --shadow-soft:0 1px 2px rgba(30,43,47,.06),0 8px 24px -12px rgba(30,43,47,.18);
+  --dur-micro:120ms; /* @kind other */
+  --dur-ui:240ms; /* @kind other */
+  --dur-signature:600ms; /* @kind other */
+  --dur-stagger:40ms; /* @kind other */
+  --dur-ring:4000ms; /* @kind other */
+  --ease-signature:cubic-bezier(.2,.8,.2,1); /* @kind other */
+  --target-min:44px;
+}
+[data-theme="dark"]{--shadow-soft:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5)}
+@media(prefers-reduced-motion:reduce){:root{
+  --dur-signature:120ms; /* @kind other */
+  --dur-stagger:0ms; /* @kind other */
+}}
+
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--shadow-soft:0 1px 2px rgba(0,0,0,.3),0 8px 24px -12px rgba(0,0,0,.5)}}

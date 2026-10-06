@@ -1,0 +1,40 @@
+/* TrialLens app layout: carried over from the design's ui_kits/triallens/kit.css (prototype chrome removed).
+   The responsive rules use CONTAINER queries, so the app lives inside .tl-frame (the prototype's #frame). */
+.tl-frame{container-type:inline-size;width:100%;background:var(--background)}
+.app{min-height:100vh;color:var(--foreground);position:relative;overflow:hidden}
+.wrap{max-width:1200px;margin:0 auto;padding:0 32px;position:relative}
+.hdr{display:flex;justify-content:space-between;align-items:center;padding:20px 0;gap:12px}
+.hdr .r{display:flex;gap:12px;align-items:center}
+.strip-q{font:500 14px/20px var(--font-sans);color:var(--muted-foreground);display:flex;gap:8px;align-items:center;padding:8px 0}
+.page{padding:32px 0 96px}
+.narrow{max-width:760px}
+.stack{display:flex;flex-direction:column}
+.g8{gap:8px}.g12{gap:12px}.g16{gap:16px}.g24{gap:24px}.g32{gap:32px}
+.res-grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:32px;align-items:start}
+.sticky{position:sticky;top:24px}
+.only-m{display:none}
+.lensbg{position:absolute;right:-180px;top:-120px;pointer-events:none;z-index:0}
+.lead{font:400 18px/28px var(--font-sans);color:var(--muted-foreground);margin:0;max-width:56ch;text-wrap:pretty}
+.cols2{display:grid;grid-template-columns:1fr 1.2fr;gap:32px;align-items:start}
+.panel{background:var(--card);border:1px solid var(--border);border-radius:var(--radius-card);padding:24px}
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.eyebrow{font:600 12.5px/16px var(--font-sans);letter-spacing:.06em;text-transform:uppercase;color:var(--muted-foreground);margin:0 0 12px}
+.disclose{border:1px solid var(--border);border-radius:var(--radius-card);background:var(--card)}
+.disclose>summary{cursor:pointer;list-style:none;padding:14px 20px;min-height:48px;font:600 16px/24px var(--font-sans);display:flex;align-items:center;gap:10px;border-radius:var(--radius-card)}
+.disclose>summary::-webkit-details-marker{display:none}
+.disclose>summary::before{content:"";width:8px;height:8px;border-right:1.75px solid currentColor;border-bottom:1.75px solid currentColor;transform:rotate(-45deg);transition:transform var(--dur-ui)}
+.disclose[open]>summary::before{transform:rotate(45deg)}
+.disclose>summary:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.disclose .in{padding:4px 20px 20px}
+.field{width:100%;font:400 16px/24px var(--font-sans);padding:12px 14px;border-radius:var(--radius);border:1.5px solid var(--input);background:var(--card);color:var(--foreground);min-height:48px}
+.field:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.toastpos{position:fixed;left:24px;bottom:24px;z-index:60}
+.summary{display:flex;flex-wrap:wrap;gap:12px 16px;align-items:center}
+.back{display:inline-flex;align-items:center;gap:6px;color:var(--primary);font:600 15px/22px var(--font-sans);min-height:44px;background:none;border:0;cursor:pointer;padding:0}
+.back:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+.meta-row{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;color:var(--muted-foreground);font:400 15px/22px var(--font-sans)}
+.foot{border-top:1px solid var(--border);padding:24px 0;color:var(--muted-foreground);font:400 14px/20px var(--font-sans)}
+.proc{display:grid;place-items:center;text-align:center;gap:32px;padding-top:24px}
+.proc .stages{width:100%;max-width:560px;text-align:left}
+@container (max-width:1023px){.res-grid{grid-template-columns:minmax(0,1fr)}.only-d{display:none}.only-m{display:block}.sticky{position:static}.rail{order:-1}.cols2{grid-template-columns:1fr}.lensbg{right:-220px}}
+@container (max-width:700px){.wrap{padding:0 20px}.page{padding-top:16px}}
