@@ -61,3 +61,25 @@ describe("REGRESSION: receptor thresholds (Phase 1 audit)", () => {
     expect(atomSemanticProblems({ fact_key: "measurable_disease", source: "Measurable or evaluable disease per RECIST 1.1" })).toEqual([]);
   });
 });
+
+describe("REGRESSION: pregnant=false is not evidence of a negative pregnancy test", () => {
+  const sources = [
+    "Women of childbearing potential must have a negative pregnancy test within 7 days before starting treatment",
+    "Pregnancy test: negative serum or urine pregnancy test at screening for women of childbearing potential",
+    "Negative serum beta-hCG at screening",
+  ];
+  it("test/procedure wording makes a `pregnant` atom non-executable", () => {
+    for (const src of sources) expect(atomSemanticProblems({ fact_key: "pregnant", source: src })).toContain("pregnancy_test_is_not_pregnancy_status");
+  });
+  it("such an atom cannot decide: a patient with pregnant=false gets UNKNOWN, never PASS or FAIL", () => {
+    const l = atom(sources[0]!, "pregnant", "eq", false);
+    const t = toClauseTree(crit([l]));
+    expect(classifyCompleteness(t)).toBe("partial");
+    expect(evaluateClause(t, profile({ pregnant: false })).truth).toBe("unknown");
+    expect(evaluateClause(t, profile({ pregnant: true })).truth).toBe("unknown");
+  });
+  it("status wording stays executable", () => {
+    expect(atomSemanticProblems({ fact_key: "pregnant", source: "Pregnant or breastfeeding women" })).toEqual([]);
+    expect(atomSemanticProblems({ fact_key: "pregnant", source: "Patient must not be pregnant" })).toEqual([]);
+  });
+});

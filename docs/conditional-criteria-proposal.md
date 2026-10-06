@@ -1,60 +1,80 @@
-# Proposal for review: conditional criteria ("if A, then B")
+# Proposal for review (revision 2): conditional criteria ("if A, then B")
 
-**Status: proposal only. The clause schema is NOT changed.** Interim safety net: rule D (every FAIL must be independently verified, and the verifier must establish the condition of applicability), plus the splitter and atom-semantics fixes.
+**Status: proposal only. The clause schema is NOT changed.** Revision 2 corrects revision 1 after review. Interim safety nets already in code: rule D (every FAIL independently verified, applicability must be established), the splitter fix, and the atom-semantics guards, including the new guard that a pregnancy *test* wording cannot be typed as `pregnant` status.
 
-## Problem (Phase 1 audit)
-"Women of childbearing potential (aged 15–49 years) must have a negative pregnancy test within 7 days before starting treatment…" was parsed as `ALL(age ≥ 15; age ≤ 49; pregnant = false; timing; text)`. A 52-year-old therefore FAILED the criterion, although it does not apply to her. The schema has `all / any / except` but no implication, so applicability conditions become requirements.
+## What revision 1 got wrong
+Revision 1's T1 let a 52-year-old with `pregnant = false` reach PASS on the "women of childbearing potential … must have a negative pregnancy test within 7 days … must use contraception" criterion. That is unsound for three reasons:
+1. **`pregnant = false` is not evidence of a negative pregnancy test.** The requirement is an actual, recent test result. No vocabulary fact represents it, so it is unrepresented ⇒ UNKNOWN, never PASS.
+2. **The seven-day timing and the contraception requirement were dropped** from the "then" side. A representation that loses requirements can only ever over-pass.
+3. **Applicability is per requirement, not per bullet.** The test requirement is conditioned on "childbearing potential (aged 15–49)"; the contraception requirement on "reproductive potential" with no age band. One bullet = two conditional blocks. A patient outside the 15–49 band is outside the first block only.
 
-## Proposed semantics
-A conditional criterion has an **applicability condition** `when` and a **requirement** `then`.
+## Principles (all enforced in code or tests)
+1. **Every requirement stays represented.** Each requirement in the source is a leaf (`atom | timing | text`) with a verbatim `source`. Nothing is merged away or paraphrased.
+2. **Unrepresented requirements stay UNKNOWN.** A `text` or `timing` leaf evaluates to *unknown* in code. A result can only be PASS if every requirement leaf of an applicable block is proven true by known facts.
+3. **Vacuous PASS requires proven non-applicability** (below).
+4. **No derived facts.** `childbearing_potential` is not derived from age, sex or menopausal status, anywhere. "Women of childbearing potential" is a `text` leaf ⇒ unknown.
+5. **A fact is evidence only for what it says.** An atom may stand for a requirement only if the fact means the same thing. `pregnant` (status) ≠ negative pregnancy test (result + timing); `prior_chemo_any` ≠ "systemic therapy within 3 years".
+
+## Representation (proposed; not implemented)
+A criterion has one or more **blocks**; the criterion holds only if **every block** holds.
 
 ```
-criterion truth  =  ¬when  ∨  then          (Kleene three-valued; "then" = combine(items) AND NOT any(except))
+block      = { when: Leaf[]  (≤ 4, combined with AND; may be empty = always applies),
+               then: Leaf[]  (≤ 6),  combine: "all" | "any",  except: Leaf[] }
+criterion  = AND over blocks
 ```
+- Engine tree: `{ kind: "if", when: ClauseNode, then: ClauseNode }`, blocks joined with `all`.
+- **`when` is inclusion-only.** Exclusion statements read as conjunctions or `except`. A `when` on an exclusion criterion is rejected by the batch schema (retry) and, if it persists, downgraded to a single `text` leaf.
+- Nested conditionals stay a single `text` leaf. Completeness is `full` only if every leaf in every `when` and `then` is an executable atom; otherwise `partial`.
+- **Coverage check (code, proposed):** the leaf `source` spans must jointly cover the criterion text (normalised, ignoring list markers and connectives). Uncovered substantive text (for example a dropped contraception sentence) ⇒ the whole criterion is downgraded to one `text` leaf ⇒ UNKNOWN. The threshold is to be tuned on development data, then frozen.
+- Parser/judge prompts and `PARSER_VERSION` change with the schema (cache invalidation).
 
-| when | then | truth | meaning |
-|---|---|---|---|
-| true | true | true | applies and met |
-| true | false | false | applies and not met |
-| true | unknown | unknown | applies, cannot decide |
-| false | any | true | **not applicable** (vacuously satisfied) |
-| unknown | true | true | met whether or not it applies |
-| unknown | false | unknown | cannot tell whether it applies ⇒ **never FAIL** |
-| unknown | unknown | unknown | |
+## Corrected truth table
+`w` = truth of `when` (AND of its leaves, Kleene), `r` = truth of the block's requirement (`then` ∧ ¬`except`). Block truth = `¬w ∨ r`. Criterion truth = AND of block truths. Status mapping is the existing inclusion mapping (true→PASS, false→FAIL, unknown→UNKNOWN).
 
-Status mapping is unchanged (inclusion: true→PASS, false→FAIL, unknown→UNKNOWN). Two additions:
-1. **`applicability`** on the finding: `applies | not_applicable | unknown`, derived in code from `when`. A PASS that is vacuous (`not_applicable`) must cite the known facts that made `when` false as evidence (abstention guard); a vacuous PASS with only unknown facts is downgraded to UNKNOWN.
-2. **Inclusion only.** Exclusion statements that read as conditionals ("patients with X who also have Y are excluded") are conjunctions, and "excluded unless Z" is `except`. A `when` on an exclusion criterion is rejected by the batch schema (retry) and, if it persists, downgraded to a `text` leaf.
+| w | r | block truth | applicability | resulting status, evidence |
+|---|---|---|---|---|
+| true | true | true | applies | PASS; evidence = known facts proving `w` and `r` |
+| true | false | **false** | applies | FAIL candidate (needs a rule-D verified check); evidence = facts proving `w` and `r` false |
+| true | unknown | unknown | applies | **UNKNOWN** |
+| **false** | any | true (vacuous) | **not_applicable, PROVEN** | PASS only with evidence = the **known facts that made `w` false** (see proof rule) |
+| unknown | true | true | unknown | PASS **only if `r` is proven by known facts** (an atom). Never when `r` rests on a text/timing leaf, which cannot be true in code |
+| unknown | false | **unknown** | unknown | **UNKNOWN, never FAIL** (cannot tell whether it applies) |
+| unknown | unknown | unknown | unknown | **UNKNOWN** |
 
-## Representation (flat parser schema + engine tree)
-- Parser output gains optional `when: Leaf[]` (≤ 4 leaves, combined with `all`, default `[]`). Leaves are the existing `atom | text | timing`, each with a verbatim `source` fragment.
-- Engine tree gains `{ kind: "if", when: ClauseNode, then: ClauseNode }`.
-- Completeness: `full` only if every leaf in `when` **and** `then` is an executable atom; any `text`/`timing` leaf ⇒ `partial`.
-- Nested conditionals stay a single `text` leaf (free-text path).
-- Cache: clause-schema change ⇒ bump `PARSER_VERSION` and `CLAUSE_PARSE_PROMPT_VERSION`; update the parser and judge prompts.
+**Proof rule for non-applicability.** `w` is false only if at least one **atom** leaf in `when` is false from a *known* fact (standard Kleene AND; a `text` leaf contributes *unknown* and never *false*). The false atom must be a condition the criterion itself states (for example the band "aged 15–49"); the engine does not create or infer a `childbearing_potential` fact. A `when` made only of text leaves can never be proven false. The vacuous PASS requires the abstention guard's evidence: the known facts behind the false atom; with none, it is downgraded to UNKNOWN.
 
-## What this does not solve (needs a decision)
-"Childbearing potential" is not a vocabulary fact. Without it, `when` is a `text` leaf ⇒ unknown, so the criterion for a 52-year-old resolves to `UNKNOWN` (or PASS if the test requirement is met), never FAIL. Deriving `childbearing_potential` from age, sex and menopausal status in code is a **clinical rule** and should be decided by Kumar with clinical input, not inferred.
+**Multi-block rule.** Blocks are evaluated independently, then ANDed. A vacuous PASS for one block never covers another block: the criterion is PASS only if every block is true; FAIL candidate if any block is false; otherwise UNKNOWN.
 
-## Proposed tests (to be written after approval)
+## Regression cases for review (to be written after approval)
+Source: the pregnancy-test bullet seen in the Phase 1 audit (NCT06627712 inclusion shape), quoted by fragment only.
+
 | # | Case | Expected |
 |---|---|---|
-| T1 | WOCBP shape, patient 52 F, `pregnant=false` known, `when` = text leaf, `then` = `pregnant eq false` | PASS (then true ⇒ true), applicability `unknown`, evidence `pregnant` |
-| T2 | same, patient `pregnant=true` known | **UNKNOWN, never FAIL** (applicability unknown) |
-| T3 | `when` = `age lte 49`, patient age 52, `then` = `pregnant eq false` unknown | PASS, applicability `not_applicable`, evidence `age` |
-| T4 | `when` = `age lte 49` true, `then` false | FAIL (still needs rule-D verification to become LIKELY_MISMATCH) |
-| T5 | `when` unknown, `then` unknown | UNKNOWN |
-| T6 | `when` false, `then` unknown | PASS vacuous, evidence = when-facts |
-| T7 | `when` false but supported only by an unknown fact | guard downgrades to UNKNOWN |
+| **T1** | Parse must preserve **all** requirements as two blocks. Block 1: `when` = [text "Women of childbearing potential", atom `age ≥ 15`, atom `age ≤ 49`], `then` = [text "must have a negative pregnancy test", **timing "within 7 days before starting treatment"**]. Block 2: `when` = [text "Both male and female participants of reproductive potential"], `then` = [text "agree to use effective contraceptive measures during the study period and for 3 months after discontinuation"]. Patient 52 F, `pregnant = false`, `age = 52`. | Block 1: `w` false (age atom, proven), vacuous true, applicability `not_applicable`, evidence `age`. Block 2: `w` unknown, `r` unknown ⇒ unknown. **Criterion: UNKNOWN.** Never PASS (the contraception block is open) and never FAIL |
+| T1b | Same, patient 30 F, `pregnant = false` | Block 1 `w` unknown (text leaf), `r` unknown (test and timing unrepresented). **UNKNOWN. `pregnant = false` is not evidence of a negative test** |
+| T1c | Same, patient 30 F, `pregnant = true` | UNKNOWN (no FAIL derived: the test result and timing are unrepresented) |
+| **T9** | Regression of NCT06627712:inclusion:9: the original parse `ALL(age ≥ 15; age ≤ 49; pregnant = false; timing; text)` must be impossible: (a) the age band lives in `when`, (b) `pregnant` atom is rejected by the guard because the source says "pregnancy test", (c) the 7-day timing and the contraception sentence are present as leaves; with a 52-year-old the criterion never FAILs and never PASSes | UNKNOWN; leaf `source`s: test sentence, "within 7 days before starting treatment", contraception sentence, all verbatim |
+| T2 | Coverage: the parser returns only block 1 (drops the contraception sentence) | coverage check fails ⇒ whole criterion = one `text` leaf ⇒ UNKNOWN |
+| T3 | `when` = [atom `age ≤ 49`], patient 52, single block, `then` = [text] | PASS, `not_applicable`, evidence `age` (the only proven-vacuous case) |
+| T4 | `when` = [atom `age ≤ 49`] true, `then` = atom false | FAIL candidate (becomes LIKELY_MISMATCH only after a rule-D check) |
+| T5 | `when` = [text only] | `w` unknown ⇒ never vacuous; UNKNOWN unless `r` proven by an atom |
+| T6 | `when` unknown, `then` = atom true (known fact genuinely proving the requirement) | PASS, applicability `unknown`, evidence = the `then` fact |
+| T7 | Guard: vacuous PASS whose false atom rests on an unknown fact | impossible by construction; test asserts UNKNOWN |
 | T8 | `when` on an exclusion criterion | batch schema rejects; after retry ⇒ text leaf |
-| T9 | **Regression** NCT06627712:inclusion:9 shape `(age 15–49, pregnancy test within 7 days, contraception)` with a 52-year-old | no FAIL |
-| T10 | Kleene truth-table property test for `if` over {true,false,unknown}² | matches the table above |
-| T11 | `when` leaf `source` not a verbatim fragment | batch rejected |
-| T12 | `when` containing a text leaf | completeness `partial`; tier cannot be STRONG |
-| T13 | round-trip through `ClauseNodeSchema` | lossless |
-| T14 | `except` inside `then` | `¬when ∨ (base ∧ ¬exceptions)` |
+| T10 | Kleene property test over `{true,false,unknown}²` for block truth, and AND over blocks | matches the table above |
+| T11 | Anti-HER2 conditional (NCT06623396 shape): "Patients with HER2-positive disease must have received ≥1 line of anti-HER2 therapy". Block: `when` = [atom `her2_status = positive`], `then` = [text or atom for anti-HER2 therapy] | patient HER2-negative ⇒ `w` false (known) ⇒ **PASS vacuous, evidence `her2_status`** (was a false code FAIL); patient HER2-positive, therapy unknown ⇒ UNKNOWN; HER2-positive and proven no anti-HER2 therapy ⇒ FAIL candidate |
+| T12 | Splitter (NCT07694986 shape): the pregnancy-test bullet sits in the inclusion section | typed inclusion, never exclusion (covered by `split.test.ts`) |
+| T13 | `when` leaf `source` not a verbatim fragment | batch rejected |
+| T14 | Completeness: any text/timing leaf in any block | `partial`; trial cannot be STRONG |
+| T15 | Tier: vacuous PASS in block 1 and UNKNOWN in block 2 | criterion UNKNOWN counts as an open criterion |
+| T16 | Rule-D interplay (LLM-level, measured on development data, not a unit test): verifier given a conditional FAIL whose applicability is unknown | expected `cannot_substantiate` |
+| T17 | `except` inside `then` | block truth `¬w ∨ (base ∧ ¬exceptions)` |
+| T18 | Round trip through `ClauseNodeSchema` | lossless |
 
 ## Decisions requested
-1. Approve the semantics (`¬when ∨ then`, inclusion only, vacuous PASS needs evidence).
-2. Approve adding `applicability` to the finding schema.
-3. Decide whether a derived `childbearing_potential` fact is wanted (clinical input needed) or whether `when` stays a text leaf.
+1. Approve the corrected semantics and the per-block structure.
+2. **Non-applicability from the criterion's own stated band** (my recommendation: yes, via Kleene AND with an atom, as in T1/T3/T11) versus the stricter alternative (vacuous PASS only when *every* `when` leaf is an atom). Under the strict option T1 block 1 stays unknown (its `when` contains a text leaf) and T1 is UNKNOWN either way; T11 (a single-atom `when`) is unaffected. The cost of strict is more UNKNOWN on bullets whose applicability mixes a text phrase with a stated band.
+3. Add `applicability` (per block) to the finding schema.
+4. Coverage-check threshold (tune on development data, freeze, then measure on an untouched cohort).
+5. `childbearing_potential` stays **not derived**. If a derived fact is ever wanted, it is a clinical rule to be specified by Kumar, not inferred by the engine.

@@ -809,9 +809,9 @@ Fresh cohort: 30 recruiting breast-cancer trials, pages 2–4 of the same CT.gov
 | Cohort | Criteria | Scoring n | Unresolved | Code-evaluable | **Reviewed full-logic** | ≥1 atom |
 |---|---|---|---|---|---|---|
 | Original (in-sample; re-run after repairs) | 431 | 385 | 15 (3.9%) | 51 (13.2%) | **25 (6.5%)** | 79 (20.5%) |
-| **Fresh (out-of-sample)** | 487 | 436 | 37 (8.5%) | 55 (12.6%) | **38 (8.7%)** | 94 (21.6%) |
+| **Fresh (DEVELOPMENT data from the `metastatic_line` fix onward; see correction)** | 487 | 436 | 37 (8.5%) | 55 (12.6%) | **38 (8.7%)** | 94 (21.6%) |
 
-Fresh strata (scoring incl. unresolved): inclusion 217: reviewed full-logic 32 (14.7%), unresolved 2; exclusion 219: 6 (2.7%), unresolved 35 (16%; 3 rejected batches); simple 265: 33 (12.5%); compound 171: 5 (2.9%). Judge on code-evaluable: original full 25 / partial 23 / wrong 6; fresh full 39 / partial 15 / wrong 3. Parse batches: original 43 first-valid + 2 after retry + 1 rejected of 46; fresh 36 + 7 + 3 of 46. **Gate unchanged: still < 40%: the low coverage is not an in-sample artefact.** Judge-only review (no agent read of the fresh judge verdicts). Adaptive reach (09): trials with ≥1 typed atom on an askable fact 20/30 original, 19/30 fresh; with a reviewed-full typed criterion 8/30 original, 14/30 fresh.
+Fresh strata (scoring incl. unresolved): inclusion 217: reviewed full-logic 32 (14.7%), unresolved 2; exclusion 219: 6 (2.7%), unresolved 35 (16%; 3 rejected batches); simple 265: 33 (12.5%); compound 171: 5 (2.9%). Judge on code-evaluable: original full 25 / partial 23 / wrong 6; fresh full 39 / partial 15 / wrong 3. Parse batches: original 43 first-valid + 2 after retry + 1 rejected of 46; fresh 36 + 7 + 3 of 46. **Gate unchanged: still < 40%.** (Coverage was measured on the fresh cohort before the audit exposed the `metastatic_line` bug, but the cohort has since informed a fix, so treat it as development data; see correction below.) Judge-only review (no agent read of the fresh judge verdicts). Adaptive reach (09): trials with ≥1 typed atom on an askable fact 20/30 original, 19/30 fresh; with a reviewed-full typed criterion 8/30 original, 14/30 fresh.
 
 ### FAIL audit and rule D on the cohorts (agent-labelled; not clinician review; n small)
 Warm e2e, post-fix. "True" = the trial is a real mismatch for the fictional profile in the agent's reading; verifier quality judged separately.
@@ -840,3 +840,9 @@ Single runs; extractor/verifier variance; one fictional profile (so verified mis
 | `pnpm typecheck` | 0 |
 | `pnpm test` (167 tests, 10 files) | 0 |
 | `pnpm build` (only NEBIUS_* set) | 0 |
+
+### Correction (Kumar's review, 2026-10-06): status of the "fresh" cohort and of the "7/7 true" statement
+- The fresh cohort exposed an engine bug (`metastatic_line`) and was audited and re-run, so it is **development data from now on**. No accuracy figure may be quoted from it. Any accuracy claim needs **another untouched cohort**.
+- **Protocol for the untouched cohort (pre-registered, not yet fetched):** same CT.gov query and filter, pages 5–8 of the result list, excluding every NCT id in the original and fresh fixtures, every k-th trial to 30, fetched only when the configuration is frozen; run once with the frozen config (no prompt, cue, splitter or engine edits in between); report coverage and mismatch counts with the same definitions; labels must be by a reviewer who did not tune the system.
+- The statement "7 of 7 verified mismatches are true" is a **manual assessment by the agent** against one fictional profile, **not measured verifier accuracy**. Likewise the "9/10, 13/14 true mismatches" and recall figures are agent labels on development data.
+- **Not pursued (Kumar's decision):** four-trial verifier batching and raising `MAX_LLM_CALLS_PER_RUN` on the strength of the capacity projections. Rule D and the 80-call cap stay; capacity overflow remains UNCERTAIN. The projections above are retained as measurements only.

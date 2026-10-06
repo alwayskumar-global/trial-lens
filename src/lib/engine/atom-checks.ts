@@ -53,11 +53,16 @@ const HER2_SCORING = /\b(?:IHC|ISH|FISH|SISH|CISH)\b|\b[0-3]\s*\+|\bHER2[- ]low\
 const EVALUABLE_NOT_MEASURABLE = /\bevaluable\b/i;
 const MEASURABLE = /\bmeasurable\b/i;
 
+// A pregnancy TEST result/procedure is not pregnancy STATUS: `pregnant = false` is not evidence of a negative test
+// (nor of its timing). Such sources stay on the text/timing path.
+const PREGNANCY_TEST = /\b(?:tests?|testing|tested|hcg|urine|serum|screening)\b/i;
+
 export function atomSemanticProblems(a: Pick<AtomNode, "fact_key" | "source">): string[] {
   const p: string[] = [];
   if (!CUES[a.fact_key].test(a.source)) p.push("source_does_not_mention_fact");
   if ((a.fact_key === "er_status" || a.fact_key === "pr_status") && RECEPTOR_THRESHOLD.test(a.source)) p.push("receptor_threshold_semantics");
   if (a.fact_key === "her2_status" && HER2_SCORING.test(a.source)) p.push("her2_scoring_semantics");
+  if (a.fact_key === "pregnant" && PREGNANCY_TEST.test(a.source)) p.push("pregnancy_test_is_not_pregnancy_status");
   if (a.fact_key === "measurable_disease" && EVALUABLE_NOT_MEASURABLE.test(a.source) && !MEASURABLE.test(a.source)) p.push("evaluable_is_not_measurable");
   return p;
 }
