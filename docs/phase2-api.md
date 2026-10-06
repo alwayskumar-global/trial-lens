@@ -1,6 +1,6 @@
 # Phase 2: `/api/run` (live pipeline, replay, guards)
 
-Status: implemented and unit-tested offline; live-verified against Nebius, ClinicalTrials.gov and Upstash. **Supabase tables not yet applied** (see "Open"), so cache persistence and stored replay are unverified live. The UI is still the fixed fictional demo and does not call this endpoint.
+Status: implemented, unit-tested offline, and live-verified against Nebius Token Factory, ClinicalTrials.gov, Upstash and Supabase (project `triallensdb`). The UI is still the fixed fictional demo and does not call this endpoint.
 
 ## Contract
 `POST /api/run` (Node runtime, `maxDuration = 300`; VERIFY the Vercel plan limit). JSON body, exactly one of:
@@ -28,7 +28,14 @@ Per-IP sliding window (`RATE_LIMIT_RUNS_PER_IP_PER_HOUR`, hashed IP bucket, pref
 ## Not built
 Stage 10 (plain-language rewrite and coordinator questions: `coordinator_questions` and `sites` are empty arrays), escalation (DEEP), distance filtering (no location input), re-run on answer.
 
-## Open (needs the project owner)
-1. `supabase/migrations/0001_init.sql` is NOT applied to the project behind `SUPABASE_URL` (all three tables return PostgREST `PGRST205`). The Supabase connector in the Claude session only sees other projects (`loomtale-works-prod`, `trubiz`), so it was deliberately not used. Apply it in the correct project's SQL editor (or `supabase db push` with that project linked), then run `pnpm precompute:replay --write`.
-2. Persist `NEMOTRON_MODEL_*` in the Cloud environment (they were absent from the session shell).
-3. Vercel: `maxDuration` plan limit; mark `NEBIUS_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `UPSTASH_REDIS_REST_TOKEN` Sensitive.
+## Live verification (fictional profiles only, 2026-10-06)
+- Supabase: migrations 0001 (tables, RLS on, no policies), 0002 (grant `service_role` only: new projects do not auto-grant, REST returned 42501 without it), 0003 (revoke default `anon`/`authenticated` privileges) applied to `triallensdb`; advisor shows only the intended INFO "RLS enabled, no policy".
+- `precompute:replay --write`: 3 cases stored. The first pass was cold (21 trials `analysis_pending`); re-run with the warm parse cache ⇒ 0 pending in all three. 33 trials cached.
+- Live run through `/api/run`, warm cache (cache read from Supabase by a fresh server): 43 calls (worst case 80), 75 s, 1 trial pending. Cold run earlier: 29 calls, 72 s, 22 pending.
+- Fallbacks to a labelled replay, each checked end to end: explicit `replay_id`; per-IP rate limit (real Upstash); Nebius env missing; Token Factory rejecting the key (real HTTP 401: `error` event, then replay). Oversized input 413, malformed body 400. The key value never appeared in a response or log.
+- Not exercised live: exhausted daily budget and Upstash outage (unit-tested only), Vercel streaming/`maxDuration`.
+
+## Open
+1. Vercel: `maxDuration` plan limit (measured runs 60-105 s); mark `NEBIUS_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `UPSTASH_REDIS_REST_TOKEN` Sensitive. Not deployed.
+2. Replay cases hold CT.gov text in Supabase only (VERIFY CT.gov terms before ever bundling it in the repo), so replay needs Supabase.
+3. Cold runs leave most trials `analysis_pending` (parse cap 14 slots): warm the cache (`pnpm precompute:replay --write`) before any demo or after a CT.gov update changes `source_version`.
