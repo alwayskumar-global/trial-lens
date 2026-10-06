@@ -59,7 +59,9 @@ describe("POST /api/run handler", () => {
     const { deps } = await setup({ guard: () => { guardCalls++; throw new Error("must not be called"); } });
     const es = await events(await handleRun(post({ replay_id: "demo-her2" }), deps));
     expect(es[0]).toMatchObject({ type: "mode", mode: "replay", reason: "requested", replay_id: "demo-her2", label: CASE.label });
-    expect(es.slice(1, -1)).toEqual(CASE.events);
+    // stored `stage` events are dropped: a replay never carries live-style progress
+    expect(es.slice(1, -1)).toEqual(CASE.events.filter((e) => e.type !== "stage"));
+    expect(es.some((e) => e.type === "stage")).toBe(false);
     expect(es[es.length - 1]).toEqual({ type: "done", replay: true });
     expect(guardCalls).toBe(0);
   });

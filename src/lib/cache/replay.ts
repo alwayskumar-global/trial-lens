@@ -55,7 +55,10 @@ export class SupabaseReplayStore implements ReplayStore {
   }
 }
 
-/** The event sequence for streaming a stored case: labelled `mode`, the stored events, then `done`. */
+/**
+ * The event sequence for streaming a stored case: labelled `mode`, the stored events, then `done`.
+ * `stage` events are NOT replayed: a saved run must never look like live progress to any consumer of the stream.
+ */
 export function replayEvents(c: ReplayCase, reason: Extract<SseEvent, { type: "mode" }>["reason"]): SseEvent[] {
-  return [{ type: "mode", mode: "replay", ...(reason ? { reason } : {}), replay_id: c.id, label: c.label }, ...c.events, { type: "done", replay: true }];
+  return [{ type: "mode", mode: "replay", ...(reason ? { reason } : {}), replay_id: c.id, label: c.label }, ...c.events.filter((e) => e.type !== "stage"), { type: "done", replay: true }];
 }
