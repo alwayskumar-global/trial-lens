@@ -7,7 +7,7 @@ export interface ProfileChipProps {
 
 /** Read-only chip showing one fact of the fixed demo profile (or that it is unknown). Not interactive: no handlers, not focusable. */
 export function ProfileChip({ kind = "known", label, detail }: ProfileChipProps) {
-  const sub = detail ?? (kind === "unknown" ? "We don't know yet" : kind === "uncertain" ? "Please confirm" : null);
+  const sub = detail ?? (kind === "unknown" ? "We don't know yet" : kind === "uncertain" ? "Not confirmed" : null);
   return (
     <span className={"tl-pchip tl-pchip--" + kind} role="listitem" style={{ cursor: "default", pointerEvents: "none" }}>
       <span>{label}</span>

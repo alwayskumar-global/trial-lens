@@ -39,7 +39,7 @@ export function Confirm({ onBack, onNext }: { onBack: () => void; onNext: () => 
             <div className="panel stack g24" style={{ borderRadius: "var(--radius-panel)" }}>
               {G({ k: "known", title: "Known", kind: "known", note: "Facts we'll use to compare." })}
               {G({ k: "unknown", title: "Unknown", kind: "unknown", note: "Not mentioned. These become questions, not problems." })}
-              {G({ k: "uncertain", title: "Uncertain", kind: "uncertain", note: "Please confirm so we read it correctly." })}
+              {G({ k: "uncertain", title: "Uncertain", kind: "uncertain", note: "These details are not confirmed in the fictional profile." })}
             </div>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -47,7 +47,7 @@ export function Confirm({ onBack, onNext }: { onBack: () => void; onNext: () => 
               View sample trials
             </Button>
             <Button size="lg" variant="quiet" onClick={onBack}>
-              Edit my description
+              Back
             </Button>
           </div>
         </main>
