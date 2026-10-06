@@ -1127,3 +1127,34 @@ Frozen run detail: original: unresolved 15 (3.9%), code-evaluable 4, ≥1 atom 9
 | FAST | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | yes | 773 | true | stop | 52 |  |
 | MID | `nvidia/nemotron-3-super-120b-a12b` | yes | 642 | true | stop | 38 |  |
 | DEEP | `nvidia/Nemotron-3-Ultra-550b-a55b` | yes | 559 | true | stop | 14 |  |
+
+## 2026-10-06T05:22:06.677Z — 07-e2e (untouched cohort; fictional profile; clause prompt `spike-4`, fail-verify `fail-verify-0`; reasoning_effort=low; rule D active; command `COHORT=untouched pnpm spike:e2e`)
+
+> **Untouched cohort, single run, frozen config (`spike-4` / `cov-1`, Rule D, 80-call cap), after the VOID attempt above.** One fictional profile, one run; tiers are code outputs, not clinician-reviewed labels. **No clinical-accuracy claim.** Model IDs supplied via env per command (not committed).
+
+
+- Plan: `RunBudget(80)`: each LLM slot reserves 2 calls (call + its one retry) ⇒ 40 slots; reserved: extraction 1, verify 8, **mismatch checks 3 (reassigned from the unbuilt escalation stage)**; parse capped at 14 slots; evaluate takes shared slots; unused verify reserve flows to mismatch checks. Hard `CallCap(80)` throws if exceeded (it did not).
+- Profile: fictional; extractor produced 11 known facts (cold) / 14 (warm). Prefilter by age/sex over the 30-trial untouched fixture ⇒ 29 candidates.
+
+| Run | candidates | parse cache hit/miss | HTTP calls used | slots | calls extraction/parse/evaluate/verify/mismatch | wall ms |
+|---|---|---|---|---|---|---|
+| cold (empty parse cache) | 29 | 0/29 | 37 (≤80) | 36 slots → worst case 72 | 1/15/14/1/6 | 77981 |
+| warm (parse cache filled) | 29 | 25/4 | 43 (≤80) | 38 slots → worst case 76 | 1/19/14/1/8 | 89113 |
+
+| Run | extraction | parse | free-text evaluate | verify (STRONG/POSSIBLE) | FAIL checks |
+|---|---|---|---|---|---|
+| cold | 42756 ms (1 slots, 0 retries, 0×429, 0 failed) | 21913 ms (14 slots, 1 retries, 0×429, 0 failed) | 9286 ms (14 slots, 0 retries, 0×429, 0 failed) | 1453 ms (1 slots, 0 retries, 0×429, 0 failed) | 2545 ms (6 slots, 0 retries, 0×429, 0 failed) |
+| warm | 36558 ms (1 slots, 0 retries, 0×429, 0 failed) | 37450 ms (14 slots, 5 retries, 0×429, 3 failed [ZOD_INVALID_AFTER_RETRY×3]) | 9527 ms (14 slots, 0 retries, 0×429, 0 failed) | 2097 ms (1 slots, 0 retries, 0×429, 0 failed) | 3474 ms (8 slots, 0 retries, 0×429, 0 failed) |
+
+| Run | tiers after typed-only (code; unchecked FAIL ⇒ UNCERTAIN) | after free-text eval | final | trials with unresolved criteria | guard downgrades | verification | eval slot overflow |
+|---|---|---|---|---|---|---|---|
+| cold | {"STRONG":0,"POSSIBLE":3,"UNCERTAIN":26,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":1,"UNCERTAIN":28,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":1,"UNCERTAIN":23,"LIKELY_MISMATCH":5} | 16 | 3 | 1 verified, 0 disagreements, 0 unverified→UNCERTAIN | 0 |
+| warm | {"STRONG":0,"POSSIBLE":3,"UNCERTAIN":26,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":1,"UNCERTAIN":28,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":1,"UNCERTAIN":22,"LIKELY_MISMATCH":6} | 2 | 5 | 1 verified, 0 disagreements, 0 unverified→UNCERTAIN | 14 |
+
+| Run | trials with ≥1 FAIL (candidates) | FAILs verified | rejected | unsubstantiated | no capacity | not run | final LIKELY_MISMATCH |
+|---|---|---|---|---|---|---|---|
+| cold | 6 trials / 9 FAIL findings | 7 | 0 | 2 | 0 | 0 | 5 |
+| warm | 8 trials / 12 FAIL findings | 9 | 0 | 3 | 0 | 0 | 6 |
+
+- Criteria in the 29 candidates (warm): 651; parse completeness full 12 / partial 586 / unresolved 53; findings decided PASS/FAIL after eval+guard+checks: 40.
+- Offline pre-parse of the cohort: 55 HTTP calls (chunks of 15 + retries), 90426 ms at concurrency 6; cache entries written 27/29. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).
