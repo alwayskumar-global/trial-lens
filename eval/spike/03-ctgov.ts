@@ -52,12 +52,17 @@ async function main(): Promise<void> {
   // COHORT=original: first page (as in Phase 1). COHORT=fresh: pages 2.. of the SAME query, excluding every
   // trial in the original fixture, chosen by a fixed rule (every k-th) BEFORE any parsing or evaluation.
   const exclude = new Set<string>();
-  if (COHORT === "fresh") {
-    const orig = fx("ctgov-breast").replace("-fresh", "");
-    if (!existsSync(orig)) throw new Error("original fixture missing");
-    (JSON.parse(readFileSync(orig, "utf8")) as Array<{ nct_id: string }>).forEach((t) => exclude.add(t.nct_id));
+  if (COHORT !== "original") {
+    const used = COHORT === "untouched" ? ["", "-fresh"] : [""];
+    for (const suf of used) {
+      const f = fx("ctgov-breast").replace(`-${COHORT}.json`, `${suf}.json`);
+      if (!existsSync(f)) throw new Error("earlier cohort fixture missing: " + suf);
+      (JSON.parse(readFileSync(f, "utf8")) as Array<{ nct_id: string }>).forEach((t) => exclude.add(t.nct_id));
+    }
   }
-  const pagesWanted = COHORT === "fresh" ? 4 : 1;
+  // fresh: pages 2-4 (skip page 1); untouched: pages 5-8 (skip 1-4). Pre-registered, before any parsing.
+  const firstPage = COHORT === "untouched" ? 4 : COHORT === "fresh" ? 1 : 0;
+  const pagesWanted = COHORT === "untouched" ? 8 : COHORT === "fresh" ? 4 : 1;
   const studies: z.infer<typeof StudySchema>[] = [];
   let token: string | undefined;
   let rl: string[] = [];
@@ -73,7 +78,7 @@ async function main(): Promise<void> {
     if (!res.ok) throw new Error(`CT.gov HTTP ${res.status}`);
     const page = PageSchema.parse(await res.json());
     if (pg === 0) firstPageHadNext = !!page.nextPageToken;
-    if (COHORT === "fresh" ? pg >= 1 : true) studies.push(...page.studies); // fresh: skip page 1 (the original cohort's page)
+    if (pg >= firstPage) studies.push(...page.studies); // fresh: skip page 1 (the original cohort's page)
     token = page.nextPageToken;
     if (!token) break;
   }
@@ -107,7 +112,7 @@ async function main(): Promise<void> {
   const step = Math.max(1, Math.floor(all.length / want));
   const trials = all.filter((_, i) => i % step === 0).slice(0, want).map((t) => TrialSchema.parse(t));
   saveJson(FIXTURE_PATH, trials);
-  if (COHORT === "fresh") console.log("fresh cohort NCT ids:", trials.map((t) => t.nct_id).join(","));
+  if (COHORT !== "original") console.log(COHORT + " cohort NCT ids:", trials.map((t) => t.nct_id).join(","));
 
   const n = trials.length;
   const crit = trials.flatMap(splitCriteria);

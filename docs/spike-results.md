@@ -1029,3 +1029,70 @@ Frozen run detail: original: unresolved 15 (3.9%), code-evaluable 4, ≥1 atom 9
 
 - Criteria in the 29 candidates (warm): 426; parse completeness full 5 / partial 406 / unresolved 15; findings decided PASS/FAIL after eval+guard+checks: 66.
 - Offline pre-parse of the cohort: 34 HTTP calls (chunks of 15 + retries), 52889 ms at concurrency 6; cache entries written 28/29. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).
+
+## 2026-10-06T05:09:39.222Z — 07-e2e (fresh cohort; fictional profile; clause prompt `spike-4`, fail-verify `fail-verify-0`; reasoning_effort=low; rule D active; command `COHORT=fresh pnpm spike:e2e`)
+
+- Plan: `RunBudget(80)`: each LLM slot reserves 2 calls (call + its one retry) ⇒ 40 slots; reserved: extraction 1, verify 8, **mismatch checks 3 (reassigned from the unbuilt escalation stage)**; parse capped at 14 slots; evaluate takes shared slots; unused verify reserve flows to mismatch checks. Hard `CallCap(80)` throws if exceeded (it did not).
+- Profile: fictional; extractor produced 14 known facts (cold) / 14 (warm). Prefilter by age/sex over the 30-trial fresh fixture ⇒ 30 candidates.
+
+| Run | candidates | parse cache hit/miss | HTTP calls used | slots | calls extraction/parse/evaluate/verify/mismatch | wall ms |
+|---|---|---|---|---|---|---|
+| cold (empty parse cache) | 30 | 0/30 | 36 (≤80) | 33 slots → worst case 66 | 1/17/12/3/3 | 63521 |
+| warm (parse cache filled) | 30 | 25/5 | 46 (≤80) | 40 slots → worst case 80 | 1/19/15/6/5 | 77260 |
+
+| Run | extraction | parse | free-text evaluate | verify (STRONG/POSSIBLE) | FAIL checks |
+|---|---|---|---|---|---|
+| cold | 29741 ms (1 slots, 0 retries, 0×429, 0 failed) | 22754 ms (14 slots, 3 retries, 0×429, 2 failed [ZOD_INVALID_AFTER_RETRY×2]) | 7061 ms (12 slots, 0 retries, 0×429, 0 failed) | 2023 ms (3 slots, 0 retries, 0×429, 0 failed) | 1931 ms (3 slots, 0 retries, 0×429, 0 failed) |
+| warm | 20610 ms (1 slots, 0 retries, 0×429, 0 failed) | 41270 ms (13 slots, 6 retries, 0×429, 4 failed [ZOD_INVALID_AFTER_RETRY×4]) | 9679 ms (15 slots, 0 retries, 0×429, 0 failed) | 2243 ms (6 slots, 0 retries, 0×429, 0 failed) | 3452 ms (5 slots, 0 retries, 0×429, 0 failed) |
+
+| Run | tiers after typed-only (code; unchecked FAIL ⇒ UNCERTAIN) | after free-text eval | final | trials with unresolved criteria | guard downgrades | verification | eval slot overflow |
+|---|---|---|---|---|---|---|---|
+| cold | {"STRONG":0,"POSSIBLE":3,"UNCERTAIN":27,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":3,"UNCERTAIN":27,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":3,"UNCERTAIN":24,"LIKELY_MISMATCH":3} | 18 | 1 | 3 verified, 0 disagreements, 0 unverified→UNCERTAIN | 0 |
+| warm | {"STRONG":0,"POSSIBLE":6,"UNCERTAIN":24,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":6,"UNCERTAIN":24,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":3,"UNCERTAIN":23,"LIKELY_MISMATCH":4} | 3 | 5 | 6 verified, 3 disagreements, 0 unverified→UNCERTAIN | 15 |
+
+| Run | trials with ≥1 FAIL (candidates) | FAILs verified | rejected | unsubstantiated | no capacity | not run | final LIKELY_MISMATCH |
+|---|---|---|---|---|---|---|---|
+| cold | 3 trials / 5 FAIL findings | 5 | 0 | 0 | 0 | 0 | 3 |
+| warm | 6 trials / 12 FAIL findings | 6 | 0 | 2 | 4 | 0 | 4 |
+
+- Criteria in the 30 candidates (warm): 487; parse completeness full 8 / partial 419 / unresolved 60; findings decided PASS/FAIL after eval+guard+checks: 40.
+- Offline pre-parse of the cohort: 47 HTTP calls (chunks of 15 + retries), 71981 ms at concurrency 6; cache entries written 27/30. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).
+
+## 2026-10-06T05:10:17.729Z — 03-ctgov (untouched cohort)
+
+- Endpoint: `GET https://clinicaltrials.gov/api/v2/studies` with `query.cond=breast cancer`, `filter.overallStatus=RECRUITING`, `pageSize=60`, `fields=...`. HTTP 200, no key.
+- Page returned 240 studies (nextPageToken present); 240 had eligibility text; sample = 30 (every 8th).
+- Rate-limit headers observed: none (VERIFY documented limit: ~50 req/min/IP per CT.gov docs)
+- Zod validation of response: passed (fields tolerated as optional).
+- Field presence over sample: eligibility text 30/30 (100%); minimumAge 29/30 (97%); maximumAge 9/30 (30%); sex 30/30 (100%); lastUpdatePostDate 30/30 (100%)
+- Sites: 384 total across sample; with geoPoint 376/384 (98%); trials where every site has geo 25/30 (83%); site-level status field present on 30/30 (100%) trials (≥1 RECRUITING site).
+- Heuristic criterion split: 662 bullet-level criteria (363 inclusion / 299 exclusion); median length 101 chars. The splitter is a regex heuristic, not a parser; mis-splits are not measured here.
+- Raw fixture is gitignored (`eval/spike/fixtures/`), regenerate with `pnpm spike:ctgov`. VERIFY: CT.gov terms of use on redistributing submitter text before ever committing it.
+
+## 2026-10-06T05:10:26.298Z — 07-e2e (untouched cohort; fictional profile; clause prompt `spike-4`, fail-verify `fail-verify-0`; reasoning_effort=low; rule D active; command `COHORT=untouched pnpm spike:e2e`)
+
+- Plan: `RunBudget(80)`: each LLM slot reserves 2 calls (call + its one retry) ⇒ 40 slots; reserved: extraction 1, verify 8, **mismatch checks 3 (reassigned from the unbuilt escalation stage)**; parse capped at 14 slots; evaluate takes shared slots; unused verify reserve flows to mismatch checks. Hard `CallCap(80)` throws if exceeded (it did not).
+- Profile: fictional; extractor produced 0 known facts (cold) / 0 (warm). Prefilter by age/sex over the 30-trial untouched fixture ⇒ 30 candidates.
+
+| Run | candidates | parse cache hit/miss | HTTP calls used | slots | calls extraction/parse/evaluate/verify/mismatch | wall ms |
+|---|---|---|---|---|---|---|
+| cold (empty parse cache) | 30 | 0/30 | 15 (≤80) | 15 slots → worst case 30 | 1/14/0/0/0 | 1706 |
+| warm (parse cache filled) | 30 | 0/30 | 15 (≤80) | 15 slots → worst case 30 | 1/14/0/0/0 | 594 |
+
+| Run | extraction | parse | free-text evaluate | verify (STRONG/POSSIBLE) | FAIL checks |
+|---|---|---|---|---|---|
+| cold | 643 ms (1 slots, 0 retries, 0×429, 1 failed [HTTP_422×1]) | 1052 ms (14 slots, 0 retries, 0×429, 14 failed [HTTP_422×14]) | 0 ms (0 slots, 0 retries, 0×429, 0 failed) | 0 ms (0 slots, 0 retries, 0×429, 0 failed) | 0 ms (0 slots, 0 retries, 0×429, 0 failed) |
+| warm | 122 ms (1 slots, 0 retries, 0×429, 1 failed [HTTP_422×1]) | 469 ms (14 slots, 0 retries, 0×429, 14 failed [HTTP_422×14]) | 0 ms (0 slots, 0 retries, 0×429, 0 failed) | 0 ms (0 slots, 0 retries, 0×429, 0 failed) | 0 ms (0 slots, 0 retries, 0×429, 0 failed) |
+
+| Run | tiers after typed-only (code; unchecked FAIL ⇒ UNCERTAIN) | after free-text eval | final | trials with unresolved criteria | guard downgrades | verification | eval slot overflow |
+|---|---|---|---|---|---|---|---|
+| cold | {"STRONG":0,"POSSIBLE":0,"UNCERTAIN":30,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":0,"UNCERTAIN":30,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":0,"UNCERTAIN":30,"LIKELY_MISMATCH":0} | 30 | 0 | 0 verified, 0 disagreements, 0 unverified→UNCERTAIN | 0 |
+| warm | {"STRONG":0,"POSSIBLE":0,"UNCERTAIN":30,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":0,"UNCERTAIN":30,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":0,"UNCERTAIN":30,"LIKELY_MISMATCH":0} | 30 | 0 | 0 verified, 0 disagreements, 0 unverified→UNCERTAIN | 0 |
+
+| Run | trials with ≥1 FAIL (candidates) | FAILs verified | rejected | unsubstantiated | no capacity | not run | final LIKELY_MISMATCH |
+|---|---|---|---|---|---|---|---|
+| cold | 0 trials / 0 FAIL findings | 0 | 0 | 0 | 0 | 0 | 0 |
+| warm | 0 trials / 0 FAIL findings | 0 | 0 | 0 | 0 | 0 | 0 |
+
+- Criteria in the 30 candidates (warm): 662; parse completeness full 0 / partial 0 / unresolved 662; findings decided PASS/FAIL after eval+guard+checks: 0.
+- Offline pre-parse of the cohort: 58 HTTP calls (chunks of 15 + retries), 1730 ms at concurrency 6; cache entries written 0/30. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).

@@ -7,9 +7,12 @@ import { splitTrialCriteria } from "../../src/lib/ctgov/split";
 
 export const RESULTS_PATH = fileURLToPath(new URL("../../docs/spike-results.md", import.meta.url));
 // COHORT=fresh switches every fixture to its "-fresh" twin (fresh cohort; see 03-ctgov). Default: original cohort.
-export const COHORT = process.env.COHORT === "fresh" ? "fresh" : "original";
+// COHORT=untouched: pages 5-8, excludes original+fresh ids (pre-registered; run ONCE with the frozen config).
+export const COHORT: "original" | "fresh" | "untouched" =
+  process.env.COHORT === "fresh" ? "fresh" : process.env.COHORT === "untouched" ? "untouched" : "original";
+export const COHORT_SUFFIX = COHORT === "original" ? "" : `-${COHORT}`;
 export const fx = (name: string): string =>
-  fileURLToPath(new URL(`./fixtures/${name}${COHORT === "fresh" ? "-fresh" : ""}.json`, import.meta.url));
+  fileURLToPath(new URL(`./fixtures/${name}${COHORT_SUFFIX}.json`, import.meta.url));
 export const FIXTURE_PATH = fx("ctgov-breast");
 
 export function appendResults(md: string): void {
