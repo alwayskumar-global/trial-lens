@@ -1,6 +1,6 @@
 # Live / replay / pending UI: PROPOSAL for Kumar's approval (nothing built)
 
-Status: **awaiting approval**. The app still ships the fixed fictional demo. Mockups were rendered from the real components and real stored replay data (CT.gov text; kept out of the repo). Three trials were marked pending and one failed in the mockups only, because the stored replay has none.
+Status: **awaiting Kumar's sign-off** (revision 2, after reviewer recommendations). The app still ships the fixed fictional demo. Mockups were rendered from the real components and real stored replay data (CT.gov text; kept out of the repo). Three trials were marked pending and one failed in the mockups only, because the stored replay has none.
 
 ## Principles
 1. A number appears only after its event arrives. No percentages, no durations, no "usually under a minute", no waiting rows for steps that have not started.
@@ -54,3 +54,19 @@ Status: **awaiting approval**. The app still ships the fixed fictional demo. Moc
 
 ## Not changing
 Tier labels, the Strong zone (stays empty and unlabelled when empty), Rule D wording, privacy footer, theme tokens.
+
+## Revision 2 (reviewer recommendations; each still needs Kumar's sign-off)
+| # | Recommendation | Change in the mockups |
+|---|---|---|
+| 1 | Approve real stage names/counts; remove Skip and the duration estimate | unchanged |
+| 2 | Approve two-line stage rows | unchanged |
+| 3 | **Revised.** Label truncated text "Criterion excerpt"; full wording one tap away; never explain a tier with a merged or cut-off excerpt | Cards quote a criterion **only when the whole criterion is one short item (≤ 120 characters, no merged list)**, always prefixed "Criterion excerpt". Otherwise the card shows counts ("2 criteria look fine so far · 3 not in your information") and, for the biggest unknown, "its wording is too long to quote here. Open the criteria to read it." Button reads "See criteria and full wording". In Detail, a cut-off row title is prefixed "Criterion excerpt" and the full wording is in the row's first column. Implementation note: use the "meets" glyph on the counts line only when at least one criterion is met. |
+| 4 | **Revised.** Distinct dashed dots for pending/failed, with legend and accessible labels | Dashed-outline dots on the Fit Line, a legend ("Assessed" / "Not analyzed this run or couldn't be read (stays Uncertain)"), and aria-labels such as "<title>, Uncertain, not analyzed this run". Mobile Fit Bar keeps the legend. |
+| 5 | Approve "Open on ClinicalTrials.gov"; **update the conflicting project copy rule** | The project rule currently says the final CTA is "Contact study team". The local CLAUDE.md was NOT edited: changing a copy rule is Kumar's call. Proposed replacement: "Final CTA is Open on ClinicalTrials.gov (contacts and locations are listed there) until contact data is fetched; never Enroll." |
+| 6 | Approve hiding unavailable questions; "Worth asking the study team." | unchanged |
+| 7 | Approve two-column Detail; model rationale labelled "Automated note"; "Not provided" when patient evidence is absent | Both present in the mockups |
+| 8 | Approve automatic fallback only with partial live state cleared and a prominent, persistent "Saved fictional example" notice | Notice is now a bordered strip with a bold lead, shown under the header on **Results and Detail** (new Detail replay mockup), plus the header tag and the replay banner |
+| 9 | **Deferred.** No early coverage event | Final counts appear in Results; backend unchanged |
+
+## Approval gate
+The fixed fictional demo stays as shipped. No UI code for these states is written until Kumar signs off on the mockups above (visual approval). Deployment is separate and not requested.
