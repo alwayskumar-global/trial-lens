@@ -8,6 +8,14 @@ export const SseEventSchema = z.discriminatedUnion("type", [
     type: z.literal("counts"),
     discovered: z.number().int().nonnegative().optional(),
     filtered: z.number().int().nonnegative().optional(),
+    // discovered: fetched from ClinicalTrials.gov · filtered: pass the age/sex prefilter · selected: sent to analysis (capped)
+    // assessed: criteria were parsed (they may still be UNCERTAIN) · pending: no parse slot this run (queued for cache warm-up)
+    // failed: the parse failed or was rejected. selected = assessed + pending + failed.
+    selected: z.number().int().nonnegative().optional(),
+    assessed: z.number().int().nonnegative().optional(),
+    pending: z.number().int().nonnegative().optional(),
+    failed: z.number().int().nonnegative().optional(),
+    /** Deprecated and no longer emitted: ambiguous. Kept optional so older stored replays still validate. */
     analyzed: z.number().int().nonnegative().optional(),
   }),
   z.object({

@@ -12,6 +12,7 @@ const collect = async (deps: ReturnType<typeof fakeDeps>) => {
   await runPipeline(PROFILE_TEXT, deps, (e) => events.push(e));
   return events;
 };
+const counts = (es: SseEvent[]) => Object.assign({}, ...es.flatMap((e) => (e.type === "counts" ? [e] : []))) as Extract<SseEvent, { type: "counts" }>;
 const results = (es: SseEvent[]) => es.flatMap((e) => (e.type === "trial_result" ? [e.assessment] : []));
 
 describe("runPipeline", () => {
@@ -100,13 +101,36 @@ describe("runPipeline", () => {
     const [r] = results(await collect(deps));
     expect(r!.tier).toBe("UNCERTAIN");
     expect(r!.analysis_failed).toBe(true);
+    expect(r!.verifier_flags).not.toContain("analysis_pending");
+  });
+
+  it("counts: discovered/filtered/selected reflect the prefilter and the candidate cap; a failed parse is failed, not pending", async () => {
+    const young = trial("NCT00000009", ["Age 18 years or older."], [], { max_age: "40 Years" }); // profile is 52 ⇒ filtered out
+    const ok = Array.from({ length: 3 }, (_, i) => trial(`NCT3000000${i}`, ["Age 18 years or older."]));
+    const es = await collect(fakeDeps([young, ...ok], {}, { maxCandidates: 2 }));
+    expect(counts(es)).toMatchObject({ discovered: 4, filtered: 3, selected: 2, assessed: 2, pending: 0, failed: 0 });
+    const deps = fakeDeps([ok[0]!]);
+    const orig = deps.llm.call.bind(deps.llm);
+    deps.llm.call = (async (a: Parameters<typeof orig>[0]) => (a.schemaName === "clause_batch" ? { data: null, stats: { errorKind: "ZOD_INVALID_AFTER_RETRY" } } : orig(a))) as typeof orig;
+    expect(counts(await collect(deps))).toMatchObject({ selected: 1, assessed: 0, pending: 0, failed: 1 });
+  });
+
+  it("a warm cache reports every trial as assessed with none pending", async () => {
+    const cache = new MemoryCriteriaCache();
+    const trials = [trial("NCT00000001", ["Age 18 years or older."])];
+    await collect(fakeDeps(trials, {}, { cache }));
+    expect(counts(await collect(fakeDeps(trials, {}, { cache })))).toMatchObject({ selected: 1, assessed: 1, pending: 0, failed: 0 });
   });
 
   it("trials beyond the parse budget are analysis_pending (not failed) and stay UNCERTAIN", async () => {
     const trials = Array.from({ length: 20 }, (_, i) => trial(`NCT${String(20000000 + i)}`, ["Age 18 years or older."]));
-    const rs = results(await collect(fakeDeps(trials)));
+    const es = await collect(fakeDeps(trials));
+    const rs = results(es);
     const pending = rs.filter((r) => r.verifier_flags.includes("analysis_pending"));
     expect(pending.length).toBe(6); // parse cap is 14 slots, one chunk per trial
+    // count contract: selected = assessed + pending + failed, each reported separately (never one "analyzed" number)
+    expect(counts(es)).toMatchObject({ discovered: 20, filtered: 20, selected: 20, assessed: 14, pending: 6, failed: 0 });
+    expect(counts(es)).not.toHaveProperty("analyzed");
     for (const r of pending) {
       expect(r.tier).toBe("UNCERTAIN");
       expect(r.analysis_failed).toBeUndefined();

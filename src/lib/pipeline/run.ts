@@ -52,6 +52,12 @@ export interface LlmPort {
   used(): number;
 }
 
+/** How a trial's parse ended. pending = no parse slot (not a failure); failed = parse rejected/failed; assessed = criteria parsed. */
+export function parseStatus(outcomes: readonly ParseOutcome[]): "assessed" | "pending" | "failed" {
+  if (outcomes.length === 0 || outcomes.some((o) => o.state === "parsed")) return "assessed";
+  return outcomes.every((o) => o.state === "unresolved" && o.reason === "not_attempted") ? "pending" : "failed";
+}
+
 export interface PipelineDeps {
   llm: LlmPort;
   /** Candidate source: live CT.gov discovery (or a fixed list in tests). */
@@ -119,8 +125,9 @@ export async function runPipeline(profileText: string, deps: PipelineDeps, emit:
     }
     const age = profile.facts.age.state === "known" ? Number(profile.facts.age.value) : undefined;
     const sex = profile.facts.sex.state === "known" ? String(profile.facts.sex.value) : undefined;
-    const candidates = prefilterTrials(all, { ...(age !== undefined ? { age } : {}), ...(sex ? { sex } : {}) }).slice(0, deps.maxCandidates);
-    emit({ type: "counts", discovered: all.length, filtered: candidates.length });
+    const prefiltered = prefilterTrials(all, { ...(age !== undefined ? { age } : {}), ...(sex ? { sex } : {}) });
+    const candidates = prefiltered.slice(0, deps.maxCandidates);
+    emit({ type: "counts", discovered: all.length, filtered: prefiltered.length, selected: candidates.length });
     const st = candidates.map((t): TrialState => ({
       trial: t,
       sources: splitTrialCriteria(t.nct_id, t.eligibility_text).map((c) => ({ id: c.id, nct_id: c.nct_id, type: c.type, text: c.text })),
@@ -260,10 +267,9 @@ export async function runPipeline(profileText: string, deps: PipelineDeps, emit:
 
   // results, in tier order
   const toResult = (s: TrialState): TrialResult => {
-    const unresolvedAll = s.outcomes.length > 0 && s.outcomes.every((o) => o.state === "unresolved");
     // Out of parse budget ⇒ pending (queued for cache warm-up, docs/run-plan.md); a rejected/failed parse ⇒ analysis_failed.
-    const pending = unresolvedAll && s.outcomes.every((o) => o.state === "unresolved" && o.reason === "not_attempted");
-    const flags = pending ? [...s.flags, "analysis_pending"] : s.flags;
+    const status = parseStatus(s.outcomes);
+    const flags = status === "pending" ? [...s.flags, "analysis_pending"] : s.flags;
     const open = s.assess.find((a) => a.scoring && (a.finding.status === "UNKNOWN" || a.finding.status === "AMBIGUOUS"));
     return {
       nct_id: s.trial.nct_id,
@@ -274,7 +280,7 @@ export async function runPipeline(profileText: string, deps: PipelineDeps, emit:
       verifier_flags: flags,
       sites: [],
       coordinator_questions: [],
-      ...(unresolvedAll && !pending ? { analysis_failed: true } : {}),
+      ...(status === "failed" ? { analysis_failed: true } : {}),
       url: nctUrl(s.trial.nct_id),
       criteria: s.sources.map((src, i) => ({ id: src.id, type: src.type, text: src.text, category: s.assess[i]!.category, completeness: s.assess[i]!.completeness })),
       top_unknown: open?.criterion_id ?? null,
@@ -282,7 +288,9 @@ export async function runPipeline(profileText: string, deps: PipelineDeps, emit:
   };
   const ordered = [...states].sort((a, b) => TIER_ORDER.indexOf(a.tier) - TIER_ORDER.indexOf(b.tier));
   for (const s of ordered) emit({ type: "trial_result", assessment: toResult(s) });
-  emit({ type: "counts", analyzed: states.length });
+  const by = { assessed: 0, pending: 0, failed: 0 };
+  for (const s of states) by[parseStatus(s.outcomes)]++;
+  emit({ type: "counts", ...by });
   const b = budget.stats();
   emit({ type: "done", replay: false, stats: { llm_calls: deps.llm.used(), worst_case_calls: b.worstCaseCalls, wall_ms: Math.round(performance.now() - wall0) } });
 }
