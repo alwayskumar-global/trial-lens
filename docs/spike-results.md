@@ -726,3 +726,117 @@ The first rule-D warm run had 12 free-text-evaluation and 9 verification calls f
 
 - Criteria in the 30 candidates (warm): 487; parse completeness full 55 / partial 395 / unresolved 37; findings decided PASS/FAIL after eval+guard+checks: 68.
 - Offline pre-parse of the cohort: 41 HTTP calls (chunks of 15 + retries), 97151 ms at concurrency 6; cache entries written 28/30. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).
+
+## 2026-10-06T03:33:43.562Z — 07-e2e (original cohort; fictional profile; clause prompt `spike-3`, fail-verify `fail-verify-0`; reasoning_effort=low; rule D active; command `COHORT=original pnpm spike:e2e`)
+
+- Plan: `RunBudget(80)`: each LLM slot reserves 2 calls (call + its one retry) ⇒ 40 slots; reserved: extraction 1, verify 8, **mismatch checks 3 (reassigned from the unbuilt escalation stage)**; parse capped at 14 slots; evaluate takes shared slots; unused verify reserve flows to mismatch checks. Hard `CallCap(80)` throws if exceeded (it did not).
+- Profile: fictional; extractor produced 15 known facts (cold) / 14 (warm). Prefilter by age/sex over the 30-trial original fixture ⇒ 29 candidates.
+
+| Run | candidates | parse cache hit/miss | HTTP calls used | slots | calls extraction/parse/evaluate/verify/mismatch | wall ms |
+|---|---|---|---|---|---|---|
+| cold (empty parse cache) | 29 | 0/29 | 38 (≤80) | 37 slots → worst case 74 | 1/15/13/6/3 | 69570 |
+| warm (parse cache filled) | 29 | 29/0 | 40 (≤80) | 40 slots → worst case 80 | 1/0/26/9/4 | 63721 |
+
+| Run | extraction | parse | free-text evaluate | verify (STRONG/POSSIBLE) | FAIL checks |
+|---|---|---|---|---|---|
+| cold | 29238 ms (1 slots, 0 retries, 0×429, 0 failed) | 26944 ms (14 slots, 1 retries, 0×429, 0 failed) | 8643 ms (13 slots, 0 retries, 0×429, 0 failed) | 2245 ms (6 slots, 0 retries, 0×429, 0 failed) | 2489 ms (3 slots, 0 retries, 0×429, 0 failed) |
+| warm | 33162 ms (1 slots, 0 retries, 0×429, 0 failed) | 0 ms (0 slots, 0 retries, 0×429, 0 failed) | 24208 ms (26 slots, 0 retries, 0×429, 0 failed) | 3980 ms (9 slots, 0 retries, 0×429, 0 failed) | 2365 ms (4 slots, 0 retries, 0×429, 0 failed) |
+
+| Run | tiers after typed-only (code; unchecked FAIL ⇒ UNCERTAIN) | after free-text eval | final | trials with unresolved criteria | guard downgrades | verification | eval slot overflow |
+|---|---|---|---|---|---|---|---|
+| cold | {"STRONG":0,"POSSIBLE":7,"UNCERTAIN":22,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":6,"UNCERTAIN":23,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":5,"UNCERTAIN":23,"LIKELY_MISMATCH":1} | 15 | 0 | 6 verified, 1 disagreements, 0 unverified→UNCERTAIN | 0 |
+| warm | {"STRONG":0,"POSSIBLE":10,"UNCERTAIN":19,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":9,"UNCERTAIN":20,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":7,"UNCERTAIN":19,"LIKELY_MISMATCH":3} | 0 | 16 | 9 verified, 2 disagreements, 0 unverified→UNCERTAIN | 0 |
+
+| Run | trials with ≥1 FAIL (candidates) | FAILs verified | rejected | unsubstantiated | no capacity | not run | final LIKELY_MISMATCH |
+|---|---|---|---|---|---|---|---|
+| cold | 3 trials / 10 FAIL findings | 2 | 8 | 0 | 0 | 0 | 1 |
+| warm | 10 trials / 17 FAIL findings | 3 | 1 | 0 | 13 | 0 | 3 |
+
+- Criteria in the 29 candidates (warm): 426; parse completeness full 52 / partial 374 / unresolved 0; findings decided PASS/FAIL after eval+guard+checks: 83.
+- Offline pre-parse of the cohort: 34 HTTP calls (chunks of 15 + retries), 68208 ms at concurrency 6; cache entries written 29/29. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).
+
+## 2026-10-06T03:38:53.522Z — 07-e2e (fresh cohort; fictional profile; clause prompt `spike-3`, fail-verify `fail-verify-0`; reasoning_effort=low; rule D active; command `COHORT=fresh pnpm spike:e2e`)
+
+- Plan: `RunBudget(80)`: each LLM slot reserves 2 calls (call + its one retry) ⇒ 40 slots; reserved: extraction 1, verify 8, **mismatch checks 3 (reassigned from the unbuilt escalation stage)**; parse capped at 14 slots; evaluate takes shared slots; unused verify reserve flows to mismatch checks. Hard `CallCap(80)` throws if exceeded (it did not).
+- Profile: fictional; extractor produced 13 known facts (cold) / 15 (warm). Prefilter by age/sex over the 30-trial fresh fixture ⇒ 30 candidates.
+
+| Run | candidates | parse cache hit/miss | HTTP calls used | slots | calls extraction/parse/evaluate/verify/mismatch | wall ms |
+|---|---|---|---|---|---|---|
+| cold (empty parse cache) | 30 | 0/30 | 33 (≤80) | 30 slots → worst case 60 | 1/17/10/2/3 | 60188 |
+| warm (parse cache filled) | 30 | 27/3 | 42 (≤80) | 40 slots → worst case 80 | 1/8/22/3/8 | 82690 |
+
+| Run | extraction | parse | free-text evaluate | verify (STRONG/POSSIBLE) | FAIL checks |
+|---|---|---|---|---|---|
+| cold | 21514 ms (1 slots, 0 retries, 0×429, 0 failed) | 26533 ms (14 slots, 3 retries, 0×429, 3 failed [ZOD_INVALID_AFTER_RETRY×3]) | 6391 ms (10 slots, 0 retries, 0×429, 0 failed) | 2809 ms (2 slots, 0 retries, 0×429, 0 failed) | 2925 ms (3 slots, 0 retries, 0×429, 0 failed) |
+| warm | 24436 ms (1 slots, 0 retries, 0×429, 0 failed) | 24909 ms (6 slots, 2 retries, 0×429, 2 failed [ZOD_INVALID_AFTER_RETRY×2]) | 25768 ms (22 slots, 0 retries, 0×429, 0 failed) | 2718 ms (3 slots, 0 retries, 0×429, 0 failed) | 4852 ms (8 slots, 0 retries, 0×429, 0 failed) |
+
+| Run | tiers after typed-only (code; unchecked FAIL ⇒ UNCERTAIN) | after free-text eval | final | trials with unresolved criteria | guard downgrades | verification | eval slot overflow |
+|---|---|---|---|---|---|---|---|
+| cold | {"STRONG":0,"POSSIBLE":2,"UNCERTAIN":28,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":2,"UNCERTAIN":28,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":2,"UNCERTAIN":26,"LIKELY_MISMATCH":2} | 19 | 0 | 2 verified, 0 disagreements, 0 unverified→UNCERTAIN | 0 |
+| warm | {"STRONG":0,"POSSIBLE":5,"UNCERTAIN":25,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":3,"UNCERTAIN":27,"LIKELY_MISMATCH":0} | {"STRONG":0,"POSSIBLE":3,"UNCERTAIN":20,"LIKELY_MISMATCH":7} | 2 | 14 | 3 verified, 0 disagreements, 0 unverified→UNCERTAIN | 1 |
+
+| Run | trials with ≥1 FAIL (candidates) | FAILs verified | rejected | unsubstantiated | no capacity | not run | final LIKELY_MISMATCH |
+|---|---|---|---|---|---|---|---|
+| cold | 3 trials / 5 FAIL findings | 4 | 0 | 1 | 0 | 0 | 2 |
+| warm | 14 trials / 24 FAIL findings | 8 | 1 | 0 | 15 | 0 | 7 |
+
+- Criteria in the 30 candidates (warm): 487; parse completeness full 56 / partial 409 / unresolved 22; findings decided PASS/FAIL after eval+guard+checks: 71.
+- Offline pre-parse of the cohort: 46 HTTP calls (chunks of 15 + retries), 101765 ms at concurrency 6; cache entries written 28/30. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).
+
+## 2026-10-06T03:40Z — Rule D, splitter fix, atom-semantics guards, fresh cohort: results (authoritative section for this round)
+
+**Which e2e sections count.** Earlier `07-e2e` sections are superseded. Authoritative: the last two (`original cohort` and `fresh cohort`), run after the `metastatic_line` fix. Superseded or invalid: the first rule-D original-cohort run (evaluation filter regression: trials with a code-stage FAIL were free-text evaluated, raising evaluate demand 21→29), the contaminated run (12 evaluate + 9 verify calls failed, 727 s; infrastructure), and the three runs labelled PRE-FIX. Each e2e figure is **one run**; the verifier and extractor vary run to run (e.g. NCT06856343's FAIL was `verified` in one run and `rejected` in the next; the extracted profile had 12–14 known facts).
+
+### What changed in code (167 tests, lint, typecheck, build pass)
+- **Rule D** (`tier.ts`, `fail-check.ts`, `schema/fail-check.ts`, `prompts/fail-verify.ts` `fail-verify-0`): only a verified FAIL makes LIKELY_MISMATCH; any other FAIL ⇒ UNCERTAIN. Verified = verifier `confirmed` AND code confirms a verbatim `source_quote`, ≥1 cited fact, every cited fact known in the profile with the cited value. No capacity / `cannot_substantiate` / failed citation ⇒ UNCERTAIN. STRONG logic untouched.
+- **Splitter** (`src/lib/ctgov/split.ts`): a section header must be its own line; headers apply in order. On the original cohort it changed 4/30 trials (435→431 criteria; NCT07694986 12/22→17/16 inclusion/exclusion). Regression tests use synthetic text shaped like the defect.
+- **Atom-semantics guards** (`atom-checks.ts`): an atom's `source` must lexically mention its fact; ER/PR percentage-threshold and HER2 IHC/ISH language and "evaluable ≠ measurable" make an atom non-executable (⇒ text leaf ⇒ `partial`). Regression tests: PD-L1→`prior_endocrine`, HIV→`prior_other_malignancy`, ER/PR "≤10%"/"<10%", HER2 IHC scoring. On the original cohort's previous parse, the guard downgraded 4 of 17 judge-"wrong" atoms and 1 of 29 judge-"full" (a correct downgrade: "evaluable"). Cue lists were frozen before the fresh cohort was fetched.
+- **Bug found in the fresh-cohort audit and fixed:** `unitFactor` returned `null` for a missing unit even on unitless keys (`metastatic_line`), so "≥1 and ≤2 lines" evaluated to FALSE for a patient with 1 line (false code FAIL). Fixed with a regression test; both cohorts re-run.
+
+### Budget ledger (reassigning the 3 escalation slots to FAIL checks)
+Reservation is now extraction 1, STRONG/POSSIBLE verify 8, FAIL checks 3, escalate 0 ⇒ 12 reserved, 28 shared, **40 slots = 80 calls** (the ledger gives 40, not 39; I applied the reassignment because it keeps the worst case at 80 and evaluation is never cut for mismatch checks: evaluation draws only from the shared pool, mismatch only from its reserve plus leftovers). `planLedger` (tested) with the measured warm demands:
+
+| Run (warm) | demand: extraction / parse / evaluate / verify / FAIL-check candidates | granted | uncovered | worst-case calls |
+|---|---|---|---|---|
+| original, post-fix | 1 / 0 / 26 / 9 / 10 | 1 / 0 / 26 / 9 / 4 | **6 candidate trials unchecked ⇒ UNCERTAIN** | 80 |
+| fresh, post-fix | 1 / 6 / 22 / 3 / 14 | 1 / 6 / 22 / 3 / 8 | **6 candidate trials unchecked ⇒ UNCERTAIN** | 80 |
+
+**Projected cost to check every candidate (one call per trial, as built):** original 1+26+9+10 = 46 slots ⇒ 92 worst-case calls (expected ≈ 46); fresh 1+6+22+3+14 = 46 ⇒ 92. **Both exceed 80 by 12 in the worst case** and need ≥ 6 more slots than the plan has. If FAIL checks were batched ≤ 4 trials per verifier call (not built, not approved: it relaxes "one call per trial" for verification calls): original 1+26+9+3 = **39 slots / 78 calls**, fresh 1+6+22+3+4 = 36 slots / 72 calls; both fit.
+
+### Coverage on the fresh cohort (frozen config: `spike-3` prompt, effort low, chunk 15, splitter + guards active)
+Fresh cohort: 30 recruiting breast-cancer trials, pages 2–4 of the same CT.gov query (every 6th of 180), **0 overlap** with the original 30, last-update dates 2022-03 to 2026-09, fetched 2026-10-06 before any parsing. NCT ids: NCT06150898, NCT04373564, NCT05208762, NCT07525869, NCT05491083, NCT06545331, NCT05730608, NCT06817525, NCT05346510, NCT06461650, NCT06247449, NCT06639178, NCT04501523, NCT07579650, NCT02610413, NCT06115486, NCT04478851, NCT02732171, NCT07310758, NCT07111728, NCT05072314, NCT06623396, NCT05856383, NCT05292742, NCT07741968, NCT04703244, NCT06966141, NCT07256769, NCT04722692, NCT04495244.
+
+| Cohort | Criteria | Scoring n | Unresolved | Code-evaluable | **Reviewed full-logic** | ≥1 atom |
+|---|---|---|---|---|---|---|
+| Original (in-sample; re-run after repairs) | 431 | 385 | 15 (3.9%) | 51 (13.2%) | **25 (6.5%)** | 79 (20.5%) |
+| **Fresh (out-of-sample)** | 487 | 436 | 37 (8.5%) | 55 (12.6%) | **38 (8.7%)** | 94 (21.6%) |
+
+Fresh strata (scoring incl. unresolved): inclusion 217: reviewed full-logic 32 (14.7%), unresolved 2; exclusion 219: 6 (2.7%), unresolved 35 (16%; 3 rejected batches); simple 265: 33 (12.5%); compound 171: 5 (2.9%). Judge on code-evaluable: original full 25 / partial 23 / wrong 6; fresh full 39 / partial 15 / wrong 3. Parse batches: original 43 first-valid + 2 after retry + 1 rejected of 46; fresh 36 + 7 + 3 of 46. **Gate unchanged: still < 40%: the low coverage is not an in-sample artefact.** Judge-only review (no agent read of the fresh judge verdicts). Adaptive reach (09): trials with ≥1 typed atom on an askable fact 20/30 original, 19/30 fresh; with a reviewed-full typed criterion 8/30 original, 14/30 fresh.
+
+### FAIL audit and rule D on the cohorts (agent-labelled; not clinician review; n small)
+Warm e2e, post-fix. "True" = the trial is a real mismatch for the fictional profile in the agent's reading; verifier quality judged separately.
+
+| | Original | Fresh |
+|---|---|---|
+| FAIL-candidate trials / FAIL findings | 10 / 17 (4 code, 13 LLM) | 14 / 24 (7 code, 17 LLM) |
+| Findings: verified / rejected / no capacity | 3 / 1 / 13 | 8 / 1 / 15 |
+| Final LIKELY_MISMATCH (verified) | 3 | 7 |
+| Final tiers STRONG / POSSIBLE / UNCERTAIN / LIKELY_MISMATCH | 0 / 7 / 19 / 3 | 0 / 3 / 20 / 7 |
+| Candidates the agent judged true mismatches | 9 of 10 (1 not confirmable) | 13 of 14 (1 false: a conditional) |
+| Verified mismatches that are sound | 2 of 3 (1 verified on an unestablished time window) | 7 of 7 in substance (2 on weak evidence: inference from "metastatic" to a surgery/initial-diagnosis wording; 1 depends on an ambiguous line count) |
+| True mismatches left UNCERTAIN only for lack of a check slot | 6 | 6 |
+| False candidate stopped by the verifier | 0 | 1 (conditional "if HER2+ then …", NCT06623396) |
+
+**Reading.** (1) Rule D did its job: no unreviewed false mismatch reached LIKELY_MISMATCH on the fresh cohort and the one false candidate (a conditional misparsed as an unconditional FAIL) was rejected. (2) The verifier is not infallible: it confirmed a FAIL whose time window ("within the past three years") the facts could not establish (original NCT07776951), twice leaned on inference (fresh NCT07111728), and flipped a verdict between runs (NCT06856343). Code-side substantiation caught no failure in these runs because the quotes and facts were literally present: **substantiation proves citation, not reasoning**. (3) Capacity is the main cost: with 40 slots, 6 of 10 (original) and 6 of 14 (fresh) candidate trials stay UNCERTAIN, and every one of those I judged a true mismatch, so LIKELY_MISMATCH recall is about 22% (2/9 sound on original) and 54% (7/13 on fresh). (4) Code FAILs fell from 12 to 4 (original) after the splitter, guards and bug fix; on the fresh cohort 7 code FAILs: 5 sound, 1 conditional false FAIL (rejected), 1 weaker (timing "at diagnosis").
+
+### Limitations
+Single runs; extractor/verifier variance; one fictional profile (so verified mismatches are mostly "metastatic vs early-stage trial"); agent labels not clinician review; the fresh cohort is the same query/time frame and was not re-fetched; no verifier accuracy measured against labelled data; the judge verdicts on the fresh cohort were not hand-reviewed; UI not started.
+
+## 2026-10-06T03:41Z — Checks after rule D / splitter / guards (run locally by the agent; no CI exists)
+
+| Command | Exit |
+|---|---|
+| `pnpm lint` | 0 |
+| `pnpm typecheck` | 0 |
+| `pnpm test` (167 tests, 10 files) | 0 |
+| `pnpm build` (only NEBIUS_* set) | 0 |

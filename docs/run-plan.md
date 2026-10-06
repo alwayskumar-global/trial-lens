@@ -17,3 +17,6 @@
 Abstention guard and typed evaluation are code (0 calls) and always run.
 
 **Warm vs cold.** Warm cache: parse needs ~0–3 slots; the demo pool should be pre-parsed offline (measured: 36 calls, 63 s for 29 trials). Cold: ≤14 parse slots ⇒ ~13 trials analysed, the rest `analysis_pending`. Measured runs: `docs/spike-results.md` (07).
+
+## Measured ledger vs demand (Phase 1 repair round)
+With rule D, every FAIL needs an independent check before a trial can be LIKELY_MISMATCH. Measured warm demand exceeds the 40-slot budget: original 46 slots, fresh 46 slots, so 6 candidate trials per cohort stay UNCERTAIN (`no_capacity`) at the default reservation (extraction 1, verify 8, FAIL checks 3). Checking all candidates one call per trial needs ~92 worst-case calls. Batching ≤4 trials per verifier call (not built, needs approval) gives 39 slots / 78 calls (original) and 36 / 72 (fresh). See `docs/spike-results.md` (rule D section).
