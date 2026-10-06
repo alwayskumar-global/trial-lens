@@ -472,3 +472,71 @@ Single run per variant on 15 fixed criteria, json_schema strict, max_tokens 1638
 | `pnpm typecheck` | 0 |
 | `pnpm test` (118 tests, 7 files) | 0 |
 | `pnpm build` (only NEBIUS_* set) | 0 |
+
+## 2026-10-06T02:23:26.180Z — 07-e2e (fictional profile; fixed cohort; prompt `spike-3`; reasoning_effort=low; command `pnpm spike:e2e`)
+
+- Plan: `RunBudget(80)`: each LLM slot reserves 2 calls (call + its one retry) ⇒ 40 slots; reserved: extraction 1, verify 8, escalate 3 (escalation NOT built here; its reserve is released to verification); parse capped at 14 slots; evaluate takes the rest. Hard `CallCap(80)` additionally throws if exceeded (it did not).
+- Profile: fictional; extractor produced 14 known facts (cold) / 14 (warm). Prefilter by age/sex over the 30-trial fixture ⇒ 29 candidates.
+
+| Run | candidates | parse cache hit/miss | HTTP calls used | slots | calls extraction/parse/evaluate/verify | wall ms |
+|---|---|---|---|---|---|---|
+| cold (empty parse cache) | 29 | 0/29 | 35 (≤80) | 33 slots → worst case 66 | 1/16/12/6 | 63924 |
+| warm (parse cache filled) | 29 | 29/0 | 30 (≤80) | 30 slots → worst case 60 | 1/0/21/8 | 56361 |
+
+| Run | extraction | parse | free-text evaluate | verify |
+|---|---|---|---|---|
+| cold | 30130 ms (1 slots, 0 retries, 0×429, 0 failed) | 24785 ms (14 slots, 2 retries, 0×429, 0 failed) | 6363 ms (12 slots, 0 retries, 0×429, 0 failed) | 2634 ms (6 slots, 0 retries, 0×429, 0 failed) |
+| warm | 37054 ms (1 slots, 0 retries, 0×429, 0 failed) | 0 ms (0 slots, 0 retries, 0×429, 0 failed) | 15152 ms (21 slots, 0 retries, 0×429, 0 failed) | 4150 ms (8 slots, 0 retries, 0×429, 0 failed) |
+
+| Run | tiers after typed-only (code) | after free-text eval | final (after verify) | trials with unresolved criteria | guard downgrades | verification | eval slot overflow (trials left UNKNOWN) |
+|---|---|---|---|---|---|---|---|
+| cold | {"STRONG":0,"POSSIBLE":8,"UNCERTAIN":19,"LIKELY_MISMATCH":2} | {"STRONG":0,"POSSIBLE":6,"UNCERTAIN":19,"LIKELY_MISMATCH":4} | {"STRONG":0,"POSSIBLE":4,"UNCERTAIN":21,"LIKELY_MISMATCH":4} | 15 | 4 | 6 verified, 2 disagreements, 0 unverified→UNCERTAIN | 0 |
+| warm | {"STRONG":0,"POSSIBLE":9,"UNCERTAIN":12,"LIKELY_MISMATCH":8} | {"STRONG":0,"POSSIBLE":8,"UNCERTAIN":9,"LIKELY_MISMATCH":12} | {"STRONG":0,"POSSIBLE":8,"UNCERTAIN":9,"LIKELY_MISMATCH":12} | 0 | 1 | 8 verified, 0 disagreements, 0 unverified→UNCERTAIN | 0 |
+
+- Criteria in the 29 candidates (warm): 430; parse completeness full 71 / partial 359 / unresolved 0; findings decided PASS/FAIL after eval+guard: 79.
+- Offline pre-parse of the cohort (what `pnpm precompute` must do before judging): 32 HTTP calls (chunks of 15 + retries), 56228 ms at concurrency 6; cache entries written 29/29. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).
+
+## 2026-10-06T02:25Z — LIKELY_MISMATCH audit (warm e2e run 2; fictional profile; `pnpm spike:e2e` then `pnpm exec tsx eval/spike/10-mismatch-audit.ts`)
+
+**Scope and method.** The first e2e run did not persist per-trial state, so `07-e2e.ts` now saves gitignored snapshots (`eval/spike/fixtures/e2e-{cold,warm}.json`) and was re-run. Run 2 (warm: 30 HTTP calls, 21 evaluate + 8 verify slots, 56 s) again produced **12 LIKELY_MISMATCH of 29** (8 decided by the code stage, 4 added by free-text evaluation), same count as run 1 but not necessarily the same trials. Every FAIL was read by the agent against the original criterion text, the parsed clause and the fictional profile. Labels are the agent's judgment: **not a measured verifier, not clinician review, n=20 findings, in-sample.**
+
+**Fictional profile facts used (known):** age 52, female, stage IV, metastatic, ECOG 1, ER+, PR+, HER2-negative, postmenopausal, not pregnant, no CNS mets, prior CDK4/6i, prior endocrine, prior chemotherapy. (Percent ER/PR expression, HER2 IHC/ISH detail, PD-L1 not stated.)
+
+### Findings (20 FAIL findings in 12 trials)
+| # | Trial | FAILs (origin) | What the FAIL rests on | Agent label | Trial-level |
+|---|---|---|---|---|---|
+| 1 | NCT06856343 | 1 code | trial wants HER2-negative early BC; patient metastatic | confirmed | confirmed |
+| 2 | NCT06722612 | 1 code | excludes metastatic disease; patient metastatic | confirmed | confirmed |
+| 3 | NCT07081555 | 1 LLM | requires HER2 overexpression (IHC 3+, or 2+/ISH+); patient HER2-negative | confirmed | confirmed |
+| 4 | NCT07776951 | 2 LLM | "first diagnosis of primary BC" and "candidate for neoadjuvant therapy" both inferred from stage IV alone | cannot be confirmed (inference / clinical judgment; de novo stage IV can be a first diagnosis) | **not confirmable** |
+| 5 | NCT06518837 | 1 code | stage IV is listed under the real Exclusion header | confirmed | confirmed |
+| 6 | NCT05059379 | 2 LLM | M0 staging requirement; "distant metastasis" exclusion | confirmed ×2 | confirmed |
+| 7 | NCT05909332 | 3 LLM | TNBC required (patient ER+/PR+); non-metastatic stage required; metastatic excluded | confirmed ×3 | confirmed |
+| 8 | NCT06627712 | 2 code | (a) M0 stage requirement: right outcome, approximate stage mapping; (b) a *conditional* ("women of childbearing potential aged 15–49 must test negative…") encoded as an unconditional AND, so age 52 fails | (a) confirmed; (b) **wrong** | confirmed via (a) |
+| 9 | NCT06732323 | 3 code | TNBC required (confirmed); no prior systemic therapy for metastatic disease (confirmed); a PD-L1 criterion mapped to `prior_endocrine eq false` | 2 confirmed, 1 **wrong mapping** | confirmed via the first two |
+| 10 | NCT07694986 | 1 code | pregnancy-test requirement from the INCLUSION section typed as exclusion by the splitter, and conditional on childbearing potential | **wrong** (false FAIL) | **false mismatch** |
+| 11 | NCT05812807 | 2 code | (a) ER/PR ≤10% and HER2-negative encoded as ER negative: patient "ER positive" with unknown percent could be ER-low, so the FAIL cannot be confirmed; (b) "No stage IV" | (a) cannot be confirmed; (b) confirmed | confirmed via (b) |
+| 12 | NCT05582538 | 1 code | "negative ER/PgR (defined as <10%)" vs patient "positive" with unknown percent | cannot be confirmed | **not confirmable** |
+
+**Totals.** FAIL findings: 13 confirmed, 3 wrong, 4 cannot-be-confirmed. By origin: **code 12 → 7 confirmed, 3 wrong, 2 unconfirmable; LLM 8 → 6 confirmed, 0 wrong, 2 unconfirmable.** Trial level: **9 of 12 confirmed, 3 of 12 would not survive verification** (#4, #10, #12; one of them a false mismatch). Code FAILs were not more reliable than LLM FAILs: 5 of 12 code FAILs were unsound.
+
+**Root causes of the unsound FAILs (all upstream of verification):**
+1. **Conditional criteria are not representable** ("if X then must Y"). The clause schema has all/any/except but no implication, so conditionals were encoded as plain AND (#8b, #10). Needs a representation decision.
+2. **Criterion-splitter defect:** the first "exclusion criteria" match is taken even when it is an inline cross-reference. 4 of 27 trials with an exclusion header are affected (NCT05768139, NCT06732323, NCT07623369, NCT07694986); in NCT07694986, 22 of 34 criteria were typed exclusion. This also inflates exclusion-stratum figures in the earlier coverage runs.
+3. **Wrong fact mapping** that the code check cannot detect (#9 PD-L1 → `prior_endocrine`).
+4. **Threshold semantics** (≤10% / <10% receptor expression treated as plain "negative"; the vocabulary has no percentage fact).
+5. **Over-inference** by the free-text LLM from stage alone (#4).
+
+### Projected verification calls (rule: unverified FAIL stays UNCERTAIN; only a verified FAIL becomes LIKELY_MISMATCH)
+Verifier design assumed: one call per mismatch candidate trial, input = the trial's FAIL criteria (original text) + the known facts only (no first-pass reasoning), tri-state output per criterion; the trial is LIKELY_MISMATCH only if ≥1 FAIL is confirmed. One slot = call + its retry. Not built and not measured.
+
+| Run | Mismatch candidates | New verification calls (no retry) | Worst case (every call retries) | Total slots / worst-case calls with existing stages |
+|---|---|---|---|---|
+| Warm run 2 | 12 | 12 | 24 | 30 + 12 = 42 slots → **84 calls: exceeds 80 by 4 if every call retried**; expected actual calls ≈ 42 (retries observed ≈ 0–3 per run) |
+| Cold run 1 (earlier) | 4 | 4 | 8 | 1+14+12+6+4 = 37 slots → 74: fits |
+
+To fit 80 in the worst case, the warm path needs ≥2 slots back: for example cap free-text evaluation at 19 slots (2 trials stay UNKNOWN ⇒ UNCERTAIN), or share the unused escalation reserve (3 slots, escalation unbuilt) with mismatch verification. Overflow rule: a candidate without a verification slot stays UNCERTAIN, never LIKELY_MISMATCH. Mismatch candidates are bounded by the candidate count (≤30), so a cap of 12 verification slots still leaves FAILs unverified when more than 12 occur: they remain UNCERTAIN.
+
+**Projected effect on warm run 2 if the verifier agreed with the agent labels (a proxy, not measured):** POSSIBLE 8, UNCERTAIN 9 + 3 = 12, LIKELY_MISMATCH 9 (from 12). If no slots were available for mismatch verification: LIKELY_MISMATCH 0, UNCERTAIN 21.
+
+**Not changed:** tier logic (STRONG rule untouched; no engine change for verified-FAIL yet), UI, Phase 2.

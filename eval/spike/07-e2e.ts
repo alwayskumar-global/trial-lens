@@ -16,7 +16,7 @@ import type { Tier } from "../../src/schema/assessment";
 import { makeClauseBatchSchema } from "../../src/schema/clause";
 import { FactSchema, type Fact, type PatientProfile } from "../../src/schema/profile";
 import { FACT_KEYS, FactKeySchema, type FactKey } from "../../src/schema/vocabulary";
-import { appendResults, loadFixture, splitCriteria, type Trial } from "./lib";
+import { appendResults, FIXTURE_PATH, loadFixture, saveJson, splitCriteria, type Trial } from "./lib";
 import { callJson, CallCap, makeClient, type CallStats } from "./llm";
 
 const MAX_CALLS = getPipelineEnv().MAX_LLM_CALLS_PER_RUN; // 80
@@ -190,7 +190,8 @@ async function run(label: string, cache: Cache, budgeted: boolean, cap: CallCap)
   states.forEach((s) => s.assess.forEach((a) => completeness[a.completeness]++));
   const decided = states.reduce((n, s) => n + s.assess.filter((a) => a.finding.status === "PASS" || a.finding.status === "FAIL").length, 0);
   const totalCriteria = states.reduce((n, s) => n + s.assess.length, 0);
-  return { label, wall, cap: cap.used, st, budgetStats: b, known, candidates: candidates.length, cacheHits, cacheMiss, pending, afterTyped, afterEval, final, guardDowngrades, evalTrials, evalOverflow, verified, disagreements, unverified, completeness, decided, totalCriteria };
+  const snapshot = { profile: Object.values(profile.facts).filter((f) => f.state !== "unknown"), trials: states.map((s) => ({ nct_id: s.trial.nct_id, tier: s.tier, flags: s.flags, criteria: s.sources.map((src, i) => ({ id: src.id, type: src.type, text: src.text, completeness: s.assess[i]!.completeness, category: s.assess[i]!.category, finding: s.assess[i]!.finding, clause: s.outcomes[i]!.state === "parsed" ? (s.outcomes[i] as Extract<ParseOutcome, { state: "parsed" }>).clause : null })) })) };
+  return { snapshot, label, wall, cap: cap.used, st, budgetStats: b, known, candidates: candidates.length, cacheHits, cacheMiss, pending, afterTyped, afterEval, final, guardDowngrades, evalTrials, evalOverflow, verified, disagreements, unverified, completeness, decided, totalCriteria };
 }
 
 async function main(): Promise<void> {
@@ -198,6 +199,7 @@ async function main(): Promise<void> {
   // COLD: empty cache, full plan + hard cap.
   const cold = await run("cold (empty parse cache)", cache, true, new CallCap(MAX_CALLS));
   console.log("cold done", cold.cap, "calls", cold.wall, "ms");
+  saveJson(FIXTURE_PATH.replace("ctgov-breast.json", "e2e-cold.json"), cold.snapshot); // gitignored: fictional profile + public CT.gov text
   // OFFLINE pre-parse of the whole cohort (what `precompute` would do): measured separately, own cap, no run budget.
   const pre = await run("offline pre-parse (unbudgeted; fills cache; its own extraction/eval/verify not part of the per-run plan)", cache, false, new CallCap(400));
   const preParseCalls = pre.st.parse!.calls, preParseMs = pre.st.parse!.ms;
@@ -205,6 +207,7 @@ async function main(): Promise<void> {
   // WARM: cache filled, full plan + hard cap.
   const warm = await run("warm (parse cache filled)", cache, true, new CallCap(MAX_CALLS));
   console.log("warm done", warm.cap, "calls", warm.wall, "ms");
+  saveJson(FIXTURE_PATH.replace("ctgov-breast.json", "e2e-warm.json"), warm.snapshot);
 
   const row = (r: typeof cold) => `| ${r.label} | ${r.candidates} | ${r.cacheHits}/${r.cacheMiss} | ${r.cap} (≤${MAX_CALLS}) | ${r.budgetStats.slotsGranted} slots → worst case ${r.budgetStats.worstCaseCalls} | ${r.st.extraction!.calls}/${r.st.parse!.calls}/${r.st.evaluate!.calls}/${r.st.verify!.calls} | ${r.wall} |`;
   const stageRow = (r: typeof cold) => `| ${r.label.split(" ")[0]} | ${(["extraction", "parse", "evaluate", "verify"] as const).map((k) => `${r.st[k]!.ms} ms (${r.st[k]!.slots} slots, ${r.st[k]!.retries} retries, ${r.st[k]!.rateLimited}×429, ${r.st[k]!.failed} failed)`).join(" | ")} |`;
