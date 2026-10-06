@@ -7,10 +7,10 @@ import { readFileSync } from "node:fs";
 import { leaves } from "../../src/lib/engine/clause";
 import type { ParseOutcome } from "../../src/lib/engine/reconcile";
 import { VOCABULARY } from "../../src/schema/vocabulary";
-import { appendResults, FIXTURE_PATH } from "./lib";
+import { appendResults, fx } from "./lib";
 
 interface Row { id: string; type: string; outcome: ParseOutcome; verdict: string }
-const rows: Row[] = JSON.parse(readFileSync(FIXTURE_PATH.replace("ctgov-breast.json", "coverage-v2-low.json"), "utf8"));
+const rows: Row[] = JSON.parse(readFileSync(fx("coverage-v2-low"), "utf8"));
 const trials = new Set(rows.map((r) => r.id.split(":")[0]!));
 const any = new Map<string, Set<string>>(), rev = new Map<string, Set<string>>();
 for (const r of rows) {

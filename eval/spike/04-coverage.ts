@@ -9,7 +9,7 @@ import { getNebiusEnv, getPipelineEnv } from "../../src/lib/env";
 import { buildBatchUserPrompt, buildCriteriaParseSystemPrompt, CRITERIA_PARSE_PROMPT_VERSION } from "../../src/prompts/criteria-parse";
 import { LlmCriteriaBatchSchema, type LlmCriterion } from "../../src/schema/criteria";
 import { FACT_KEYS } from "../../src/schema/vocabulary";
-import { appendResults, evaluabilityProblems, FIXTURE_PATH, isCompound, loadFixture, saveJson, splitCriteria, type SplitCriterion } from "./lib";
+import { appendResults, evaluabilityProblems, isCompound, loadFixture, saveJson, splitCriteria, type SplitCriterion, fx } from "./lib";
 import { callJson, CallCap, makeClient } from "./llm";
 
 const MAX_CALLS = 400;
@@ -187,7 +187,7 @@ async function main(): Promise<void> {
   lines.push(`\n- Manual spot-check list (typed-C ids; read text/structure in \`eval/spike/fixtures/coverage-parsed.json\`): ${spot.join(", ")}.`);
   lines.push(`- Total HTTP calls: ${cap.used}/${MAX_CALLS}; parse wall ${parseWall} ms at concurrency ${conc}.`);
 
-  saveJson(FIXTURE_PATH.replace("ctgov-breast.json", "coverage-parsed.json"), parsedRows.map((r) => ({ id: r.c.id, type: r.c.type, text: r.c.text, parsed: r.p, problems: r.problems, verdict: r.verdict })));
+  saveJson(fx("coverage-parsed"), parsedRows.map((r) => ({ id: r.c.id, type: r.c.type, text: r.c.text, parsed: r.p, problems: r.problems, verdict: r.verdict })));
   appendResults(lines.join("\n") + "\n");
   console.log(lines.slice(1, 12).join("\n"));
 }

@@ -3,9 +3,14 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { z } from "zod";
+import { splitTrialCriteria } from "../../src/lib/ctgov/split";
 
 export const RESULTS_PATH = fileURLToPath(new URL("../../docs/spike-results.md", import.meta.url));
-export const FIXTURE_PATH = fileURLToPath(new URL("./fixtures/ctgov-breast.json", import.meta.url));
+// COHORT=fresh switches every fixture to its "-fresh" twin (fresh cohort; see 03-ctgov). Default: original cohort.
+export const COHORT = process.env.COHORT === "fresh" ? "fresh" : "original";
+export const fx = (name: string): string =>
+  fileURLToPath(new URL(`./fixtures/${name}${COHORT === "fresh" ? "-fresh" : ""}.json`, import.meta.url));
+export const FIXTURE_PATH = fx("ctgov-breast");
 
 export function appendResults(md: string): void {
   if (!existsSync(RESULTS_PATH)) writeFileSync(RESULTS_PATH, "# Spike results\n");
@@ -51,22 +56,7 @@ export interface SplitCriterion {
 // Splits CT.gov free-text eligibility into bullet-level criteria. Heuristic; the
 // split quality itself is part of what the spike measures (see 04-coverage).
 export function splitCriteria(t: Trial): SplitCriterion[] {
-  const text = t.eligibility_text.replace(/\r/g, "");
-  const exIdx = text.search(/exclusion criteria\s*:?/i);
-  const incPart = exIdx >= 0 ? text.slice(0, exIdx) : text;
-  const excPart = exIdx >= 0 ? text.slice(exIdx) : "";
-  const out: SplitCriterion[] = [];
-  for (const [type, part] of [
-    ["inclusion", incPart],
-    ["exclusion", excPart],
-  ] as const) {
-    const items = part
-      .split(/\n\s*(?:[*\-•]|\d+[.)])\s+/)
-      .map((s) => s.replace(/\s+/g, " ").trim())
-      .filter((s) => s.length >= 15 && !/^(inclusion|exclusion) criteria:?$/i.test(s));
-    items.forEach((text2, i) => out.push({ id: `${t.nct_id}:${type}:${i}`, nct_id: t.nct_id, type, text: text2 }));
-  }
-  return out;
+  return splitTrialCriteria(t.nct_id, t.eligibility_text).map((c) => ({ id: c.id, nct_id: c.nct_id, type: c.type, text: c.text }));
 }
 
 // Rough "compound" heuristic for stratification only.

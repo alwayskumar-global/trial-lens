@@ -59,11 +59,11 @@ describe("three-valued evaluation", () => {
     expect(evaluateClause(t, profile({ her2_status: "negative" })).truth).toBe("unknown");
   });
   it("exceptions: base AND NOT(any exception)", () => {
-    const t = tree(crit([atom("prior malignancy", "prior_other_malignancy", "eq", true)], { except: [atom("adequately treated skin cancer", "cardiac_disease", "eq", "none")] }));
+    const t = tree(crit([atom("prior malignancy", "prior_other_malignancy", "eq", true)], { except: [atom("treated stable brain metastases", "cns_mets", "eq", "treated_stable")] }));
     // base true, exception true → condition false
-    expect(evaluateClause(t, profile({ prior_other_malignancy: true, cardiac_disease: "none" })).truth).toBe("false");
+    expect(evaluateClause(t, profile({ prior_other_malignancy: true, cns_mets: "treated_stable" })).truth).toBe("false");
     // base true, exception false → true
-    expect(evaluateClause(t, profile({ prior_other_malignancy: true, cardiac_disease: "active" })).truth).toBe("true");
+    expect(evaluateClause(t, profile({ prior_other_malignancy: true, cns_mets: "active" })).truth).toBe("true");
     // base true, exception unknown → unknown
     expect(evaluateClause(t, profile({ prior_other_malignancy: true })).truth).toBe("unknown");
   });

@@ -11,6 +11,7 @@ import type {
 } from "@/schema/clause";
 import type { PatientProfile } from "@/schema/profile";
 import { VOCABULARY, type FactKey } from "@/schema/vocabulary";
+import { atomSemanticProblems } from "./atom-checks";
 
 export type Tri = "true" | "false" | "unknown";
 
@@ -116,6 +117,7 @@ export function atomProblems(a: AtomNode): string[] {
     if (!vals.every((x) => typeof x === "string" && allowed.includes(x))) p.push("enum_value_not_in_vocab");
     if ((a.operator === "in" || a.operator === "not_in") !== Array.isArray(a.value)) p.push("in_requires_array");
   }
+  p.push(...atomSemanticProblems(a));
   return p;
 }
 

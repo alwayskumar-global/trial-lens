@@ -2,12 +2,12 @@
 // For each FAIL: code vs LLM origin, criterion source text, evidence + the profile values behind it.
 // Prints to the console only (criterion text is public CT.gov text; not written to docs). No LLM calls.
 import { readFileSync } from "node:fs";
-import { FIXTURE_PATH } from "./lib";
+import { fx } from "./lib";
 
 interface Fact { key: string; state: string; value?: unknown }
 interface Crit { id: string; type: string; text: string; completeness: string; category: string | null; finding: { status: string; evidence: string[]; source: string; guard_downgraded?: boolean }; clause: Node | null }
 type Node = { kind: string; [k: string]: unknown };
-const snap: { profile: Fact[]; trials: Array<{ nct_id: string; tier: string; flags: string[]; criteria: Crit[] }> } = JSON.parse(readFileSync(FIXTURE_PATH.replace("ctgov-breast.json", "e2e-warm.json"), "utf8"));
+const snap: { profile: Fact[]; trials: Array<{ nct_id: string; tier: string; flags: string[]; criteria: Crit[] }> } = JSON.parse(readFileSync(fx("e2e-warm"), "utf8"));
 const pv = new Map(snap.profile.map((f) => [f.key, f]));
 const fmt = (n: Node | null): string => {
   if (!n) return "∅";

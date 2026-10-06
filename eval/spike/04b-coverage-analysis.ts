@@ -2,10 +2,10 @@
 // Answers: is the low typed-coverage a vocabulary gap, a one-fact_key-per-criterion representation
 // limit, or splitter/parse noise? Informational only; the gate stays on 04's strict "typed (C)".
 import { readFileSync } from "node:fs";
-import { FIXTURE_PATH, appendResults } from "./lib";
+import { appendResults, fx } from "./lib";
 
 interface Row { id: string; type: string; text: string; parsed: null | { scoring: boolean; fact_key: string | null; depends_on: string[]; category: string }; problems: string[]; verdict: string }
-const rows: Row[] = JSON.parse(readFileSync(FIXTURE_PATH.replace("ctgov-breast.json", "coverage-parsed.json"), "utf8"));
+const rows: Row[] = JSON.parse(readFileSync(fx("coverage-parsed"), "utf8"));
 const sc = rows.filter((r) => r.parsed?.scoring);
 const f = (x: number, d: number) => `${x}/${d} (${d ? Math.round((1000 * x) / d) / 10 : 0}%)`;
 

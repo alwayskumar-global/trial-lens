@@ -15,7 +15,7 @@ import { dependsOn, leaves } from "../../src/lib/engine/clause";
 import { reconcileBatch, type ParseOutcome, type SourceCriterion } from "../../src/lib/engine/reconcile";
 import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt, CLAUSE_PARSE_PROMPT_VERSION } from "../../src/prompts/clause-parse";
 import { makeClauseBatchSchema } from "../../src/schema/clause";
-import { appendResults, cohortCriteria, isCompound, loadFixture, saveJson, FIXTURE_PATH, seededShuffle } from "./lib";
+import { appendResults, cohortCriteria, isCompound, loadFixture, saveJson, seededShuffle, fx } from "./lib";
 import { callJson, CallCap, makeClient, THINKING_OFF } from "./llm";
 
 const MAX_CALLS = 400;
@@ -24,7 +24,7 @@ const CHUNK = Number(process.env.COVERAGE_CHUNK ?? "15");
 const REASONING = (process.env.COVERAGE_REASONING ?? "off") as "off" | "low" | "on";
 const MAX_TOKENS = Number(process.env.COVERAGE_MAX_TOKENS ?? "8192");
 const EXTRA: Record<string, unknown> | undefined = REASONING === "off" ? THINKING_OFF : REASONING === "low" ? { reasoning_effort: "low" } : undefined;
-const OUT = FIXTURE_PATH.replace("ctgov-breast.json", "coverage-v2.json");
+const OUT = fx("coverage-v2");
 const REVIEW_SAMPLE_PATH = fileURLToPath(new URL("./review-sample.json", import.meta.url));
 
 const JudgeSchema = z.object({ verdicts: z.array(z.object({ index: z.number().int().nonnegative(), verdict: z.enum(["full", "partial", "wrong"]) })) });
