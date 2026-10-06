@@ -1069,6 +1069,9 @@ Frozen run detail: original: unresolved 15 (3.9%), code-evaluable 4, ≥1 atom 9
 - Heuristic criterion split: 662 bullet-level criteria (363 inclusion / 299 exclusion); median length 101 chars. The splitter is a regex heuristic, not a parser; mis-splits are not measured here.
 - Raw fixture is gitignored (`eval/spike/fixtures/`), regenerate with `pnpm spike:ctgov`. VERIFY: CT.gov terms of use on redistributing submitter text before ever committing it.
 
+
+> **VOID: not a measurement.** Every LLM call failed with HTTP 422 (1 extraction + 14 parse, cold and warm); 0 known facts, 0 criteria parsed. Cause: `NEMOTRON_MODEL_FAST|MID|DEEP` were unset in the shell (model IDs come only from env), not a defect in the frozen config (`spike-4`/`cov-1`). No model output was produced or inspected, so the untouched cohort (30 ids, fixed by the pre-registered rule) is not yet exposed to any result. The untouched measurement is still to be run once, after the env is restored.
+
 ## 2026-10-06T05:10:26.298Z — 07-e2e (untouched cohort; fictional profile; clause prompt `spike-4`, fail-verify `fail-verify-0`; reasoning_effort=low; rule D active; command `COHORT=untouched pnpm spike:e2e`)
 
 - Plan: `RunBudget(80)`: each LLM slot reserves 2 calls (call + its one retry) ⇒ 40 slots; reserved: extraction 1, verify 8, **mismatch checks 3 (reassigned from the unbuilt escalation stage)**; parse capped at 14 slots; evaluate takes shared slots; unused verify reserve flows to mismatch checks. Hard `CallCap(80)` throws if exceeded (it did not).
