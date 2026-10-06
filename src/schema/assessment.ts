@@ -24,6 +24,24 @@ export const TrialAssessmentSchema = z.object({
 });
 export type TrialAssessment = z.infer<typeof TrialAssessmentSchema>;
 
+/** Criterion as shown to the patient: original text is verbatim from ClinicalTrials.gov and never altered. */
+export const CriterionViewSchema = z.object({
+  id: z.string().min(1),
+  type: z.enum(["inclusion", "exclusion"]),
+  text: z.string(), // original criterion text, verbatim
+  category: z.string().nullable(), // null when the parse is unresolved
+  completeness: z.enum(["full", "partial", "unresolved"]),
+});
+export type CriterionView = z.infer<typeof CriterionViewSchema>;
+
+/** Trial result streamed to the client: assessment + official link + original criteria. */
+export const TrialResultSchema = TrialAssessmentSchema.extend({
+  url: z.string().nullable().optional(), // https://clinicaltrials.gov/study/<NCT>, null when the id is malformed
+  criteria: z.array(CriterionViewSchema).optional(),
+  top_unknown: z.string().nullable().optional(), // criterion id of the first open scoring criterion
+});
+export type TrialResult = z.infer<typeof TrialResultSchema>;
+
 export const AdaptiveQuestionSchema = z.object({
   fact_key: FactKeySchema,
   prompt: z.string().min(1), // patient-friendly

@@ -4,9 +4,7 @@
 //   → free-text eval(MID, 1 call/trial) → abstention guard(code) → tier(code) → verify(MID) → [escalate: not built]
 // Run: pnpm spike:e2e   Logs counts/timings only; no prompts, outputs or profile text.
 import pLimit from "p-limit";
-import { z } from "zod";
 import { getNebiusEnv, getPipelineEnv } from "../../src/lib/env";
-import { checkIndices } from "../../src/lib/engine/checks";
 import { applyAbstentionGuard } from "../../src/lib/engine/guard";
 import { assessCriterion, reconcileBatch, type CriterionAssessment, type ParseOutcome, type SourceCriterion } from "../../src/lib/engine/reconcile";
 import { resolveFailCheck, withFailCheck } from "../../src/lib/engine/fail-check";
@@ -18,7 +16,7 @@ import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt, CLAUSE_PARSE_
 import type { Tier } from "../../src/schema/assessment";
 import { makeClauseBatchSchema } from "../../src/schema/clause";
 import { FactSchema, type Fact, type PatientProfile } from "../../src/schema/profile";
-import { FACT_KEYS, FactKeySchema, type FactKey } from "../../src/schema/vocabulary";
+import { FACT_KEYS, type FactKey } from "../../src/schema/vocabulary";
 import { appendResults, COHORT, fx, loadFixture, saveJson, splitCriteria, type Trial } from "./lib";
 import { callJson, CallCap, makeClient, type CallStats } from "./llm";
 
@@ -29,31 +27,9 @@ const N = getPipelineEnv().TIER_UNKNOWN_THRESHOLD;
 
 const FICTIONAL_PROFILE = `Fictional demo profile (not a real person). 52-year-old woman. Stage IV hormone-receptor-positive, HER2-negative breast cancer, metastatic to bone and liver. ECOG performance status 1. Postmenopausal. Previously received a CDK4/6 inhibitor with endocrine therapy and one line of chemotherapy for metastatic disease. No known brain metastases. Not pregnant. Recent blood counts and heart ultrasound results are not available.`;
 
-// ---- LLM schemas (spike-grade prompts; versioned prompts move to src/prompts in Phase 2) -----------
-const ExtractSchema = z.object({
-  facts: z.array(z.object({ key: FactKeySchema, state: z.enum(["known", "unknown", "uncertain"]), value: z.union([z.string(), z.number(), z.boolean()]).nullable(), note: z.string().nullable() })),
-});
-const EXTRACT_SYSTEM = `You extract structured facts from a patient description. Use ONLY facts stated in the text; never infer or invent. For each vocabulary key you can address, return {key, state, value, note}: state "known" with a value if stated; "uncertain" with a value if approximate or hedged; "unknown" with value null if not stated. Booleans true/false; enums exactly as listed; numbers as numbers.
-Vocabulary:
-${FACT_KEYS.join(", ")}
-Enum values: stage 0|I|II|III|IV; disease_setting early|locally_advanced|metastatic; ecog 0-4 as strings; her2_status positive|negative|low; er_status/pr_status positive|negative; menopausal_status pre|peri|post; sex female|male|other; cns_mets none|treated_stable|active; cardiac_disease none|history|active.
-Output ONLY JSON {"facts":[...]}.`;
-
-const FINDING_STATUS = z.enum(["PASS", "FAIL", "UNKNOWN", "AMBIGUOUS"]);
-function makeEvalSchema(n: number) {
-  return z
-    .object({ findings: z.array(z.object({ index: z.number().int(), status: FINDING_STATUS, evidence: z.array(z.string()), rationale: z.string() })) })
-    .superRefine((b, ctx) => {
-      const c = checkIndices(n, b.findings.map((f) => f.index));
-      if (!c.ok) ctx.addIssue({ code: "custom", message: `indices must be exactly 0..${n - 1} once each (missing [${c.missing}], duplicate [${c.duplicate}], unexpected [${c.unexpected}])` });
-    });
-}
-const EVAL_SYSTEM = `You compare ONE patient's confirmed facts with trial eligibility criteria. Use ONLY the facts provided. Status per criterion:
-PASS = patient is not blocked (inclusion met, or exclusion does not apply); FAIL = patient appears blocked; UNKNOWN = needed information is not in the facts; AMBIGUOUS = needs clinical judgment.
-PASS and FAIL require "evidence": the fact keys you relied on. If unsure, answer UNKNOWN. Never guess; never assume missing facts. rationale ≤ 15 words.
-Output ONLY JSON {"findings":[{"index","status","evidence":[keys],"rationale"}]}, one per input index.`;
-const VerifySchema = z.object({ blocking: z.array(z.object({ index: z.number().int(), evidence: z.array(z.string()) })) });
-const VERIFY_SYSTEM = `You are an independent reviewer. Given a patient's confirmed facts and a trial's criteria, find any criterion the patient CLEARLY does not satisfy (inclusion not met, or exclusion applies) using ONLY the facts. Do not assume unknown facts. If none, return an empty list. Output ONLY JSON {"blocking":[{"index","evidence":[fact keys]}]}.`;
+import { EXTRACT_SYSTEM, ExtractSchema } from "../../src/prompts/extract";
+import { EVAL_SYSTEM, makeEvalSchema } from "../../src/prompts/evaluate";
+import { VERIFY_SYSTEM, VerifySchema } from "../../src/prompts/verify";
 
 // ---- helpers ----------------------------------------------------------------------------------------
 const key = (t: Trial) => `${t.nct_id}|${t.last_update ?? ""}|${CLAUSE_PARSE_PROMPT_VERSION}`;

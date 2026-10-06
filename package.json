@@ -16,7 +16,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "eval": "tsx eval/index.ts",
-    "precompute:replay": "tsx eval/precompute-replay.ts",
+    "precompute:replay": "NODE_USE_ENV_PROXY=1 tsx eval/precompute-replay.ts",
     "spike:smoke": "NODE_USE_ENV_PROXY=1 tsx eval/spike/01-smoke.ts",
     "spike:ctgov": "NODE_USE_ENV_PROXY=1 tsx eval/spike/03-ctgov.ts",
     "spike:structured": "NODE_USE_ENV_PROXY=1 tsx eval/spike/02-structured.ts",
@@ -26,8 +26,7 @@
     "spike:reasoning": "NODE_USE_ENV_PROXY=1 tsx eval/spike/08-reasoning-probe.ts",
     "spike:e2e": "NODE_USE_ENV_PROXY=1 tsx eval/spike/07-e2e.ts",
     "spike:reach": "tsx eval/spike/09-adaptive-reach.ts",
-    "spike:coverage:analysis": "tsx eval/spike/04b-coverage-analysis.ts",
-    "spike:sse": "NODE_NO_WARNINGS=1 tsx eval/spike/05-sse.ts"
+    "spike:coverage:analysis": "tsx eval/spike/04b-coverage-analysis.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",
