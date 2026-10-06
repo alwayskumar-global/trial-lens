@@ -29,7 +29,7 @@ const REVIEW_SAMPLE_PATH = fileURLToPath(new URL(`./review-sample${COHORT === "f
 
 const JudgeSchema = z.object({ verdicts: z.array(z.object({ index: z.number().int().nonnegative(), verdict: z.enum(["full", "partial", "wrong"]) })) });
 const JUDGE_SYSTEM = `You audit structured clause representations of clinical-trial eligibility criteria.
-Each item has the original criterion text and a clause: combine (all/any), items and except leaves. Leaves are atoms (fact_key, operator, value, unit), timing windows, or text. Every leaf states a condition AS WRITTEN in the criterion; "except" lists exceptions under which the condition does not apply; the condition = combine(items) AND NOT any(except).
+Each item has the original criterion text and a clause tree: nodes "all"/"any" (children), "except" (base + exceptions), "if" (when/then: the requirement "then" applies only when "when" holds; if "when" is false the block is vacuously satisfied), and leaves. Leaves are atoms (fact_key, operator, value, unit), timing windows, or text. Every leaf states a condition AS WRITTEN in the criterion; "except" lists exceptions under which the condition does not apply; the condition = combine(items) AND NOT any(except).
 Verdict:
 - "full": the clause captures the ENTIRE logic of the criterion: no condition, alternative, exception, quantity, unit or time window is lost or added, and every atom's operator/value/unit is correct.
 - "partial": correct as far as it goes but something in the criterion is not represented.
@@ -112,6 +112,8 @@ async function main(): Promise<void> {
   // Scoring denominator: parser-scoring + ALL unresolved (conservative: unresolved are scoring).
   const scoring = rows.filter((r) => r.outcome.state === "unresolved" || r.outcome.scoring);
   const nonScoring = rows.length - scoring.length;
+  const vetCounts = new Map<string, number>();
+  rows.forEach((r) => r.outcome.state === "parsed" && vetCounts.set(r.outcome.vet, (vetCounts.get(r.outcome.vet) ?? 0) + 1));
   const isFull = (r: Row) => r.outcome.state === "parsed" && r.outcome.completeness === "full";
   const isReviewedFull = (r: Row) => isFull(r) && r.verdict === "full";
   const hasAtom = (r: Row) => r.outcome.state === "parsed" && leaves(r.outcome.clause).some((l) => l.kind === "atom");
@@ -147,6 +149,7 @@ async function main(): Promise<void> {
     `- Judge on ${full.length} code-evaluable criteria: full ${vc("full")}, partial ${vc("partial")}, wrong ${vc("wrong")}, unjudged ${vc("unjudged")}.`,
     `- Vocabulary-touch proxy (any leaf touches a vocabulary key, parsed criteria): ${f(scoring.filter(touches).length, scoring.length)}. **Unvalidated proxy, not a typed rate.**`,
   );
+  lines.push(`- Coverage/scope vetting of parsed criteria (no tuned percentage; any omitted substantive logic fails): ${[...vetCounts].map(([k, v]) => `${k}×${v}`).join(", ")}. coverage_failed ⇒ whole criterion became one text leaf (UNKNOWN).`);
   const kinds = new Map<string, number>();
   rows.filter(parsed).forEach((r) => leaves((r.outcome as Extract<ParseOutcome, { state: "parsed" }>).clause).forEach((l) => kinds.set(l.kind, (kinds.get(l.kind) ?? 0) + 1)));
   lines.push(`- Leaf kinds across parsed criteria: ${[...kinds].map(([k, v]) => `${k}×${v}`).join(", ")}.`);

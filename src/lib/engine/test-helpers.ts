@@ -1,7 +1,7 @@
 // Test-only helpers (fictional data).
 import { FACT_KEYS, type FactKey } from "@/schema/vocabulary";
 import type { Fact, PatientProfile } from "@/schema/profile";
-import type { LlmClauseCriterion, LlmLeaf } from "@/schema/clause";
+import type { LlmBlock, LlmClauseCriterion, LlmLeaf } from "@/schema/clause";
 
 export function profile(known: Partial<Record<FactKey, string | number | boolean>> = {}): PatientProfile {
   const facts = Object.fromEntries(
@@ -19,6 +19,16 @@ export const text = (source: string, depends_on: FactKey[] = []): LlmLeaf => ({
 export const timing = (source: string, relation: "within_last" | "not_within_last", amount: number, time_unit: "days" | "weeks" | "months"): LlmLeaf => ({
   kind: "timing", source, fact_key: null, operator: null, value: null, unit: null, depends_on: [], relation, amount, time_unit,
 });
-export const crit = (items: LlmLeaf[], opts: Partial<Pick<LlmClauseCriterion, "combine" | "except" | "category">> = {}): LlmClauseCriterion => ({
-  category: opts.category ?? "other", combine: opts.combine ?? "all", items, except: opts.except ?? [],
+/** One unconditional block (no `when`). */
+export const crit = (items: LlmLeaf[], opts: Partial<{ combine: "all" | "any"; except: LlmLeaf[]; category: LlmClauseCriterion["category"] }> = {}): LlmClauseCriterion => ({
+  category: opts.category ?? "other",
+  blocks: [{ when: [], combine: opts.combine ?? "all", items, except: opts.except ?? [] }],
 });
+/** A conditional block: IF all(when) THEN combine(items) AND NOT any(except). */
+export const block = (when: LlmLeaf[], items: LlmLeaf[], opts: Partial<{ combine: "all" | "any"; except: LlmLeaf[] }> = {}): LlmBlock => ({
+  when,
+  combine: opts.combine ?? "all",
+  items,
+  except: opts.except ?? [],
+});
+export const critBlocks = (blocks: LlmBlock[], category: LlmClauseCriterion["category"] = "other"): LlmClauseCriterion => ({ category, blocks });

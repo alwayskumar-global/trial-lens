@@ -16,6 +16,7 @@ const fmt = (n: Node | null): string => {
   if (!n) return "∅";
   if (n.kind === "atom") return `${n.fact_key} ${n.operator} ${JSON.stringify(n.value)}${n.unit ? " " + n.unit : ""}`;
   if (n.kind === "all" || n.kind === "any") return `${String(n.kind).toUpperCase()}(${(n.children as Node[]).map(fmt).join("; ")})`;
+  if (n.kind === "if") return `IF(${fmt(n.when as Node)}) THEN(${fmt(n.then as Node)})`;
   if (n.kind === "except") return `${fmt(n.base as Node)} EXCEPT(${(n.exceptions as Node[]).map(fmt).join("; ")})`;
   return `${n.kind}:"${String(n.source).slice(0, 50)}"`;
 };

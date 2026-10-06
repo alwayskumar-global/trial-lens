@@ -55,6 +55,14 @@ export type Status = z.infer<typeof StatusSchema>;
 export const FailCheckSchema = z.enum(["verified", "rejected", "unsubstantiated", "no_capacity", "not_run"]);
 export type FailCheck = z.infer<typeof FailCheckSchema>;
 
+/** Per-block applicability of a conditional criterion, with the KNOWN facts that prove it (rule: no proof, no vacuous PASS). */
+export const BlockApplicabilitySchema = z.object({
+  block: z.number().int().nonnegative(),
+  state: z.enum(["applies", "not_applicable", "unknown"]),
+  evidence: z.array(z.string()), // fact keys (known in the profile) that decided `state`
+});
+export type BlockApplicability = z.infer<typeof BlockApplicabilitySchema>;
+
 export const CriterionFindingSchema = z.object({
   criterion_id: z.string().min(1),
   status: StatusSchema,
@@ -63,6 +71,7 @@ export const CriterionFindingSchema = z.object({
   source: z.enum(["code", "llm_mid", "llm_deep"]),
   guard_downgraded: z.boolean().optional(),
   fail_check: FailCheckSchema.optional(), // meaningful only when status === "FAIL"; absent ⇒ not_run
+  applicability: z.array(BlockApplicabilitySchema).optional(), // one entry per block of a parsed criterion
 });
 export type CriterionFinding = z.infer<typeof CriterionFindingSchema>;
 

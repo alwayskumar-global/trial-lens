@@ -54,6 +54,8 @@ export interface TimingNode {
 export interface AllNode {
   kind: "all";
   children: ClauseNode[];
+  /** true ⇒ the children are the criterion's BLOCKS (ANDed), not items of one block. */
+  blocks?: boolean;
 }
 export interface AnyNode {
   kind: "any";
@@ -65,8 +67,14 @@ export interface ExceptNode {
   base: ClauseNode;
   exceptions: ClauseNode[];
 }
+/** Conditional block: ¬when ∨ then (Kleene). `when` is an explicitly scoped, conjunctive applicability condition. */
+export interface IfNode {
+  kind: "if";
+  when: ClauseNode;
+  then: ClauseNode;
+}
 export type LeafNode = AtomNode | TextNode | TimingNode;
-export type ClauseNode = LeafNode | AllNode | AnyNode | ExceptNode;
+export type ClauseNode = LeafNode | AllNode | AnyNode | ExceptNode | IfNode;
 
 export const ClauseNodeSchema: z.ZodType<ClauseNode> = z.lazy(() =>
   z.union([
@@ -87,7 +95,8 @@ export const ClauseNodeSchema: z.ZodType<ClauseNode> = z.lazy(() =>
       time_unit: TimeUnitSchema,
       depends_on: z.array(FactKeySchema),
     }),
-    z.object({ kind: z.literal("all"), children: z.array(ClauseNodeSchema).min(1) }),
+    z.object({ kind: z.literal("all"), children: z.array(ClauseNodeSchema).min(1), blocks: z.boolean().optional() }),
+    z.object({ kind: z.literal("if"), when: ClauseNodeSchema, then: ClauseNodeSchema }),
     z.object({ kind: z.literal("any"), children: z.array(ClauseNodeSchema).min(1) }),
     z.object({ kind: z.literal("except"), base: ClauseNodeSchema, exceptions: z.array(ClauseNodeSchema).min(1) }),
   ]),
@@ -116,12 +125,20 @@ export const LlmLeafSchema = z.object({
 // criterion as partial and can never yield STRONG.
 export type LlmLeaf = z.infer<typeof LlmLeafSchema>;
 
+// One BLOCK = IF all(when) THEN combine(items) AND NOT any(except). A criterion is 1..4 blocks, ALL of which must hold.
+// `when` (applicability) is allowed on inclusion criteria only; it is a conjunction of leaves the criterion itself states.
+export const LlmBlockSchema = z.object({
+  when: z.array(LlmLeafSchema).max(4), // [] = the block always applies
+  combine: z.enum(["all", "any"]),
+  items: z.array(LlmLeafSchema).min(1).max(6),
+  except: z.array(LlmLeafSchema).max(4), // conditions under which the requirement does NOT apply
+});
+export type LlmBlock = z.infer<typeof LlmBlockSchema>;
+
 // `scoring` is NOT model output: it is derived in code (non-scoring iff category === "consent_logistics", SPEC §3).
 export const LlmClauseCriterionSchema = z.object({
   category: CategorySchema,
-  combine: z.enum(["all", "any"]),
-  items: z.array(LlmLeafSchema).min(1).max(8),
-  except: z.array(LlmLeafSchema).max(4), // conditions under which the stated condition does NOT apply
+  blocks: z.array(LlmBlockSchema).min(1).max(4),
 });
 export type LlmClauseCriterion = z.infer<typeof LlmClauseCriterionSchema>;
 
@@ -131,7 +148,8 @@ const LlmClauseItemSchema = LlmClauseCriterionSchema.extend({ index: z.number().
  * Batch schema bound to the ORIGINAL criterion texts of one parser call.
  * Rejects (so the caller retries once with the message) when indices are missing, duplicated or
  * unexpected, or when any leaf `source` is not an exact fragment of its criterion's original text.
- * Messages contain indices and counts only, never criterion text.
+ * Messages contain indices and counts only, never criterion text. Coverage/scope vetting happens AFTER
+ * validation, in code (`vetCriterion`): a criterion that fails it becomes one text leaf, never a rejection.
  */
 export function makeClauseBatchSchema(originals: readonly string[]) {
   return z
@@ -149,15 +167,17 @@ export function makeClauseBatchSchema(originals: readonly string[]) {
       }
       batch.criteria.forEach((c) => {
         const original = originals[c.index]!;
-        [...c.items, ...c.except].forEach((leaf, j) => {
-          if (!isSourceFragment(original, leaf.source)) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["criteria", c.index, "items", j, "source"],
-              message: `criterion ${c.index}: leaf source must be an exact fragment of the criterion text (no paraphrase)`,
-            });
-          }
-        });
+        c.blocks.forEach((blk, bi) =>
+          [...blk.when, ...blk.items, ...blk.except].forEach((leaf, j) => {
+            if (!isSourceFragment(original, leaf.source)) {
+              ctx.addIssue({
+                code: "custom",
+                path: ["criteria", c.index, "blocks", bi, "leaf", j, "source"],
+                message: `criterion ${c.index}: leaf source must be an exact fragment of the criterion text (no paraphrase)`,
+              });
+            }
+          }),
+        );
       });
     });
 }

@@ -4,7 +4,7 @@
 import { CORE_CATEGORIES } from "@/schema/criteria";
 import { VOCABULARY } from "@/schema/vocabulary";
 
-export const CLAUSE_PARSE_PROMPT_VERSION = "spike-3";
+export const CLAUSE_PARSE_PROMPT_VERSION = "spike-4";
 
 function vocabLines(): string {
   return VOCABULARY.map((e) => {
@@ -15,28 +15,31 @@ function vocabLines(): string {
 }
 
 export function buildClauseParseSystemPrompt(): string {
-  return `You convert clinical-trial eligibility criteria into structured JSON clauses. You never decide eligibility and never rewrite criterion text.
+  return `You convert clinical-trial eligibility criteria into structured JSON. You never decide eligibility and never rewrite criterion text.
 
-Each criterion becomes: {"index", "category", "combine", "items", "except"}.
+Each criterion becomes {"index","category","blocks"}.
 - category (use "consent_logistics" only for willingness to comply / able to consent / logistics): ${[...CORE_CATEGORIES, "performance", "lab", "organ_function", "comorbidity", "demographic", "washout_timing", "consent_logistics", "other"].join(", ")}
-- combine: "all" if the items must all hold, "any" if alternatives ("or")
-- items: 1-8 leaves. except: leaves describing exceptions ("unless", "except", "other than"), usually [].
+- blocks: 1-4 blocks; ALL blocks must hold. A block is {"when","combine","items","except"}:
+  - items: 1-6 leaves stating the requirement; combine: "all" if all must hold, "any" if alternatives ("or")
+  - except: leaves for exceptions ("unless", "except", "other than"), usually []
+  - when: [] for an unconditional requirement. Use "when" ONLY for an inclusion criterion that states WHO a requirement applies to ("Women of childbearing potential (aged 15-49) must ...", "Patients with HER2-positive disease must ..."): the leaves describing that population, all of which must hold. If one criterion has several requirements for different groups, make one block per group. NEVER use "when" for an exclusion criterion.
 
 A LEAF states a condition AS WRITTEN in the criterion (not what the patient must satisfy). Leaf kinds:
-1. "atom": ONE comparison on ONE vocabulary fact. Requires fact_key, operator (eq|neq|gte|lte|gt|lt|in|not_in), value, unit (as written, or null).
-2. "timing": a time window around an event that is not a vocabulary fact (e.g. "within 14 days of radiotherapy"). Requires relation (within_last | not_within_last), amount, time_unit (days|weeks|months); list related vocabulary keys in depends_on.
-3. "text": anything else you cannot express exactly: kept verbatim for a human/free-text review. List related vocabulary keys in depends_on.
-Every leaf has "source": an EXACT contiguous fragment copied from the criterion text, character for character. Never paraphrase, never merge text from different places.
-Unused leaf fields must be null (depends_on []).
+1. "atom": ONE affirmative comparison on ONE vocabulary fact (fact_key, operator eq|gte|lte|gt|lt|in, value, unit as written or null). Its source must contain no negation, no "and"/"or" (except "or" listing several values of an "in"), no time window, and no number other than the atom's own value.
+2. "timing": a time window around an event that is not a vocabulary fact (relation within_last | not_within_last, amount, time_unit days|weeks|months). Its source holds the whole window phrase ("within 7 days before starting treatment").
+3. "text": anything else you cannot express exactly: kept verbatim for human/free-text review. List related vocabulary keys in depends_on. NEGATED statements ("No prior chemotherapy", "without brain metastases", "not pregnant") are ALWAYS one text leaf containing the negation and the words it governs.
+Every leaf has "source": an EXACT contiguous fragment copied from the criterion text, character for character. Unused leaf fields are null (depends_on []).
+
+CRITICAL: the leaf sources must TILE the criterion. Every word of the criterion must be inside some leaf source, EXCEPT plain filler (articles, "is/are/have", "must", "patients") and the connectives between leaves ("and" between items of an "all" block, "or" between items of an "any" block, "unless" before an except leaf, "who/with/if" before a "when" leaf). Negations ("no","not","without"), numbers, thresholds, time windows, populations ("women","men"), modals ("may","should") and exceptions must be INSIDE a leaf source, never dropped and never in a leaf of their own. If you cannot cover every requirement and its logical scope, return ONE block with ONE text leaf whose source is the whole criterion. A criterion that is dropped or only partly covered is treated as unreadable.
 
 Rules:
-1. Split a bundled criterion into leaves: "ANC >=1500/mm3; platelets >=100,000/mm3; Hb >=9 g/dL" -> combine "all" with three atoms.
-2. "A or B" -> combine "any". "A unless B" / "A, except B" -> A in items, B in except.
-3. No nesting. If logic is deeper than one level (for example "A and (B or C)"), put the nested part into ONE "text" leaf whose source is that fragment, or the whole criterion if unsure.
-4. "No systemic therapy within 28 days" -> atom days_since_last_systemic_therapy gte 28 unit "days". Other timing -> "timing" leaf.
-5. Enum values exactly as in the vocabulary; "in"/"not_in" take arrays of enum strings (ECOG 0-1 -> ecog in ["0","1"]; ECOG >=2 -> ecog in ["2","3","4"]). Booleans true/false; numbers as numbers.
+1. Split a bundled criterion into leaves: "ANC >=1500/mm3; platelets >=100,000/mm3; Hb >=9 g/dL" -> one block, combine "all", three atoms, each with its own fragment as source.
+2. "A or B" -> combine "any". "A unless B" -> A in items, B in except.
+3. No nesting. Deeper logic than the blocks allow goes into ONE text leaf.
+4. "No systemic therapy within 28 days" is NEGATED: one text leaf (or a timing leaf if it is only a window).
+5. Enum values exactly as in the vocabulary; "in" takes an array (ECOG 0-1 -> ecog in ["0","1"]). Booleans: only true is allowed in atoms; numbers as numbers. Receptor atoms must match the cited text (ER-negative -> er_status eq "negative").
 6. Copy numbers and units as written. Do not convert units or do arithmetic. If a lab has no clear unit, unit null.
-7. If unsure, use a "text" leaf with source = the whole criterion text. Never invent facts.
+7. If unsure, use one text leaf covering the whole criterion. Never invent facts.
 Output ONLY JSON, no prose, no markdown.
 
 Vocabulary:
@@ -49,5 +52,5 @@ export function buildClauseBatchUserPrompt(items: Array<{ index: number; type: s
   return `Parse each criterion below (one JSON object per line). "source" values must be copied from the "text" value only, never from "index" or "type".
 ${body}
 
-Return {"criteria":[{...}]} with exactly one object per input index (0..${items.length - 1}), each index once, in order.`;
+Return {"criteria":[{"index","category","blocks":[...]}]} with exactly one object per input index (0..${items.length - 1}), each index once, in order.`;
 }

@@ -5,10 +5,12 @@ import type {
   AtomNode,
   ClauseNode,
   LeafNode,
+  LlmBlock,
   LlmClauseCriterion,
   LlmLeaf,
   ParseCompleteness,
 } from "@/schema/clause";
+import type { BlockApplicability } from "@/schema/criteria";
 import type { PatientProfile } from "@/schema/profile";
 import { VOCABULARY, type FactKey } from "@/schema/vocabulary";
 import { atomSemanticProblems } from "./atom-checks";
@@ -29,10 +31,19 @@ export function leafToNode(l: LlmLeaf): LeafNode {
   return { kind: "text", source: l.source, depends_on: [...dep] };
 }
 
-export function toClauseTree(c: Pick<LlmClauseCriterion, "combine" | "items" | "except">): ClauseNode {
-  const items = c.items.map(leafToNode);
-  const base: ClauseNode = items.length === 1 ? items[0]! : { kind: c.combine, children: items };
-  return c.except.length > 0 ? { kind: "except", base, exceptions: c.except.map(leafToNode) } : base;
+function blockToNode(b: LlmBlock): ClauseNode {
+  const items = b.items.map(leafToNode);
+  const base: ClauseNode = items.length === 1 ? items[0]! : { kind: b.combine, children: items };
+  const then: ClauseNode = b.except.length > 0 ? { kind: "except", base, exceptions: b.except.map(leafToNode) } : base;
+  if (b.when.length === 0) return then;
+  const when = b.when.map(leafToNode);
+  return { kind: "if", when: when.length === 1 ? when[0]! : { kind: "all", children: when }, then };
+}
+
+/** Criterion = AND of its blocks. A single unconditional block is just its own tree (no wrapper). */
+export function toClauseTree(c: Pick<LlmClauseCriterion, "blocks">): ClauseNode {
+  const nodes = c.blocks.map(blockToNode);
+  return nodes.length === 1 ? nodes[0]! : { kind: "all", children: nodes, blocks: true };
 }
 
 export function leaves(n: ClauseNode): LeafNode[] {
@@ -46,6 +57,8 @@ export function leaves(n: ClauseNode): LeafNode[] {
       return n.children.flatMap(leaves);
     case "except":
       return [...leaves(n.base), ...n.exceptions.flatMap(leaves)];
+    case "if":
+      return [...leaves(n.when), ...leaves(n.then)];
   }
 }
 
@@ -185,19 +198,53 @@ function evalNode(n: ClauseNode, profile: PatientProfile, evidence: Set<FactKey>
       return or(n.children.map((c) => evalNode(c, profile, evidence)));
     case "except":
       return and([evalNode(n.base, profile, evidence), not(or(n.exceptions.map((c) => evalNode(c, profile, evidence))))]);
+    case "if":
+      // block truth = ¬when ∨ then (Kleene)
+      return or([not(evalNode(n.when, profile, evidence)), evalNode(n.then, profile, evidence)]);
   }
+}
+
+export interface BlockEvaluation {
+  applicability: BlockApplicability["state"];
+  /** KNOWN fact keys that decided applicability (for not_applicable: the known-FALSE atoms of `when`). */
+  evidence: FactKey[];
 }
 
 export interface ClauseEvaluation {
   truth: Tri;
   /** Fact keys of known facts that were actually compared (citable evidence for the abstention guard). */
   evidence: FactKey[];
+  /** One entry per block of the criterion (a single unconditional block ⇒ one `applies` entry). */
+  blocks: BlockEvaluation[];
+}
+
+/** Applicability of one block: `when` is a conjunction; non-applicability is PROVEN only by a known-false atom in it. */
+function evalBlock(n: ClauseNode, profile: PatientProfile): BlockEvaluation {
+  if (n.kind !== "if") return { applicability: "applies", evidence: [] };
+  const ev = new Set<FactKey>();
+  const w = evalNode(n.when, profile, ev);
+  if (w === "false") {
+    // cite only the known atoms that evaluated FALSE
+    const proof = new Set<FactKey>();
+    for (const l of leaves(n.when)) {
+      if (l.kind !== "atom") continue;
+      const one = new Set<FactKey>();
+      if (evalAtom(l, profile, one) === "false") one.forEach((k) => proof.add(k));
+    }
+    return { applicability: "not_applicable", evidence: [...proof] };
+  }
+  return w === "true" ? { applicability: "applies", evidence: [...ev] } : { applicability: "unknown", evidence: [] };
+}
+
+/** Blocks of a parsed criterion's root node. */
+export function blockNodes(root: ClauseNode): ClauseNode[] {
+  return root.kind === "all" && root.blocks ? root.children : [root];
 }
 
 export function evaluateClause(n: ClauseNode, profile: PatientProfile): ClauseEvaluation {
   const evidence = new Set<FactKey>();
   const truth = evalNode(n, profile, evidence);
-  return { truth, evidence: [...evidence] };
+  return { truth, evidence: [...evidence], blocks: blockNodes(n).map((b) => evalBlock(b, profile)) };
 }
 
 /** truth of the condition AS WRITTEN → effect on the patient. */

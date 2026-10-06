@@ -5,7 +5,8 @@ import type { Category, CriterionFinding } from "@/schema/criteria";
 import type { ClauseNode, LlmClauseBatch, ParseCompleteness } from "@/schema/clause";
 import type { PatientProfile } from "@/schema/profile";
 import { checkIndices } from "./checks";
-import { classifyCompleteness, evaluateClause, statusFromTruth, toClauseTree } from "./clause";
+import { blockNodes, classifyCompleteness, evaluateClause, statusFromTruth, toClauseTree } from "./clause";
+import { vetCriterion, type VetStatus } from "./coverage";
 
 export interface SourceCriterion {
   id: string; // `${nct_id}:${inclusion|exclusion}:${index}`
@@ -17,7 +18,15 @@ export interface SourceCriterion {
 export type UnresolvedReason = "batch_rejected" | "missing" | "not_attempted";
 
 export type ParseOutcome =
-  | { state: "parsed"; category: Category; scoring: boolean; clause: ClauseNode; completeness: Exclude<ParseCompleteness, "unresolved"> }
+  | {
+      state: "parsed";
+      category: Category;
+      scoring: boolean;
+      clause: ClauseNode;
+      completeness: Exclude<ParseCompleteness, "unresolved">;
+      /** what the coverage/scope vetting did to the parser output (ok | atoms_downgraded | coverage_failed | when_on_exclusion) */
+      vet: VetStatus;
+    }
   | { state: "unresolved"; reason: UnresolvedReason };
 
 /**
@@ -38,9 +47,18 @@ export function reconcileBatch(
   return sources.map((_, i): ParseOutcome => {
     const c = byIndex.get(i);
     if (!c) return { state: "unresolved", reason: "missing" };
-    const clause = toClauseTree(c);
+    // Prove that every requirement and its logical scope survived; otherwise the whole criterion becomes one text leaf.
+    const vetted = vetCriterion(sources[i]!.text, sources[i]!.type, c);
+    const clause = toClauseTree(vetted.criterion);
     const completeness = classifyCompleteness(clause);
-    return { state: "parsed", category: c.category, scoring: c.category !== "consent_logistics", clause, completeness: completeness === "full" ? "full" : "partial" };
+    return {
+      state: "parsed",
+      category: vetted.criterion.category,
+      scoring: vetted.criterion.category !== "consent_logistics",
+      clause,
+      completeness: completeness === "full" ? "full" : "partial",
+      vet: vetted.status,
+    };
   });
 }
 
@@ -69,8 +87,9 @@ export function assessCriterion(src: SourceCriterion, outcome: ParseOutcome, pro
       },
     };
   }
-  const { truth, evidence } = evaluateClause(outcome.clause, profile);
+  const { truth, evidence, blocks } = evaluateClause(outcome.clause, profile);
   const status = statusFromTruth(src.type, truth);
+  const conditional = blockNodes(outcome.clause).some((b) => b.kind === "if");
   return {
     criterion_id: src.id,
     category: outcome.category,
@@ -85,6 +104,7 @@ export function assessCriterion(src: SourceCriterion, outcome: ParseOutcome, pro
           ? "Required information is not in the profile, or part of this criterion needs a closer read."
           : "Compared against the information you provided.",
       source: "code",
+      ...(conditional ? { applicability: blocks.map((b, i) => ({ block: i, state: b.applicability, evidence: b.evidence })) } : {}),
     },
   };
 }

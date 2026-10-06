@@ -46,7 +46,7 @@ describe("three-valued evaluation", () => {
   });
   it("unknown fact → unknown, no evidence", () => {
     const r = evaluateClause(tree(crit([atom("x", "ecog", "in", ["0", "1"])])), profile());
-    expect(r).toEqual({ truth: "unknown", evidence: [] });
+    expect(r).toMatchObject({ truth: "unknown", evidence: [] });
   });
   it("AND short-circuits on a known false even with a text leaf; stays unknown otherwise", () => {
     const t = tree(crit([atom("ECOG 0-1", "ecog", "in", ["0", "1"]), text("something else")]));
