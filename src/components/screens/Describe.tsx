@@ -1,11 +1,11 @@
 import { Button } from "../actions/Button";
 import { LensRings } from "../brand/LensRings";
 import { Textarea } from "../forms/Textarea";
-import { SAMPLES } from "@/lib/sample/triallens-sample";
+import { DEMO_SAMPLE_TEXT_KEY, SAMPLES } from "@/lib/sample/triallens-sample";
 import { Header } from "./Header";
 
 export function Describe({ text, setText, onNext }: { text: string; setText: (t: string) => void; onNext: () => void }) {
-  const tooShort = text.trim().length > 0 && text.trim().length < 20;
+  const hasResults = SAMPLES.find((s) => s.t === text)?.n === DEMO_SAMPLE_TEXT_KEY;
   return (
     <div className="app">
       <div className="lensbg">
@@ -29,11 +29,9 @@ export function Describe({ text, setText, onNext }: { text: string; setText: (t:
             <Textarea
               id="desc"
               label="Your situation"
-              helper={tooShort ? "" : "Plain words are fine. You can leave things out."}
-              error={tooShort ? "A little more detail helps. Try adding your diagnosis or current treatment." : undefined}
+              helper={hasResults ? "This demo reads only the fictional samples below. Typing is turned off." : "Prepared demo results exist only for the first sample."}
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder="For example: I'm 58, diagnosed with stage II breast cancer last spring. I finished chemotherapy in June and I'm on hormone therapy now…"
+              readOnly
             />
             <div className="stack g8">
               <p className="eyebrow" style={{ margin: 0 }}>
@@ -66,7 +64,7 @@ export function Describe({ text, setText, onNext }: { text: string; setText: (t:
             </details>
           </div>
           <div>
-            <Button size="lg" disabled={text.trim().length < 20} onClick={onNext}>
+            <Button size="lg" disabled={!hasResults} onClick={onNext}>
               Review what we understood
             </Button>
           </div>

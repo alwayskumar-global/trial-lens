@@ -7,7 +7,7 @@ import { CriterionGroup, CriterionStrip } from "../results/CriterionStrip";
 import { StudyTeamQuestions } from "../results/StudyTeamQuestions";
 import { StatusGlyph, type CriterionStatus } from "../status/StatusGlyph";
 import { TierBadge } from "../status/TierBadge";
-import { criteriaFor, DETAIL_PLAIN, QUESTIONS, type SampleCriterion, type SampleTrial } from "@/lib/sample/triallens-sample";
+import { criteriaFor, DEMO_BANNER, DETAIL_PLAIN, QUESTIONS, type SampleCriterion, type SampleTrial } from "@/lib/sample/triallens-sample";
 import { Header } from "./Header";
 
 export function Detail({ trial: t, onBack }: { trial: SampleTrial; onBack: () => void }) {
@@ -21,7 +21,7 @@ export function Detail({ trial: t, onBack }: { trial: SampleTrial; onBack: () =>
   );
   return (
     <div className="app">
-      <SafetyBanner />
+      <SafetyBanner>{DEMO_BANNER}</SafetyBanner>
       <div className="wrap">
         <Header />
         <main className="page stack g24">

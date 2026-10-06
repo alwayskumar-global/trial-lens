@@ -11,11 +11,12 @@ export interface TextareaProps {
   error?: string;
   placeholder?: string;
   disabled?: boolean;
+  readOnly?: boolean;
   minHeight?: number | string;
 }
 
 /** Large labelled textarea with helper text and character allowance. */
-export function Textarea({ id = "tl-ta", label, helper, value, onChange, maxLength = 2000, error, placeholder, disabled, minHeight }: TextareaProps) {
+export function Textarea({ id = "tl-ta", label, helper, value, onChange, maxLength = 2000, error, placeholder, disabled, readOnly, minHeight }: TextareaProps) {
   const len = (value ?? "").length;
   return (
     <div className={"tl-textarea" + (error ? " tl-textarea--error" : "")}>
@@ -27,6 +28,7 @@ export function Textarea({ id = "tl-ta", label, helper, value, onChange, maxLeng
         maxLength={maxLength}
         placeholder={placeholder}
         disabled={disabled}
+        readOnly={readOnly}
         style={minHeight ? { minHeight } : undefined}
         aria-invalid={error ? true : undefined}
         aria-describedby={id + "-msg"}

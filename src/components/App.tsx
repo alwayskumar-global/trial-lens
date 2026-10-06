@@ -42,14 +42,14 @@ export function App() {
     if (!mv) {
       setTiers({});
       setUpdated([]);
-      setToast(a === "I don't know" ? "Noted. Results stay as they are. You can answer later." : "Good plan. Results stay as they are until you know.");
+      setToast(a === "I don't know" || a === "Below 55%" ? "Noted. Results stay as they are. You can answer later." : "Good plan. Results stay as they are until you know.");
       return;
     }
     setTiers(mv);
     const ids = Object.keys(mv);
     setUpdated(ids);
     const strong = ids.filter((i) => mv[i] === "strong").length;
-    setToast(ids.length + " trials moved." + (strong ? " " + strong + " is now a Strong potential match." : ""));
+    setToast(ids.length + (ids.length === 1 ? " trial moved." : " trials moved.") + (strong ? " " + strong + " is now a Strong potential match." : ""));
   };
   const toProcessing = useCallback(() => setScreen("processing"), []);
   const toResults = useCallback(() => setScreen("results"), []);

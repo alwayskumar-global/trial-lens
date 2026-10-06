@@ -7,7 +7,7 @@ import { FitLine } from "../results/FitLine";
 import { QuestionCard } from "../results/QuestionCard";
 import { TrialCard } from "../results/TrialCard";
 import { TierBadge, type Tier } from "../status/TierBadge";
-import { ADAPTIVE_QUESTION, TIERS, type SampleTrial } from "@/lib/sample/triallens-sample";
+import { ADAPTIVE_QUESTION, DEMO_BANNER, TIERS, type SampleTrial } from "@/lib/sample/triallens-sample";
 import { Header } from "./Header";
 
 export interface ResultsProps {
@@ -30,12 +30,12 @@ export function Results({ trials, answer, onAnswer, updated, onOpen, toast, setT
   const sharpen = trials.filter((t) => t.unknown && /heart|LVEF/i.test(t.unknown)).length;
   return (
     <div className="app">
-      <SafetyBanner />
+      <SafetyBanner>{DEMO_BANNER}</SafetyBanner>
       <div className="wrap">
         <Header />
         <main className="page stack g24">
           <div className="summary">
-            <h1 className="tl-h1">{trials.length} trials analyzed</h1>
+            <h1 className="tl-h1">{trials.length} sample trials</h1>
             {TIERS.map((t) => (
               <TierBadge key={t.k} tier={t.k} label={counts[t.k] + " " + t.n.replace(" match", "")} />
             ))}

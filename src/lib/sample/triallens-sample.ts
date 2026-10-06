@@ -7,6 +7,11 @@ import type { Tier } from "@/components/status/TierBadge";
 export const SAMPLE_TEXT =
   "I'm 52 and was diagnosed with stage III HER2-positive breast cancer. I had surgery four months ago and I'm taking trastuzumab. No heart problems that I know of. I live near a mid-sized city and can travel about 100 miles.";
 
+/** Only this sample has prepared demo results (PROFILE + TRIALS). The other samples are not wired to any results. */
+export const DEMO_SAMPLE_TEXT_KEY = "Stage III, HER2-positive";
+export const DEMO_LABEL = "Fixed fictional demo: not your results";
+export const DEMO_BANNER = "This demo compares fictional trial criteria with a fictional profile. It can't confirm eligibility. Only a study team can.";
+
 export const SAMPLES: ReadonlyArray<{ n: string; t: string }> = [
   { n: "Stage III, HER2-positive", t: SAMPLE_TEXT },
   { n: "Stage II, hormone-positive", t: "I'm 61 with stage II breast cancer that is hormone receptor positive and HER2 negative. I finished radiation last month and just started an aromatase inhibitor. I can travel about 50 miles." },
@@ -44,7 +49,7 @@ export interface SampleTrial {
 }
 
 const named: SampleTrial[] = [
-  { id: "t1", n: 1, title: "Antibody-drug conjugate after surgery in HER2-positive breast cancer", short: "ADC after surgery", tier: "strong", phase: "Phase 3", site: "Sample Medical Center", distance: "42 miles", nct: "NCT0000001", unknown: "Heart ultrasound result", why: [{ status: "meets", text: "HER2-positive, stage III after surgery" }, { status: "unknown", text: "Heart function (LVEF) not yet known" }, { status: "conflict", text: "Recent trastuzumab timing may matter" }] },
+  { id: "t1", n: 1, title: "Antibody-drug conjugate after surgery in HER2-positive breast cancer", short: "ADC after surgery", tier: "uncertain", phase: "Phase 3", site: "Sample Medical Center", distance: "42 miles", nct: "NCT0000001", unknown: "Heart ultrasound result", why: [{ status: "meets", text: "HER2-positive, stage III after surgery" }, { status: "unknown", text: "Heart function (LVEF) not yet known" }, { status: "conflict", text: "Recent trastuzumab timing may matter" }] },
   { id: "t2", n: 2, title: "Adding an oral targeted therapy to standard HER2 treatment", short: "Oral add-on therapy", tier: "possible", phase: "Phase 2", site: "Sample Regional Clinic", distance: "18 miles", nct: "NCT0000002", unknown: "Activity level and blood counts", why: [{ status: "meets", text: "HER2-positive disease" }, { status: "unknown", text: "Activity level (ECOG) not known" }, { status: "unknown", text: "Recent blood counts not known" }] },
   { id: "t3", n: 3, title: "Immunotherapy plus targeted therapy for residual disease", short: "Immunotherapy, residual disease", tier: "uncertain", phase: "Phase 2", site: "Sample University Hospital", distance: "63 miles", nct: "NCT0000003", unknown: "Whether residual disease was found at surgery", why: [{ status: "meets", text: "Age and HER2 status fit" }, { status: "unknown", text: "Residual disease not known" }, { status: "judgment", text: "Prior treatment needs clinical review" }] },
   { id: "t4", n: 4, title: "Treatment de-escalation after complete response", short: "De-escalation", tier: "possible", phase: "Phase 3", site: "Sample Cancer Institute", distance: "77 miles", nct: "NCT0000004", unknown: "Pathology response", why: [{ status: "meets", text: "Stage and HER2 status fit" }, { status: "unknown", text: "Pathology response not known" }, { status: "meets", text: "Within your travel distance" }] },
@@ -62,8 +67,8 @@ export const TRIALS: readonly SampleTrial[] = [...named, ...filler];
 
 /** Tier changes caused by each answer to the adaptive question (design: MOVES). */
 export const MOVES: Readonly<Record<string, Readonly<Record<string, Tier>>>> = {
-  "55% or higher": { t2: "strong", t3: "possible", t8: "possible" },
-  "Below 55%": { t1: "uncertain", t2: "uncertain" },
+  // No answer produces STRONG, and none produces Likely mismatch (that needs a Rule-D-verified conflict).
+  "55% or higher": { t8: "possible" },
 };
 
 export const TIERS: ReadonlyArray<{ k: Tier; n: string }> = [
