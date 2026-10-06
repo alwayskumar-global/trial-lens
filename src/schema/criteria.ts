@@ -49,6 +49,12 @@ export type ParsedCriterion = z.infer<typeof ParsedCriterionSchema>;
 export const StatusSchema = z.enum(["PASS", "FAIL", "UNKNOWN", "AMBIGUOUS"]);
 export type Status = z.infer<typeof StatusSchema>;
 
+/** Independent check of a FAIL (rule D). Only `verified` may make a trial LIKELY_MISMATCH.
+ * rejected: verifier says the patient is not clearly blocked · unsubstantiated: verifier could not cite the criterion
+ * fragment and the patient facts (or the citation failed code checks) · no_capacity: no verification slot · not_run. */
+export const FailCheckSchema = z.enum(["verified", "rejected", "unsubstantiated", "no_capacity", "not_run"]);
+export type FailCheck = z.infer<typeof FailCheckSchema>;
+
 export const CriterionFindingSchema = z.object({
   criterion_id: z.string().min(1),
   status: StatusSchema,
@@ -56,6 +62,7 @@ export const CriterionFindingSchema = z.object({
   rationale: z.string(), // 1–2 sentences, patient-safe wording
   source: z.enum(["code", "llm_mid", "llm_deep"]),
   guard_downgraded: z.boolean().optional(),
+  fail_check: FailCheckSchema.optional(), // meaningful only when status === "FAIL"; absent ⇒ not_run
 });
 export type CriterionFinding = z.infer<typeof CriterionFindingSchema>;
 

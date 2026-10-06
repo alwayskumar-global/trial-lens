@@ -2,7 +2,8 @@
 // Public API, no key. Writes a gitignored fixture; logs only counts and field presence.
 import { z } from "zod";
 import { getPipelineEnv } from "../../src/lib/env";
-import { appendResults, FIXTURE_PATH, saveJson, splitCriteria, TrialSchema, type Trial } from "./lib";
+import { existsSync, readFileSync } from "node:fs";
+import { appendResults, COHORT, FIXTURE_PATH, fx, saveJson, splitCriteria, TrialSchema, type Trial } from "./lib";
 
 const FIELDS = [
   "NCTId", "BriefTitle", "OverallStatus", "EligibilityCriteria", "MinimumAge", "MaximumAge", "Sex",
@@ -48,14 +49,40 @@ async function main(): Promise<void> {
     fields: FIELDS,
     format: "json",
   });
-  const res = await fetch(`${base}/studies?${params}`, { signal: AbortSignal.timeout(30_000) });
-  const rl = [...res.headers.entries()].filter(([k]) => /rate|limit|retry|remaining/i.test(k)).map(([k]) => k);
-  console.log(`HTTP ${res.status}; rate-limit-ish headers: ${rl.length ? rl.join(",") : "none"}`);
-  if (!res.ok) throw new Error(`CT.gov HTTP ${res.status}`);
-  const page = PageSchema.parse(await res.json());
+  // COHORT=original: first page (as in Phase 1). COHORT=fresh: pages 2.. of the SAME query, excluding every
+  // trial in the original fixture, chosen by a fixed rule (every k-th) BEFORE any parsing or evaluation.
+  const exclude = new Set<string>();
+  if (COHORT === "fresh") {
+    const orig = fx("ctgov-breast").replace("-fresh", "");
+    if (!existsSync(orig)) throw new Error("original fixture missing");
+    (JSON.parse(readFileSync(orig, "utf8")) as Array<{ nct_id: string }>).forEach((t) => exclude.add(t.nct_id));
+  }
+  const pagesWanted = COHORT === "fresh" ? 4 : 1;
+  const studies: z.infer<typeof StudySchema>[] = [];
+  let token: string | undefined;
+  let rl: string[] = [];
+  let status = 0;
+  let firstPageHadNext = false;
+  for (let pg = 0; pg < pagesWanted; pg++) {
+    const q = new URLSearchParams(params);
+    if (token) q.set("pageToken", token);
+    const res = await fetch(`${base}/studies?${q}`, { signal: AbortSignal.timeout(30_000) });
+    status = res.status;
+    rl = [...res.headers.entries()].filter(([k]) => /rate|limit|retry|remaining/i.test(k)).map(([k]) => k);
+    console.log(`page ${pg + 1}: HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`CT.gov HTTP ${res.status}`);
+    const page = PageSchema.parse(await res.json());
+    if (pg === 0) firstPageHadNext = !!page.nextPageToken;
+    if (COHORT === "fresh" ? pg >= 1 : true) studies.push(...page.studies); // fresh: skip page 1 (the original cohort's page)
+    token = page.nextPageToken;
+    if (!token) break;
+  }
+  const page = { studies, nextPageToken: firstPageHadNext ? "yes" : undefined };
+  const res = { status };
 
   const all: Trial[] = page.studies.flatMap((s) => {
     const p = s.protocolSection;
+    if (exclude.has(p.identificationModule.nctId)) return [];
     const text = p.eligibilityModule?.eligibilityCriteria;
     if (!text) return [];
     const locs = p.contactsLocationsModule?.locations ?? [];
@@ -80,6 +107,7 @@ async function main(): Promise<void> {
   const step = Math.max(1, Math.floor(all.length / want));
   const trials = all.filter((_, i) => i % step === 0).slice(0, want).map((t) => TrialSchema.parse(t));
   saveJson(FIXTURE_PATH, trials);
+  if (COHORT === "fresh") console.log("fresh cohort NCT ids:", trials.map((t) => t.nct_id).join(","));
 
   const n = trials.length;
   const crit = trials.flatMap(splitCriteria);
@@ -91,7 +119,7 @@ async function main(): Promise<void> {
   const fmt = (x: number, d: number) => `${x}/${d} (${d ? Math.round((100 * x) / d) : 0}%)`;
 
   const lines = [
-    `\n## ${new Date().toISOString()} — 03-ctgov\n`,
+    `\n## ${new Date().toISOString()} — 03-ctgov (${COHORT} cohort)\n`,
     `- Endpoint: \`GET ${base}/studies\` with \`query.cond=breast cancer\`, \`filter.overallStatus=RECRUITING\`, \`pageSize=60\`, \`fields=...\`. HTTP ${res.status}, no key.`,
     `- Page returned ${page.studies.length} studies (nextPageToken ${page.nextPageToken ? "present" : "absent"}); ${all.length} had eligibility text; sample = ${n} (every ${step}th).`,
     `- Rate-limit headers observed: ${rl.length ? rl.join(", ") : "none (VERIFY documented limit: ~50 req/min/IP per CT.gov docs)"}`,

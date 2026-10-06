@@ -65,7 +65,10 @@ const normUnit = (u: string) => u.toLowerCase().replace(/\s+/g, "").replace(/×/
 
 // factor to canonical, or null if the unit is not convertible for that key.
 // Indexed creatinine clearance (/1.73m2) is deliberately NOT accepted (needs BSA; not equivalent).
+// Keys whose canonical value needs no unit conversion (counts, lines). A missing unit is fine for these.
+const UNITLESS = new Set<FactKey>(["metastatic_line"]);
 function unitFactor(key: FactKey, unit: string | null): number | null {
+  if (UNITLESS.has(key)) return 1; // REGRESSION: null unit used to yield factor null ⇒ criterion value × 0 ⇒ false code FAIL
   if (unit === null) return null;
   const u = normUnit(unit);
   switch (key) {
@@ -106,8 +109,7 @@ export function atomProblems(a: AtomNode): string[] {
   if (v.type === "number") {
     if (!NUM_OPS.has(a.operator)) p.push("bad_operator_for_number");
     if (typeof a.value !== "number" || !Number.isFinite(a.value)) p.push("value_not_number");
-    const needsUnit = v.key !== "metastatic_line"; // line count has no unit
-    if (needsUnit && unitFactor(a.fact_key, a.unit) === null) p.push("unit_missing_or_unconvertible");
+    if (unitFactor(a.fact_key, a.unit) === null) p.push("unit_missing_or_unconvertible");
   } else if (v.type === "bool") {
     if (a.operator !== "eq" && a.operator !== "neq") p.push("bad_operator_for_bool");
     if (typeof a.value !== "boolean") p.push("value_not_bool");

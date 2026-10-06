@@ -57,12 +57,16 @@ Let N = `TIER_UNKNOWN_THRESHOLD` (default 3). Over scoring criteria only (non-sc
 Each criterion also has a **parse completeness**: `full` (every leaf an executable atom) · `partial` (any text/timing leaf or non-executable atom) · `unresolved` (no valid parse; kept as an UNKNOWN scoring criterion).
 
 Evaluation order (conservative; implemented in `src/lib/engine/tier.ts`):
-1. **LIKELY_MISMATCH** — any scoring `FAIL`.
-2. **UNCERTAIN** — analysis failed, nothing scorable, scoring criteria missing (fewer than expected), or any scoring criterion `unresolved`.
+1. **LIKELY_MISMATCH** — any scoring `FAIL` that is **verified** (rule D below).
+2. **UNCERTAIN** — any other scoring `FAIL` (not run, no verification capacity, rejected, or unsubstantiated), analysis failed, nothing scorable, scoring criteria missing (fewer than expected), or any scoring criterion `unresolved`.
 3. **UNCERTAIN** — any core-category criterion `UNKNOWN`, `AMBIGUOUS`, or only `partial`.
 4. **POSSIBLE** — any non-core criterion only `partial`, or total `UNKNOWN`+`AMBIGUOUS` > N.
 5. **STRONG** — otherwise.
 A trial can never be `STRONG` while a scoring criterion is missing, partially parsed or unresolved. (Changed from the original rules on the founder's instruction after the Phase 1 coverage gate; no percentage scores anywhere. Tune N and category list on the eval set, not by feel.)
+
+**Rule D — FAIL verification (approved).** An unverified FAIL stays UNCERTAIN; only an independently checked, evidence-backed FAIL can make a trial LIKELY_MISMATCH. A FAIL is `verified` only when an independent verifier (sees the criterion text and the confirmed facts only, never the first evaluator's reasoning, clause or claimed evidence) returns `confirmed` **and** code confirms the citation: its `source_quote` is a verbatim fragment of the criterion text, it cites at least one patient fact, and every cited fact is `known` in the profile with the cited value. A verifier that has no capacity, returns `cannot_substantiate`, or whose citation fails the code checks yields `no_capacity` / `unsubstantiated` ⇒ the trial is UNCERTAIN. A verifier `not_confirmed` yields `rejected` ⇒ UNCERTAIN (a disagreement between evaluator and verifier is uncertainty, not reassurance). One verified FAIL is enough; unverified FAILs never reduce it.
+
+**Run budget.** 80 calls = 40 slots (call + its single retry). Reserved: extraction 1, STRONG/POSSIBLE verification 8, FAIL checks 3 (reassigned from the unbuilt escalation stage); parse ≤ 14; unused verification reserve flows to FAIL checks. See `docs/run-plan.md`.
 
 ## 5. Adaptive question engine (pure function, no LLM)
 Input: candidate trials (tier ≠ LIKELY_MISMATCH), current profile.

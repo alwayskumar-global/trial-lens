@@ -5,8 +5,8 @@ const c = (o: Partial<TierCriterion> = {}): TierCriterion => ({ scoring: true, c
 const N = { unknownThreshold: 3 };
 
 describe("tierTrial: SPEC rules", () => {
-  it("any FAIL → LIKELY_MISMATCH, even with unresolved criteria", () => {
-    expect(tierTrial([c({ status: "FAIL" }), c({ category: null, status: "UNKNOWN", completeness: "unresolved" })], N)).toBe("LIKELY_MISMATCH");
+  it("a VERIFIED FAIL → LIKELY_MISMATCH, even with unresolved criteria", () => {
+    expect(tierTrial([c({ status: "FAIL", failCheck: "verified" }), c({ category: null, status: "UNKNOWN", completeness: "unresolved" })], N)).toBe("LIKELY_MISMATCH");
   });
   it("non-scoring FAIL is ignored", () => {
     expect(tierTrial([c({ scoring: false, status: "FAIL" }), c()], N)).toBe("STRONG");
@@ -41,5 +41,20 @@ describe("tierTrial: conservative parse-completeness rules", () => {
   });
   it("a trial whose every criterion is unresolved is UNCERTAIN, not STRONG", () => {
     expect(tierTrial([c({ category: null, status: "UNKNOWN", completeness: "unresolved" })], N)).toBe("UNCERTAIN");
+  });
+});
+
+describe("tierTrial: rule D (FAIL must be independently verified)", () => {
+  it.each([undefined, "not_run", "no_capacity", "rejected", "unsubstantiated"] as const)("FAIL with failCheck=%s stays UNCERTAIN, never LIKELY_MISMATCH", (failCheck) => {
+    expect(tierTrial([c({ category: "stage" }), c({ status: "FAIL", failCheck })], N)).toBe("UNCERTAIN");
+  });
+  it("one verified FAIL is enough even when another FAIL is unverified", () => {
+    expect(tierTrial([c({ status: "FAIL", failCheck: "unsubstantiated" }), c({ status: "FAIL", failCheck: "verified" })], N)).toBe("LIKELY_MISMATCH");
+  });
+  it("an unverified FAIL blocks STRONG and POSSIBLE", () => {
+    expect(tierTrial([c({ category: "stage" }), c(), c({ status: "FAIL", failCheck: "no_capacity" })], N)).toBe("UNCERTAIN");
+  });
+  it("a non-scoring unverified FAIL is ignored", () => {
+    expect(tierTrial([c({ category: "stage" }), c({ scoring: false, status: "FAIL" })], N)).toBe("STRONG");
   });
 });

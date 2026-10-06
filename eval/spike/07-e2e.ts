@@ -9,14 +9,17 @@ import { getNebiusEnv, getPipelineEnv } from "../../src/lib/env";
 import { checkIndices } from "../../src/lib/engine/checks";
 import { applyAbstentionGuard } from "../../src/lib/engine/guard";
 import { assessCriterion, reconcileBatch, type CriterionAssessment, type ParseOutcome, type SourceCriterion } from "../../src/lib/engine/reconcile";
+import { resolveFailCheck, withFailCheck } from "../../src/lib/engine/fail-check";
 import { RunBudget } from "../../src/lib/engine/run-plan";
 import { tierTrial } from "../../src/lib/engine/tier";
+import { buildFailVerifyUserPrompt, FAIL_VERIFY_PROMPT_VERSION, FAIL_VERIFY_SYSTEM } from "../../src/prompts/fail-verify";
+import { makeFailCheckBatchSchema, type FailCheckItem } from "../../src/schema/fail-check";
 import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt, CLAUSE_PARSE_PROMPT_VERSION } from "../../src/prompts/clause-parse";
 import type { Tier } from "../../src/schema/assessment";
 import { makeClauseBatchSchema } from "../../src/schema/clause";
 import { FactSchema, type Fact, type PatientProfile } from "../../src/schema/profile";
 import { FACT_KEYS, FactKeySchema, type FactKey } from "../../src/schema/vocabulary";
-import { appendResults, loadFixture, saveJson, splitCriteria, type Trial, fx } from "./lib";
+import { appendResults, COHORT, fx, loadFixture, saveJson, splitCriteria, type Trial } from "./lib";
 import { callJson, CallCap, makeClient, type CallStats } from "./llm";
 
 const MAX_CALLS = getPipelineEnv().MAX_LLM_CALLS_PER_RUN; // 80
@@ -57,9 +60,13 @@ const key = (t: Trial) => `${t.nct_id}|${t.last_update ?? ""}|${CLAUSE_PARSE_PRO
 type Cache = Map<string, ParseOutcome[]>;
 const ageOf = (s: string | null) => (s ? Number(s.match(/\d+/)?.[0] ?? NaN) : NaN);
 
-interface StageStat { calls: number; slots: number; ms: number; retries: number; rateLimited: number; failed: number }
-const stat = (): StageStat => ({ calls: 0, slots: 0, ms: 0, retries: 0, rateLimited: 0, failed: 0 });
-const addCall = (s: StageStat, st: CallStats, ok: boolean) => { s.retries += st.attempts - 1; s.rateLimited += st.rateLimited; if (!ok) s.failed++; };
+interface StageStat { calls: number; slots: number; ms: number; retries: number; rateLimited: number; failed: number; kinds: Record<string, number> }
+const stat = (): StageStat => ({ calls: 0, slots: 0, ms: 0, retries: 0, rateLimited: 0, failed: 0, kinds: {} });
+const addCall = (s: StageStat, st: CallStats, ok: boolean) => {
+  s.retries += st.attempts - 1;
+  s.rateLimited += st.rateLimited;
+  if (!ok) { s.failed++; const k = st.errorKind ?? "unknown"; s.kinds[k] = (s.kinds[k] ?? 0) + 1; }
+};
 
 interface TrialState { trial: Trial; sources: SourceCriterion[]; outcomes: ParseOutcome[]; assess: CriterionAssessment[]; tier: Tier; flags: string[] }
 
@@ -67,8 +74,8 @@ async function run(label: string, cache: Cache, budgeted: boolean, cap: CallCap)
   const env = getNebiusEnv();
   const client = makeClient();
   const limit = pLimit(getPipelineEnv().LLM_CONCURRENCY);
-  const budget = new RunBudget(budgeted ? MAX_CALLS : 10_000, budgeted ? undefined : { extraction: 0, verify: 0, escalate: 0 }, budgeted ? undefined : {});
-  const st: Record<string, StageStat> = { extraction: stat(), parse: stat(), evaluate: stat(), verify: stat() };
+  const budget = new RunBudget(budgeted ? MAX_CALLS : 10_000, budgeted ? undefined : { extraction: 0, verify: 0, mismatch: 0, escalate: 0 }, budgeted ? undefined : {});
+  const st: Record<string, StageStat> = { extraction: stat(), parse: stat(), evaluate: stat(), verify: stat(), mismatch: stat() };
   const wall0 = performance.now();
   const timed = async <T>(name: keyof typeof st, fn: () => Promise<T>) => { const c0 = cap.used, t0 = performance.now(); const r = await fn(); st[name]!.calls = cap.used - c0; st[name]!.ms = Math.round(performance.now() - t0); return r; };
 
@@ -127,7 +134,7 @@ async function run(label: string, cache: Cache, budgeted: boolean, cap: CallCap)
   // 4. typed evaluation in code (+ abstention guard) and first tier
   let guardDowngrades = 0;
   const retier = (s: TrialState) => {
-    s.tier = tierTrial(s.assess.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness })), { unknownThreshold: N, expectedCriteria: s.sources.length });
+    s.tier = tierTrial(s.assess.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check })), { unknownThreshold: N, expectedCriteria: s.sources.length });
   };
   for (const s of states) {
     s.assess = s.sources.map((src, i) => {
@@ -146,7 +153,10 @@ async function run(label: string, cache: Cache, budgeted: boolean, cap: CallCap)
   const knownFacts = Object.fromEntries(Object.values(profile.facts).filter((f) => f.state === "known").map((f) => [f.key, f.value]));
   let evalTrials = 0, evalOverflow = 0;
   await timed("evaluate", async () => {
-    const todo = states.filter((s) => s.tier !== "LIKELY_MISMATCH" && s.assess.some((a) => a.completeness === "partial" && a.finding.status === "UNKNOWN"));
+    // A trial that already carries a FAIL candidate from the code stage is not free-text evaluated (same as before rule D,
+    // when such trials were LIKELY_MISMATCH): its tier is UNCERTAIN-or-mismatch whatever evaluation finds.
+    const hasFail = (s: TrialState) => s.assess.some((a) => a.scoring && a.finding.status === "FAIL");
+    const todo = states.filter((s) => !hasFail(s) && s.assess.some((a) => a.completeness === "partial" && a.finding.status === "UNKNOWN"));
     await Promise.all(todo.map((s) => limit(async () => {
       if (budgeted) { if (!budget.take("evaluate")) { evalOverflow++; return; } st.evaluate!.slots++; }
       const items = s.assess.map((a, i) => ({ a, i })).filter(({ a }) => a.completeness === "partial" && a.finding.status === "UNKNOWN").slice(0, 40);
@@ -163,7 +173,6 @@ async function run(label: string, cache: Cache, budgeted: boolean, cap: CallCap)
     })));
   });
   budget.release("evaluate");
-  budget.release("escalate"); // escalation (DEEP) is not built in this spike: its reserve flows to verification
   const afterEval = tierCounts(states);
 
   // 6. verification: independent pass on STRONG/POSSIBLE only; overflow ⇒ never shown as STRONG/POSSIBLE
@@ -183,6 +192,38 @@ async function run(label: string, cache: Cache, budgeted: boolean, cap: CallCap)
       if (real.length > 0) { s.tier = "UNCERTAIN"; s.flags.push("verifier_disagreement"); disagreements++; }
     })));
   });
+  budget.release("verify"); // unused verify reserve flows to mismatch checks
+
+  // 7. RULE D: every FAIL must be independently checked before a trial can be LIKELY_MISMATCH.
+  const failTrials = states.filter((s) => s.assess.some((a) => a.scoring && a.finding.status === "FAIL"));
+  const failCandidates = failTrials.length;
+  const failFindings = failTrials.reduce((n, s) => n + s.assess.filter((a) => a.finding.status === "FAIL").length, 0);
+  const checkLog: Array<{ id: string; origin: string; check: string; verdict: string | null; item: FailCheckItem | null }> = [];
+  const tally = { verified: 0, rejected: 0, unsubstantiated: 0, no_capacity: 0, not_run: 0 };
+  const tiersBeforeChecks = tierCounts(states); // unchecked FAILs are already UNCERTAIN under rule D
+  await timed("mismatch", async () => {
+    // single-FAIL trials first: they are the most fragile to one wrong parse
+    const order = [...failTrials].sort((a, b) => a.assess.filter((x) => x.finding.status === "FAIL").length - b.assess.filter((x) => x.finding.status === "FAIL").length);
+    await Promise.all(order.map((s) => limit(async () => {
+      const fails = s.assess.map((a, i) => ({ a, i })).filter(({ a }) => a.finding.status === "FAIL");
+      const apply = (map: (k: number) => FailCheckItem | "no_capacity" | "not_run") =>
+        fails.forEach(({ a, i }, k) => {
+          const item = map(k);
+          const check = resolveFailCheck(s.sources[i]!.text, item, profile);
+          a.finding = withFailCheck(a.finding, check);
+          tally[check]++;
+          checkLog.push({ id: a.criterion_id, origin: a.finding.source, check, verdict: typeof item === "string" ? null : item.verdict, item: typeof item === "string" ? null : item });
+        });
+      if (budgeted) { if (!budget.take("mismatch")) { apply(() => "no_capacity"); retier(s); return; } st.mismatch!.slots++; }
+      const user = buildFailVerifyUserPrompt(knownFacts, fails.map(({ i }, k) => ({ index: k, type: s.sources[i]!.type, text: s.sources[i]!.text })));
+      const { data, stats } = await callJson({ client, cap, model: env.NEMOTRON_MODEL_MID!, mode: "json_schema", system: FAIL_VERIFY_SYSTEM, user, schema: makeFailCheckBatchSchema(fails.length), schemaName: "fail_check", maxTokens: 8192, extraBody: LOW });
+      addCall(st.mismatch!, stats, !!data);
+      if (!data) { apply(() => "not_run"); retier(s); return; }
+      const byIdx = new Map(data.verdicts.map((v) => [v.index, v]));
+      apply((k) => byIdx.get(k) ?? "not_run");
+      retier(s);
+    })));
+  });
   const final = tierCounts(states);
   const wall = Math.round(performance.now() - wall0);
   const b = budget.stats();
@@ -190,8 +231,8 @@ async function run(label: string, cache: Cache, budgeted: boolean, cap: CallCap)
   states.forEach((s) => s.assess.forEach((a) => completeness[a.completeness]++));
   const decided = states.reduce((n, s) => n + s.assess.filter((a) => a.finding.status === "PASS" || a.finding.status === "FAIL").length, 0);
   const totalCriteria = states.reduce((n, s) => n + s.assess.length, 0);
-  const snapshot = { profile: Object.values(profile.facts).filter((f) => f.state !== "unknown"), trials: states.map((s) => ({ nct_id: s.trial.nct_id, tier: s.tier, flags: s.flags, criteria: s.sources.map((src, i) => ({ id: src.id, type: src.type, text: src.text, completeness: s.assess[i]!.completeness, category: s.assess[i]!.category, finding: s.assess[i]!.finding, clause: s.outcomes[i]!.state === "parsed" ? (s.outcomes[i] as Extract<ParseOutcome, { state: "parsed" }>).clause : null })) })) };
-  return { snapshot, label, wall, cap: cap.used, st, budgetStats: b, known, candidates: candidates.length, cacheHits, cacheMiss, pending, afterTyped, afterEval, final, guardDowngrades, evalTrials, evalOverflow, verified, disagreements, unverified, completeness, decided, totalCriteria };
+  const snapshot = { failChecks: checkLog, profile: Object.values(profile.facts).filter((f) => f.state !== "unknown"), trials: states.map((s) => ({ nct_id: s.trial.nct_id, tier: s.tier, flags: s.flags, criteria: s.sources.map((src, i) => ({ id: src.id, type: src.type, text: src.text, completeness: s.assess[i]!.completeness, category: s.assess[i]!.category, finding: s.assess[i]!.finding, clause: s.outcomes[i]!.state === "parsed" ? (s.outcomes[i] as Extract<ParseOutcome, { state: "parsed" }>).clause : null })) })) };
+  return { failCandidates, failFindings, tally, tiersBeforeChecks, snapshot, label, wall, cap: cap.used, st, budgetStats: b, known, candidates: candidates.length, cacheHits, cacheMiss, pending, afterTyped, afterEval, final, guardDowngrades, evalTrials, evalOverflow, verified, disagreements, unverified, completeness, decided, totalCriteria };
 }
 
 async function main(): Promise<void> {
@@ -209,21 +250,24 @@ async function main(): Promise<void> {
   console.log("warm done", warm.cap, "calls", warm.wall, "ms");
   saveJson(fx("e2e-warm"), warm.snapshot);
 
-  const row = (r: typeof cold) => `| ${r.label} | ${r.candidates} | ${r.cacheHits}/${r.cacheMiss} | ${r.cap} (≤${MAX_CALLS}) | ${r.budgetStats.slotsGranted} slots → worst case ${r.budgetStats.worstCaseCalls} | ${r.st.extraction!.calls}/${r.st.parse!.calls}/${r.st.evaluate!.calls}/${r.st.verify!.calls} | ${r.wall} |`;
-  const stageRow = (r: typeof cold) => `| ${r.label.split(" ")[0]} | ${(["extraction", "parse", "evaluate", "verify"] as const).map((k) => `${r.st[k]!.ms} ms (${r.st[k]!.slots} slots, ${r.st[k]!.retries} retries, ${r.st[k]!.rateLimited}×429, ${r.st[k]!.failed} failed)`).join(" | ")} |`;
+  const row = (r: typeof cold) => `| ${r.label} | ${r.candidates} | ${r.cacheHits}/${r.cacheMiss} | ${r.cap} (≤${MAX_CALLS}) | ${r.budgetStats.slotsGranted} slots → worst case ${r.budgetStats.worstCaseCalls} | ${(["extraction", "parse", "evaluate", "verify", "mismatch"] as const).map((k) => r.st[k]!.calls).join("/")} | ${r.wall} |`;
+  const stageRow = (r: typeof cold) => `| ${r.label.split(" ")[0]} | ${(["extraction", "parse", "evaluate", "verify", "mismatch"] as const).map((k) => `${r.st[k]!.ms} ms (${r.st[k]!.slots} slots, ${r.st[k]!.retries} retries, ${r.st[k]!.rateLimited}×429, ${r.st[k]!.failed} failed${Object.keys(r.st[k]!.kinds).length ? " [" + Object.entries(r.st[k]!.kinds).map(([a, b]) => `${a}×${b}`).join(",") + "]" : ""})`).join(" | ")} |`;
   const tierRow = (r: typeof cold) => `| ${r.label.split(" ")[0]} | ${JSON.stringify(r.afterTyped)} | ${JSON.stringify(r.afterEval)} | ${JSON.stringify(r.final)} | ${r.pending} | ${r.guardDowngrades} | ${r.verified} verified, ${r.disagreements} disagreements, ${r.unverified} unverified→UNCERTAIN | ${r.evalOverflow} |`;
+  const failRow = (r: typeof cold) => `| ${r.label.split(" ")[0]} | ${r.failCandidates} trials / ${r.failFindings} FAIL findings | ${r.tally.verified} | ${r.tally.rejected} | ${r.tally.unsubstantiated} | ${r.tally.no_capacity} | ${r.tally.not_run} | ${r.final.LIKELY_MISMATCH} |`;
   const md = [
-    `\n## ${new Date().toISOString()} — 07-e2e (fictional profile; fixed cohort; prompt \`${CLAUSE_PARSE_PROMPT_VERSION}\`; reasoning_effort=low; command \`pnpm spike:e2e\`)\n`,
-    `- Plan: \`RunBudget(${MAX_CALLS})\`: each LLM slot reserves 2 calls (call + its one retry) ⇒ 40 slots; reserved: extraction 1, verify 8, escalate 3 (escalation NOT built here; its reserve is released to verification); parse capped at 14 slots; evaluate takes the rest. Hard \`CallCap(${MAX_CALLS})\` additionally throws if exceeded (it did not).`,
-    `- Profile: fictional; extractor produced ${cold.known} known facts (cold) / ${warm.known} (warm). Prefilter by age/sex over the ${loadFixture().length}-trial fixture ⇒ ${cold.candidates} candidates.`,
-    "\n| Run | candidates | parse cache hit/miss | HTTP calls used | slots | calls extraction/parse/evaluate/verify | wall ms |\n|---|---|---|---|---|---|---|",
+    `\n## ${new Date().toISOString()} — 07-e2e (${COHORT} cohort; fictional profile; clause prompt \`${CLAUSE_PARSE_PROMPT_VERSION}\`, fail-verify \`${FAIL_VERIFY_PROMPT_VERSION}\`; reasoning_effort=low; rule D active; command \`COHORT=${COHORT} pnpm spike:e2e\`)\n`,
+    `- Plan: \`RunBudget(${MAX_CALLS})\`: each LLM slot reserves 2 calls (call + its one retry) ⇒ 40 slots; reserved: extraction 1, verify 8, **mismatch checks 3 (reassigned from the unbuilt escalation stage)**; parse capped at 14 slots; evaluate takes shared slots; unused verify reserve flows to mismatch checks. Hard \`CallCap(${MAX_CALLS})\` throws if exceeded (it did not).`,
+    `- Profile: fictional; extractor produced ${cold.known} known facts (cold) / ${warm.known} (warm). Prefilter by age/sex over the ${loadFixture().length}-trial ${COHORT} fixture ⇒ ${cold.candidates} candidates.`,
+    "\n| Run | candidates | parse cache hit/miss | HTTP calls used | slots | calls extraction/parse/evaluate/verify/mismatch | wall ms |\n|---|---|---|---|---|---|---|",
     row(cold), row(warm),
-    "\n| Run | extraction | parse | free-text evaluate | verify |\n|---|---|---|---|---|",
+    "\n| Run | extraction | parse | free-text evaluate | verify (STRONG/POSSIBLE) | FAIL checks |\n|---|---|---|---|---|---|",
     stageRow(cold), stageRow(warm),
-    "\n| Run | tiers after typed-only (code) | after free-text eval | final (after verify) | trials with unresolved criteria | guard downgrades | verification | eval slot overflow (trials left UNKNOWN) |\n|---|---|---|---|---|---|---|---|",
+    "\n| Run | tiers after typed-only (code; unchecked FAIL ⇒ UNCERTAIN) | after free-text eval | final | trials with unresolved criteria | guard downgrades | verification | eval slot overflow |\n|---|---|---|---|---|---|---|---|",
     tierRow(cold), tierRow(warm),
-    `\n- Criteria in the ${warm.candidates} candidates (warm): ${warm.totalCriteria}; parse completeness full ${warm.completeness.full} / partial ${warm.completeness.partial} / unresolved ${warm.completeness.unresolved}; findings decided PASS/FAIL after eval+guard: ${warm.decided}.`,
-    `- Offline pre-parse of the cohort (what \`pnpm precompute\` must do before judging): ${preParseCalls} HTTP calls (chunks of ${CHUNK} + retries), ${preParseMs} ms at concurrency ${getPipelineEnv().LLM_CONCURRENCY}; cache entries written ${cache.size}/${cold.candidates}. Cache is in-memory in this spike (VERIFY: Supabase \`trial_criteria_cache\` persistence in Phase 2).`,
+    "\n| Run | trials with ≥1 FAIL (candidates) | FAILs verified | rejected | unsubstantiated | no capacity | not run | final LIKELY_MISMATCH |\n|---|---|---|---|---|---|---|---|",
+    failRow(cold), failRow(warm),
+    `\n- Criteria in the ${warm.candidates} candidates (warm): ${warm.totalCriteria}; parse completeness full ${warm.completeness.full} / partial ${warm.completeness.partial} / unresolved ${warm.completeness.unresolved}; findings decided PASS/FAIL after eval+guard+checks: ${warm.decided}.`,
+    `- Offline pre-parse of the cohort: ${preParseCalls} HTTP calls (chunks of ${CHUNK} + retries), ${preParseMs} ms at concurrency ${getPipelineEnv().LLM_CONCURRENCY}; cache entries written ${cache.size}/${cold.candidates}. Cache is in-memory in this spike (VERIFY: Supabase \`trial_criteria_cache\` persistence in Phase 2).`,
   ];
   appendResults(md.join("\n") + "\n");
   console.log(md.slice(1).join("\n"));

@@ -77,6 +77,21 @@ describe("three-valued evaluation", () => {
   });
 });
 
+describe("REGRESSION: unitless numeric facts (metastatic_line)", () => {
+  // Phase 1 audit (fresh cohort): "at least 1 but no more than 2 prior lines in the metastatic setting" FAILED a patient
+  // with metastatic_line = 1 because a null unit produced a conversion factor of null (⇒ criterion value 0).
+  const t = tree(crit([atom("at least 1 line", "metastatic_line", "gte", 1), atom("no more than 2 prior lines", "metastatic_line", "lte", 2)]));
+  it("is executable without a unit", () => expect(classifyCompleteness(t)).toBe("full"));
+  it("1 line satisfies 1 ≤ lines ≤ 2", () => expect(evaluateClause(t, profile({ metastatic_line: 1 })).truth).toBe("true"));
+  it("3 lines does not satisfy ≤ 2; 0 lines does not satisfy ≥ 1", () => {
+    expect(evaluateClause(t, profile({ metastatic_line: 3 })).truth).toBe("false");
+    expect(evaluateClause(t, profile({ metastatic_line: 0 })).truth).toBe("false");
+  });
+  it("other numeric facts still require a convertible unit", () => {
+    expect(classifyCompleteness(tree(crit([atom("ANC ≥ 1500", "anc", "gte", 1500, null)])))).toBe("partial");
+  });
+});
+
 describe("status mapping", () => {
   it("inclusion/exclusion × truth", () => {
     expect(statusFromTruth("inclusion", "true")).toBe("PASS");

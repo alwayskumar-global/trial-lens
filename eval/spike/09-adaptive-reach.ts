@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs";
 import { leaves } from "../../src/lib/engine/clause";
 import type { ParseOutcome } from "../../src/lib/engine/reconcile";
 import { VOCABULARY } from "../../src/schema/vocabulary";
-import { appendResults, fx } from "./lib";
+import { appendResults, COHORT, fx } from "./lib";
 
 interface Row { id: string; type: string; outcome: ParseOutcome; verdict: string }
 const rows: Row[] = JSON.parse(readFileSync(fx("coverage-v2-low"), "utf8"));
@@ -28,7 +28,7 @@ const trialsWithAskable = new Set<string>(); const trialsWithAskableRev = new Se
 for (const [k, s] of any) if (askable.has(k)) s.forEach((t) => trialsWithAskable.add(t));
 for (const [k, s] of rev) if (askable.has(k)) s.forEach((t) => trialsWithAskableRev.add(t));
 const md = [
-  `\n## ${new Date().toISOString()} — 09-adaptive-reach (no LLM calls; final reasoning=low coverage run; ${trials.size} trials)\n`,
+  `\n## ${new Date().toISOString()} — 09-adaptive-reach (no LLM calls; final reasoning=low coverage run, ${COHORT} cohort, splitter+guards active; ${trials.size} trials)\n`,
   `- Trials with ≥1 typed ATOM on an askable fact: ${trialsWithAskable.size}/${trials.size}; with a reviewed-full typed criterion on an askable fact: ${trialsWithAskableRev.size}/${trials.size}.`,
   "\n| fact_key | askable | trials with atom (any parse) | trials with reviewed-full typed criterion |\n|---|---|---|---|",
   ...list.slice(0, 14).map((x) => `| ${x.k} | ${x.askable ? "yes" : "no"} | ${x.a} | ${x.r} |`),

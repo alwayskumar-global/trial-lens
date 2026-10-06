@@ -15,7 +15,7 @@ import { dependsOn, leaves } from "../../src/lib/engine/clause";
 import { reconcileBatch, type ParseOutcome, type SourceCriterion } from "../../src/lib/engine/reconcile";
 import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt, CLAUSE_PARSE_PROMPT_VERSION } from "../../src/prompts/clause-parse";
 import { makeClauseBatchSchema } from "../../src/schema/clause";
-import { appendResults, cohortCriteria, isCompound, loadFixture, saveJson, seededShuffle, fx } from "./lib";
+import { appendResults, COHORT, cohortCriteria, isCompound, loadFixture, saveJson, seededShuffle, fx } from "./lib";
 import { callJson, CallCap, makeClient, THINKING_OFF } from "./llm";
 
 const MAX_CALLS = 400;
@@ -25,7 +25,7 @@ const REASONING = (process.env.COVERAGE_REASONING ?? "off") as "off" | "low" | "
 const MAX_TOKENS = Number(process.env.COVERAGE_MAX_TOKENS ?? "8192");
 const EXTRA: Record<string, unknown> | undefined = REASONING === "off" ? THINKING_OFF : REASONING === "low" ? { reasoning_effort: "low" } : undefined;
 const OUT = fx("coverage-v2");
-const REVIEW_SAMPLE_PATH = fileURLToPath(new URL("./review-sample.json", import.meta.url));
+const REVIEW_SAMPLE_PATH = fileURLToPath(new URL(`./review-sample${COHORT === "fresh" ? "-fresh" : ""}.json`, import.meta.url));
 
 const JudgeSchema = z.object({ verdicts: z.array(z.object({ index: z.number().int().nonnegative(), verdict: z.enum(["full", "partial", "wrong"]) })) });
 const JUDGE_SYSTEM = `You audit structured clause representations of clinical-trial eligibility criteria.
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
   const headline = scoring.filter(isReviewedFull).length / scoring.length;
 
   const lines: string[] = [
-    `\n## ${new Date().toISOString()} — 04c-coverage-clauses (same fixed cohort as 04; clause representation)\n`,
+    `\n## ${new Date().toISOString()} — 04c-coverage-clauses (${COHORT} cohort; clause representation; splitter + atom-semantics guards active)\n`,
     `- Command: \`pnpm spike:coverage2\` (COVERAGE_CHUNK=${CHUNK}, COVERAGE_REASONING=${REASONING}, max_tokens ${MAX_TOKENS}; judge reasoning default ON). Parser MID \`${env.NEMOTRON_MODEL_MID}\`, prompt \`${CLAUSE_PARSE_PROMPT_VERSION}\`, json_schema mode, ${chunks.length} batch calls; judge DEEP \`${env.NEMOTRON_MODEL_DEEP}\` on code-evaluable criteria only.`,
     `- Batch validation (index set exact + every leaf source is a verbatim fragment): first-attempt valid ${firstValid}/${chunks.length}; valid after the one retry ${retriedOk}; **rejected after retry ${rejected}** (all their criteria → UNRESOLVED → UNKNOWN; last-attempt reasons: ${[...why].map(([k, v]) => `${k}×${v}`).join(", ") || "n/a"}); truncated outputs ${truncated}; judge batches failed ${judgeFailed}.`,
     `- Tokens (parse): prompt ${tokensIn}, completion ${tokensOut}; parse wall ${parseWall} ms at concurrency ${conc}; total HTTP calls ${cap.used}/${MAX_CALLS}.`,
