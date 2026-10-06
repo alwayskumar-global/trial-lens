@@ -126,8 +126,9 @@ describe("LiveResults", () => {
   it("replay carries the persistent 'Saved fictional example' tag, notice and banner, and no live labelling", () => {
     const h = html(<LiveResults run={resultsRun("replay")} onOpen={noop} />);
     expect(h).toContain("Saved fictional example");
-    expect(h).toContain("You&#x27;ve reached the hourly limit");
-    expect(h).toContain("does not use your description");
+    expect(h).toContain("You&#x27;ve reached the hourly limit for live analysis.");
+    expect(h).toContain("This page shows saved results for a fictional profile. No new analysis is running.");
+    expect(h).not.toMatch(/your description/);
     expect(h).toContain("compares public trial criteria with a fictional profile");
     expect(h).toContain("this profile&#x27;s age and sex");
     expect(h).not.toContain("Live run");
@@ -159,6 +160,8 @@ describe("LiveDetail", () => {
   it("final CTA is 'Open on ClinicalTrials.gov' with the official link; never 'Contact study team' or the banned word", () => {
     const h = detail(assessedPossible);
     expect(h).toContain(OPEN_ON_CTGOV);
+    expect(h).toContain("Open the official study page for current criteria and any listed locations or contacts.");
+    expect(h).not.toMatch(/lists locations and contacts/);
     expect(h).toContain('href="https://clinicaltrials.gov/study/NCT00000001"');
     expect(h).toContain('rel="noopener noreferrer"');
     expect(h).not.toContain("Contact study team");
@@ -187,7 +190,7 @@ describe("LiveDetail", () => {
   it("replay Detail keeps the persistent notice and fictional-profile wording", () => {
     const h = detail(assessedPossible, "replay");
     expect(h).toContain("Saved fictional example");
-    expect(h).toContain("does not use your description");
+    expect(h).toContain("No new analysis is running.");
     expect(h).toContain("From the fictional profile");
     expect(h).not.toContain("From the prepared fictional profile");
   });

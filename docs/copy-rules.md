@@ -12,7 +12,7 @@ Version 2 (2026-10-06). Replaces the copy-rule block in the local-only CLAUDE.md
 - Pending ("Not analyzed this run") and failed ("Couldn't be read") trials stay Uncertain with their own explanation; they are never shown as matches or mismatches.
 
 ## Live mode refers to the profile, not the visitor
-Live mode sends a prepared fictional profile to `/api/run`; visitors provide no information. Live Processing, counts, cards, Detail and the banner say "the prepared fictional profile" (replay: "the fictional profile"), never "what you told us", "your information", "your info", "your age and sex" or "your description" (enforced by `copy-audit.test.ts`). The replay notices keep the approved sentence "It does not use your description." (pending Kumar's decision whether to reword it, since no description is ever entered in this flow). When real visitor input exists, the original wording returns.
+Live mode sends a prepared fictional profile to `/api/run`; visitors provide no information. Live Processing, counts, cards, Detail and the banner say "the prepared fictional profile" (replay: "the fictional profile"), never "what you told us", "your information", "your info", "your age and sex" or "your description" (enforced by `copy-audit.test.ts`). Replay notices keep their fallback reason and state "This page shows saved results for a fictional profile. No new analysis is running." When real visitor input exists, the original wording returns.
 
 ## Final call to action (approved exception, Kumar, 2026-10-06)
 The previous rule was: "Final CTA is Contact study team, never Enroll."

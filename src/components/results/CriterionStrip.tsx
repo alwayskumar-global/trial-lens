@@ -20,7 +20,7 @@ export interface CriterionStripProps {
   onAsk?: () => void;
 }
 
-/** Collapsible criterion: original wording | in plain words | from your info (+ "Ask the team" for unknown / judgment). */
+/** Collapsible criterion: original wording | in plain words | from the fictional profile (+ "Ask the team" for unknown / judgment). */
 export function CriterionStrip({ status = "meets", name, original, plain, fromInfo, defaultOpen = false, onAsk }: CriterionStripProps) {
   const ask = status === "unknown" || status === "judgment";
   return (
@@ -40,7 +40,7 @@ export function CriterionStrip({ status = "meets", name, original, plain, fromIn
           <p className="tl-strip__plain">{plain}</p>
         </div>
         <div className="tl-strip__col">
-          <h4>From your info</h4>
+          <h4>From the fictional profile</h4>
           {fromInfo ? (
             <span className="tl-chip" style={{ color: "var(--foreground)" }}>
               {fromInfo}

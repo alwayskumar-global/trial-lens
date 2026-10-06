@@ -115,7 +115,7 @@ export function LiveDetail({ run, trial: t, onBack }: { run: RunState; trial: Tr
             <section className="panel stack g12">
               <h2 className="tl-h3">Official study page</h2>
               <p className="tl-small" style={{ margin: 0, color: "var(--muted-foreground)" }}>
-                ClinicalTrials.gov lists locations and contacts for {t.nct_id}. Only a study team can confirm eligibility.
+                Open the official study page for current criteria and any listed locations or contacts. Only a study team can confirm eligibility.
               </p>
               {t.url && (
                 <Button as="a" href={t.url} target="_blank" rel="noopener noreferrer" size="lg">

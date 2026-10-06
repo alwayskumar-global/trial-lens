@@ -31,16 +31,18 @@ export const STAGE_LABELS: Record<string, string> = {
 };
 
 export const REPLAY_NOTICE_LEAD = "Saved fictional example.";
+/** Replay notice: keeps the fallback reason, and always says the page shows saved results for a fictional profile and that no new analysis is running. */
 export function replayNotice(reason: ReplayReason | undefined, label?: string): string {
+  const saved = "This page shows saved results for a fictional profile. No new analysis is running.";
   switch (reason) {
     case "requested":
-      return `This is a saved example about a fictional person${label ? `: ${label}` : ""}. It is not a live analysis.`;
+      return `This page shows saved results for a fictional profile${label ? ` (${label})` : ""}. No new analysis is running.`;
     case "rate_limited":
-      return "You've reached the hourly limit for live analysis, so this is a saved example about a fictional person. It does not use your description.";
+      return `You've reached the hourly limit for live analysis. ${saved}`;
     case "budget_exhausted":
-      return "Live analysis has reached its daily limit, so this is a saved example about a fictional person. It does not use your description.";
+      return `Live analysis has reached its daily limit. ${saved}`;
     default:
-      return "Live analysis isn't available right now, so this is a saved example about a fictional person. It does not use your description.";
+      return `Live analysis isn't available right now. ${saved}`;
   }
 }
 
