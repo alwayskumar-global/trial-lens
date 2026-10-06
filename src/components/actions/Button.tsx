@@ -9,9 +9,11 @@ export interface ButtonProps extends Omit<ComponentPropsWithoutRef<"button">, "c
   as?: ElementType;
   children?: ReactNode;
   href?: string;
+  target?: string;
+  rel?: string;
 }
 
-/** Forest-green button; one primary per screen. The final CTA is "Contact study team". */
+/** Forest-green button; one primary per screen. The final CTA is "Open on ClinicalTrials.gov" until contact data exists (docs/copy-rules.md). */
 export function Button({ variant = "primary", size = "md", icon, iconAfter, as, children, className = "", ...rest }: ButtonProps) {
   const Tag: ElementType = as ?? "button";
   const cls = "tl-btn tl-btn--" + variant + (size === "sm" ? "" : " tl-btn--" + size) + (className ? " " + className : "");

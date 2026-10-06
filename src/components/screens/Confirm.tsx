@@ -3,7 +3,7 @@ import { ProfileChip } from "../forms/ProfileChip";
 import { PROFILE, SAMPLE_TEXT, type ProfileGroups } from "@/lib/sample/triallens-sample";
 import { Header } from "./Header";
 
-export function Confirm({ onBack, onNext }: { onBack: () => void; onNext: () => void }) {
+export function Confirm({ onBack, onNext, nextLabel = "View sample trials", tag }: { onBack: () => void; onNext: () => void; nextLabel?: string; tag?: string }) {
   const prof: ProfileGroups = PROFILE;
   const G = ({ k, title, kind, note }: { k: keyof ProfileGroups; title: string; kind: "known" | "unknown" | "uncertain"; note: string }) => (
     <section className="stack g12">
@@ -23,7 +23,7 @@ export function Confirm({ onBack, onNext }: { onBack: () => void; onNext: () => 
   return (
     <div className="app">
       <div className="wrap">
-        <Header />
+        <Header {...(tag ? { tag } : {})} />
         <main className="page stack g32">
           <div className="stack g12">
             <h1 className="tl-h1">Prepared fictional profile</h1>
@@ -44,7 +44,7 @@ export function Confirm({ onBack, onNext }: { onBack: () => void; onNext: () => 
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <Button size="lg" onClick={onNext}>
-              View sample trials
+              {nextLabel}
             </Button>
             <Button size="lg" variant="quiet" onClick={onBack}>
               Back

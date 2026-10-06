@@ -1,0 +1,17 @@
+# Copy rules (versioned)
+
+Version 2 (2026-10-06). Replaces the copy-rule block in the local-only CLAUDE.md as the versioned source of truth; the local file may lag. Enforced by `src/lib/ui/copy-audit.test.ts` (banned words) and review.
+
+## Always
+- Never write "eligible", "you qualify", "you will be accepted", "enroll" (the concept noun "eligibility" is allowed). Use Potential match / Possible match / Uncertain / Likely mismatch.
+- Never advise starting, stopping, delaying or changing treatment to fit a trial. For timing criteria: "Timing of previous treatment may affect eligibility. Ask the study team."
+- Always show the original criterion text. A shortened quote is labelled "Criterion excerpt", is never cut off or merged to explain a tier, and the full wording is one tap away.
+- A persistent banner on Results and Detail: it screens public criteria against information provided, does not determine eligibility, and only a study team can.
+- Demo uses fictional profiles only. Replay is always labelled "Saved fictional example".
+- Say "TrialLens does not store your information". Do not strengthen it until Token Factory retention terms are verified.
+- Pending ("Not analyzed this run") and failed ("Couldn't be read") trials stay Uncertain with their own explanation; they are never shown as matches or mismatches.
+
+## Final call to action (approved exception, Kumar, 2026-10-06)
+The previous rule was: "Final CTA is Contact study team, never Enroll."
+
+**Until the product has study contact data, the final CTA is "Open on ClinicalTrials.gov"** (the official study page lists locations and contacts). It never says "Enroll". When contact data exists (fetched and verified), return to "Contact study team" and update this file.

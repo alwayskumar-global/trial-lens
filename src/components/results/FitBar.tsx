@@ -16,11 +16,13 @@ const COL: Record<Tier, string> = {
 export interface FitBarProps {
   counts: Record<Tier, number>;
   active?: Tier | null;
+  /** Extra accessible text per tier (e.g. "including 4 not analyzed this run or couldn't be read"). */
+  notes?: Partial<Record<Tier, string>>;
   onSelect?: (tier: Tier | null) => void;
 }
 
 /** Mobile fallback of the Fit Line: segmented bar with tappable per-tier counts that filter the list. */
-export function FitBar({ counts, active, onSelect }: FitBarProps) {
+export function FitBar({ counts, active, notes, onSelect }: FitBarProps) {
   return (
     <div className="tl-fitbar" role="group" aria-label="Filter trials by fit">
       <div className="tl-fitbar__bar" aria-hidden="true">
@@ -30,7 +32,7 @@ export function FitBar({ counts, active, onSelect }: FitBarProps) {
       </div>
       <div className="tl-fitbar__segs">
         {SEG.map((s) => (
-          <button key={s.k} type="button" className={"tl-seg tl-seg--" + s.k} aria-pressed={active === s.k} onClick={() => onSelect?.(active === s.k ? null : s.k)}>
+          <button key={s.k} type="button" className={"tl-seg tl-seg--" + s.k} aria-pressed={active === s.k} {...(notes?.[s.k] ? { "aria-label": `${counts[s.k]} ${s.n}, ${notes[s.k]}` } : {})} onClick={() => onSelect?.(active === s.k ? null : s.k)}>
             <b>{counts[s.k]}</b>
             {s.n}
           </button>

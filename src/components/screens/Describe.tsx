@@ -3,14 +3,14 @@ import { LensRings } from "../brand/LensRings";
 import { DEMO_SAMPLE_NAME, SAMPLE_TEXT } from "@/lib/sample/triallens-sample";
 import { Header } from "./Header";
 
-export function Describe({ onNext }: { onNext: () => void }) {
+export function Describe({ onNext, tag }: { onNext: () => void; tag?: string }) {
   return (
     <div className="app">
       <div className="lensbg">
         <LensRings size={720} />
       </div>
       <div className="wrap" style={{ zIndex: 1 }}>
-        <Header />
+        <Header {...(tag ? { tag } : {})} />
         <div className="strip-q">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true">
             <circle cx="10" cy="10" r="7.5" />

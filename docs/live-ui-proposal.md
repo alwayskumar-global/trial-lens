@@ -1,6 +1,6 @@
 # Live / replay / pending UI: PROPOSAL for Kumar's approval (nothing built)
 
-Status: **awaiting Kumar's sign-off** (revision 2, after reviewer recommendations). The app still ships the fixed fictional demo. Mockups were rendered from the real components and real stored replay data (CT.gov text; kept out of the repo). Three trials were marked pending and one failed in the mockups only, because the stored replay has none.
+Status: **approved by Kumar (revision 2, mockups at 5caf7a6) and implemented** behind `NEXT_PUBLIC_UI_MODE=live`. The default build is still the shipped fixed fictional demo. The app still ships the fixed fictional demo. Mockups were rendered from the real components and real stored replay data (CT.gov text; kept out of the repo). Three trials were marked pending and one failed in the mockups only, because the stored replay has none.
 
 ## Principles
 1. A number appears only after its event arrives. No percentages, no durations, no "usually under a minute", no waiting rows for steps that have not started.
@@ -70,3 +70,11 @@ Tier labels, the Strong zone (stays empty and unlabelled when empty), Rule D wor
 
 ## Approval gate
 The fixed fictional demo stays as shipped. No UI code for these states is written until Kumar signs off on the mockups above (visual approval). Deployment is separate and not requested.
+
+## Implementation notes (after approval)
+- Code: `src/lib/live/{copy,model,client}.ts` (approved copy, pure stream reducer + view models, SSE client), `src/components/live/*`. Enabled only by the build-time, non-secret `NEXT_PUBLIC_UI_MODE=live`; the default is the fixed demo. In live mode the same fictional profile is sent to `/api/run`; nothing the visitor types is read.
+- "Meets" tick: shown only when at least one criterion is met (zero ⇒ the unknown glyph).
+- Mobile Fit Bar: no dashed dots; pending/failed are stated in text ("N of the M Uncertain studies were not analyzed this run or couldn't be read"), in the Coverage row, in the unfinished group, on each card, and in the Uncertain segment's accessible label.
+- Final CTA exception recorded in `docs/copy-rules.md` (version 2).
+- Copy NOT in the approved mockups, marked `VERIFY(copy)` in `src/lib/live/copy.ts`: entry-screen tag "Fictional profile", live-mode button "Analyze live", the replay-loading line "Loading the saved example.", the error card ("Live analysis isn't available right now" / "Nothing was analyzed. Please try again later."), and the failed-trial Detail paragraph (mirrors the approved pending text).
+- Not built (not in the approved states): the adaptive-question panel in live Results (the `question` event is received and ignored), any free-text input.

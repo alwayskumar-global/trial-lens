@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { LiveApp } from "./live/LiveApp";
 import { Confirm } from "./screens/Confirm";
 import { Describe } from "./screens/Describe";
 import { Detail } from "./screens/Detail";
@@ -11,7 +12,7 @@ import type { Tier } from "./status/TierBadge";
 type Screen = "describe" | "confirm" | "processing" | "results" | "detail";
 
 /** Describe → Confirm → Processing → Results → Detail. Demo only: fixed fictional profile and results; nothing the visitor types is read, stored or sent. */
-export function App() {
+function FixedDemo() {
   const [screen, setScreen] = useState<Screen>("describe");
   const [tiers, setTiers] = useState<Record<string, Tier>>({});
   const [answer, setAnswer] = useState<string | null>(null);
@@ -60,4 +61,12 @@ export function App() {
   else if (screen === "detail") view = <Detail trial={trials.find((t) => t.id === open) ?? trials[0]!} onBack={() => setScreen("results")} />;
   else view = <Results trials={trials} answer={answer} onAnswer={onAnswer} updated={updated} onOpen={(id) => { setOpen(id); setScreen("detail"); }} toast={toast} setToast={setToast} />;
   return <div className="tl-frame">{view}</div>;
+}
+
+/**
+ * UI mode, set at build time (non-secret): "fixed" (default) is the shipped fixed fictional demo; "live" runs the real
+ * pipeline on the fictional profile and shows the live / replay / pending states. Never set to "live" without approval.
+ */
+export function App() {
+  return process.env.NEXT_PUBLIC_UI_MODE === "live" ? <LiveApp /> : <FixedDemo />;
 }

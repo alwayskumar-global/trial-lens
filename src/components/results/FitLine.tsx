@@ -8,6 +8,8 @@ export interface FitLineTrial {
   title: string;
   short?: string;
   tier: Tier;
+  /** Pending/failed trials: drawn as a dashed dot; this text (e.g. "not analyzed this run") is added to the accessible label and tooltip. */
+  dashedNote?: string;
 }
 
 export interface FitLineProps<T extends FitLineTrial = FitLineTrial> {
@@ -63,15 +65,21 @@ export function FitLine<T extends FitLineTrial>({ trials, onSelect, onMoved }: F
             <button
               key={t.id}
               type="button"
-              className={"tl-dot tl-dot--" + t.tier + (ring.includes(t.id) ? " tl-dot--ring" : "")}
+              className={"tl-dot tl-dot--" + t.tier + (t.dashedNote ? " tl-dot--dashed" : "") + (ring.includes(t.id) ? " tl-dot--ring" : "")}
               style={{ left: pos[t.id]!.left, top: pos[t.id]!.top, "--dd": (mi >= 0 ? mi * 40 : 0) + "ms" } as React.CSSProperties}
               onClick={() => onSelect?.(t)}
-              aria-label={t.title + ", " + TIER_LABELS[t.tier]}
+              aria-label={t.title + ", " + TIER_LABELS[t.tier] + (t.dashedNote ? ", " + t.dashedNote : "")}
             >
               <span className="tl-dot__tip" role="tooltip">
                 {t.short ?? t.title}
                 <br />
                 {TIER_LABELS[t.tier]}
+                {t.dashedNote && (
+                  <>
+                    <br />
+                    {t.dashedNote}
+                  </>
+                )}
               </span>
             </button>
           );
