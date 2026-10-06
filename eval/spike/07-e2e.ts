@@ -235,7 +235,19 @@ async function run(label: string, cache: Cache, budgeted: boolean, cap: CallCap)
   return { failCandidates, failFindings, tally, tiersBeforeChecks, snapshot, label, wall, cap: cap.used, st, budgetStats: b, known, candidates: candidates.length, cacheHits, cacheMiss, pending, afterTyped, afterEval, final, guardDowngrades, evalTrials, evalOverflow, verified, disagreements, unverified, completeness, decided, totalCriteria };
 }
 
+// Local preflight: reject missing model IDs BEFORE any provider call (a blank model id yields HTTP 422 on every call
+// and silently voids a run). Names only; never prints values.
+function preflightModels(): void {
+  const e = getNebiusEnv();
+  const missing = (["NEMOTRON_MODEL_FAST", "NEMOTRON_MODEL_MID"] as const).filter((k) => !e[k]);
+  if (missing.length) {
+    console.error(`07-e2e preflight failed: ${missing.join(", ")} not set (model IDs come only from env). No provider call was made.`);
+    process.exit(2);
+  }
+}
+
 async function main(): Promise<void> {
+  preflightModels();
   const cache: Cache = new Map();
   // COLD: empty cache, full plan + hard cap.
   const cold = await run("cold (empty parse cache)", cache, true, new CallCap(MAX_CALLS));

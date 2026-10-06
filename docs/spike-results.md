@@ -1099,3 +1099,31 @@ Frozen run detail: original: unresolved 15 (3.9%), code-evaluable 4, ≥1 atom 9
 
 - Criteria in the 30 candidates (warm): 662; parse completeness full 0 / partial 0 / unresolved 662; findings decided PASS/FAIL after eval+guard+checks: 0.
 - Offline pre-parse of the cohort: 58 HTTP calls (chunks of 15 + retries), 1730 ms at concurrency 6; cache entries written 0/30. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).
+
+## 2026-10-06T05:16:16.015Z — 01-smoke (Token Factory)
+
+- Node v22.22.0; base URL: `https://api.tokenfactory.nebius.com/v1/`
+
+### a. Network (unauthenticated GET)
+
+| Host | Result | Detail |
+|---|---|---|
+| api.tokenfactory.nebius.com | reachable | HTTP 404 |
+| clinicaltrials.gov | reachable | HTTP 200 |
+
+### b. Models list
+
+- OpenAI SDK `models.list()`: OK, 25 models total
+- Nemotron IDs (4):
+  - `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`
+  - `nvidia/Nemotron-3-Ultra-550b-a55b`
+  - `nvidia/Nemotron-3_5-Lightning`
+  - `nvidia/nemotron-3-super-120b-a12b`
+
+### c. Chat completion ("Reply with the single word: ok", temperature 0, max_tokens 512)
+
+| Tier | Model | OK | Latency ms | Non-empty | finish_reason | completion tokens | Error |
+|---|---|---|---|---|---|---|---|
+| FAST | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | yes | 773 | true | stop | 52 |  |
+| MID | `nvidia/nemotron-3-super-120b-a12b` | yes | 642 | true | stop | 38 |  |
+| DEEP | `nvidia/Nemotron-3-Ultra-550b-a55b` | yes | 559 | true | stop | 14 |  |
