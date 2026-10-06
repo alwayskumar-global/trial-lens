@@ -1158,3 +1158,9 @@ Frozen run detail: original: unresolved 15 (3.9%), code-evaluable 4, ≥1 atom 9
 
 - Criteria in the 29 candidates (warm): 651; parse completeness full 12 / partial 586 / unresolved 53; findings decided PASS/FAIL after eval+guard+checks: 40.
 - Offline pre-parse of the cohort: 55 HTTP calls (chunks of 15 + retries), 90426 ms at concurrency 6; cache entries written 27/29. Cache is in-memory in this spike (VERIFY: Supabase `trial_criteria_cache` persistence in Phase 2).
+
+**Qualifications (read before quoting any number above).**
+- HTTP calls used (37 cold / 43 warm of 80) is a budget figure, **not** a coverage figure. The warm run overflowed **14 free-text evaluation slots** (parse retries consumed the shared slots), so those trials were not evaluated and stay UNCERTAIN by rule. Warm "unresolved" counts (2 trials) reflect cached parses, not that every criterion was assessed.
+- Cold and warm runs call the extractor separately and returned different fact sets (**11 vs 14 known facts**). Tier differences between cold and warm therefore **cannot be attributed to the parse cache alone**.
+- "Verified" Rule D FAILs mean an independent model call agreed; that is a model output, **not measured clinical accuracy**, and not agreement with a clinician.
+- Single run, one fictional profile, one untouched cohort. No accuracy, sensitivity or precision claim.
