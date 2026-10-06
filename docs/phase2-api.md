@@ -12,6 +12,15 @@ Response: `text/event-stream`, `cache-control: no-store`. Events (`src/schema/ss
 
 Replay never carries `stage` events (they are stripped from the stored run), so no consumer can render a saved run as live progress. Replay is always labelled: a `mode:"replay"` event with `reason` ∈ requested | rate_limited | budget_exhausted | guard_unavailable | model_unavailable | ctgov_unavailable. With `REPLAY_FALLBACK_ENABLED=false` a refusal is HTTP 429/503 instead.
 
+## Visitor input (extract before analysis; no UI yet)
+`POST /api/extract` `{ "text" }` → JSON `{ profile: { facts: { <key>: { key, state, value? } } }, extract_token }`. One FAST call (≤ 2 HTTP calls), Node runtime, `maxDuration = 90`, `cache-control: no-store`. No notes are returned. Fixed error codes: 400 `bad_request`, 403 `forbidden` (cross-site) / `visitor_input_disabled`, 413 `input_too_long`, 429 `rate_limited`, 503 `unavailable` / `model_unavailable` / `guard_unavailable`. It has its own guard (`RATE_LIMIT_EXTRACT_PER_IP_PER_HOUR`, `DAILY_EXTRACT_BUDGET`, prefix `tl:rlx`, `tl:extracts:<date>`) and never falls back to a replay.
+
+`POST /api/run` additionally accepts `{ profile, extract_token? }`: the profile the visitor reviewed. There is no extraction stage or call; the first stage is discovery and the `profile` event is still emitted. The body is strict (unknown keys such as a client `provenance`/`basis` label, `note`s and missing vocabulary keys are 400). The server derives which facts were edited by comparing the profile with the facts signed into `extract_token` (HMAC-SHA256, `PROFILE_SIGNING_SECRET`, 2 h TTL, stateless): Policy R in SPEC §4. For profile runs there is no silent replay: a guard refusal is HTTP 429/503 and a model/CT.gov failure is an `error` event with `fallback_to_replay:false`. Text runs keep the labelled-replay fallback. Verifier flag `self_edited_fact` marks a result capped by Policy R.
+
+`VISITOR_INPUT_MODE` (default `samples`): only the prepared fictional texts (`src/lib/sample/prepared.ts`), and profiles carrying a valid token for them, are accepted; anything else is 403 `visitor_input_disabled` before the guard or the model is touched. `open` accepts arbitrary text and requires `PROFILE_SIGNING_SECRET` and `RATE_LIMIT_IP_SALT`; do not enable it before the provider's retention terms are verified in writing. Other controls: same-origin only for browser POSTs, global in-flight cap `MAX_CONCURRENT_RUNS` (a busy refusal is shown as `rate_limited`), salted IP hash, platform IP header preferred, control characters stripped, `MAX_INPUT_CHARS` default 2000, logs carry counts and fixed codes only (`evt: run | extract`).
+
+Not yet done (needs live verification with approved spend): delimiting visitor text as data in the extraction prompt (version bump) and not echoing model output in the validation retry.
+
 ## Count contract (never show one vague "analyzed" number)
 `discovered` fetched from ClinicalTrials.gov · `filtered` pass the age/sex prefilter · `selected` sent to analysis (cap `MAX_CANDIDATE_TRIALS`) · then `assessed` (criteria parsed; may still be UNCERTAIN) + `pending` (no parse slot this run; flag `analysis_pending`) + `failed` (parse failed/rejected; `analysis_failed`) = `selected`. `analyzed` is deprecated, never emitted, and kept optional only so old stored replays validate.
 
@@ -36,7 +45,7 @@ Stage 10 (plain-language rewrite and coordinator questions: `coordinator_questio
 - `precompute:replay --write`: 3 cases stored. The first pass was cold (21 trials `analysis_pending`); re-run with the warm parse cache ⇒ 0 pending in all three. 33 trials cached.
 - Live run through `/api/run`, warm cache (cache read from Supabase by a fresh server): 43 calls (worst case 80), 75 s, 1 trial pending. Cold run earlier: 29 calls, 72 s, 22 pending.
 - Fallbacks to a labelled replay, each checked end to end: explicit `replay_id`; per-IP rate limit (real Upstash); Nebius env missing; Token Factory rejecting the key (real HTTP 401: `error` event, then replay). Oversized input 413, malformed body 400. The key value never appeared in a response or log.
-- Not exercised live: exhausted daily budget and Upstash outage (unit-tested only), Vercel streaming/`maxDuration`.
+- Not exercised live: exhausted daily budget and Upstash outage (unit-tested only). Vercel streaming and `maxDuration` were verified on a Preview (see Preview verification status).
 
 ## Open
 1. Vercel: `maxDuration` plan limit (measured runs 60-105 s); mark `NEBIUS_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `UPSTASH_REDIS_REST_TOKEN` Sensitive. Not deployed.

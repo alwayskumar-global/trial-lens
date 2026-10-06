@@ -1,14 +1,16 @@
 // Adaptive question engine (SPEC §5). Pure; no LLM; deterministic.
 //
 // For each askable fact that is unknown AND blocks a typed criterion in a candidate trial, simulate every possible
-// answer (typed re-evaluation + tiering only) and measure how many candidates would become STRONG. A counterfactual
-// FAIL carries no independent check (rule D), so it stays UNCERTAIN and never counts as decisive: "decisive" here
-// means STRONG only. score = gain / ask_cost. The result is a hint about which answer could sharpen results, not a
-// prediction: the real run re-verifies after an answer (VERIFY: re-run of LLM stages on answer is not built).
+// answer (typed re-evaluation + tiering only) and measure how many UNCERTAIN candidates would rise to POSSIBLE. An answer is a
+// visitor-supplied fact, so Policy R (tier.ts) applies: it can never create STRONG or a LIKELY_MISMATCH. A counterfactual FAIL also
+// carries no independent check (rule D). So "decisive" means UNCERTAIN → POSSIBLE (or better, if no answered fact carries the PASS).
+// score = gain / ask_cost. The result is a hint about which answer could sharpen results, not a prediction: the real run re-verifies
+// after an answer.
 import { leaves } from "@/lib/engine/clause";
 import { applyAbstentionGuard } from "@/lib/engine/guard";
 import { assessCriterion, type CriterionAssessment, type ParseOutcome, type SourceCriterion } from "@/lib/engine/reconcile";
-import { tierTrial } from "@/lib/engine/tier";
+import { relyOnEdited } from "@/lib/engine/basis";
+import { tierTrialCapped } from "@/lib/engine/tier";
 import type { AdaptiveQuestion, Tier } from "@/schema/assessment";
 import type { PatientProfile } from "@/schema/profile";
 import { VOCABULARY, type FactKey, type VocabularyEntry } from "@/schema/vocabulary";
@@ -68,36 +70,37 @@ function answerSet(entry: VocabularyEntry, thresholds: readonly number[]): Answe
   return a.length === 0 ? [] : [...a, { label: "I don't know", value: null }];
 }
 
-export function computeQuestions(allTrials: readonly QuestionTrial[], profile: PatientProfile, unknownThreshold: number, max = 3): AdaptiveQuestion[] {
+/** `selfEdited`: keys the visitor already edited this session (the server's basis); the answered key is added per counterfactual. */
+export function computeQuestions(allTrials: readonly QuestionTrial[], profile: PatientProfile, unknownThreshold: number, max = 3, selfEdited: ReadonlySet<string> = new Set()): AdaptiveQuestion[] {
   const trials = allTrials.filter((t) => t.tier !== "LIKELY_MISMATCH");
   // criteria (per trial) that a typed answer on `key` could decide
   const blocking = (t: QuestionTrial, key: string): number[] =>
     t.outcomes.flatMap((o, i) => (o.state === "parsed" && t.assess[i]?.finding.status === "UNKNOWN" && leaves(o.clause).some((l) => l.kind === "atom" && l.fact_key === key) ? [i] : []));
 
   const keys = VOCABULARY.filter((v) => v.askable && profile.facts[v.key as FactKey]?.state === "unknown" && trials.some((t) => blocking(t, v.key).length > 0));
-  const strongNow = trials.filter((t) => t.tier === "STRONG").length;
 
   const scored = keys.flatMap((entry) => {
     const answers = answerSet(entry, numericThresholds(trials, entry.key));
     if (answers.length === 0) return [];
     const affecting = trials.filter((t) => blocking(t, entry.key).length > 0);
     const decided = answers.map((ans) => {
-      if (ans.value === null) return strongNow; // "I don't know" changes nothing
+      if (ans.value === null) return 0; // "I don't know" changes nothing
       const cf: PatientProfile = { facts: { ...profile.facts, [entry.key]: { key: entry.key, state: "known", value: ans.value } } as PatientProfile["facts"] };
+      const edited = new Set([...selfEdited, entry.key]); // an answer is a visitor-supplied fact (Policy R)
       return trials.filter((t) => {
         const idx = new Set(blocking(t, entry.key));
-        if (idx.size === 0) return t.tier === "STRONG";
+        if (idx.size === 0 || t.tier !== "UNCERTAIN") return false;
         const crit = t.assess.map((a, i) => {
           if (!idx.has(i)) return a;
           const re = assessCriterion(t.sources[i]!, t.outcomes[i]!, cf);
           return { ...re, finding: applyAbstentionGuard(re.finding, cf).finding };
         });
-        // counterfactual FAILs have no independent check ⇒ tierTrial yields UNCERTAIN for them (rule D)
-        const tier = tierTrial(crit.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check })), { unknownThreshold, expectedCriteria: t.sources.length });
-        return tier === "STRONG";
+        // counterfactual FAILs have no independent check ⇒ UNCERTAIN (rule D); a PASS resting on the answer is capped at POSSIBLE (Policy R)
+        const { tier } = tierTrialCapped(crit.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check, editedEvidence: relyOnEdited(a.finding, edited) })), { unknownThreshold, expectedCriteria: t.sources.length });
+        return tier === "POSSIBLE" || tier === "STRONG";
       }).length;
     });
-    const gain = decided.reduce((s, n) => s + (n - strongNow), 0) / decided.length;
+    const gain = decided.reduce((s, n) => s + n, 0) / decided.length;
     const cost = entry.ask_cost ?? 3;
     const label = LABELS[entry.key as FactKey] ?? entry.key.replace(/_/g, " ");
     const q: AdaptiveQuestion = { fact_key: entry.key as FactKey, prompt: `Do you know your ${label}?`, answers, affects_trials: affecting.length, score: gain / cost };

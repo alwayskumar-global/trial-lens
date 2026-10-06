@@ -66,6 +66,8 @@ A trial can never be `STRONG` while a scoring criterion is missing, partially pa
 
 **Rule D — FAIL verification (approved).** An unverified FAIL stays UNCERTAIN; only an independently checked, evidence-backed FAIL can make a trial LIKELY_MISMATCH. A FAIL is `verified` only when an independent verifier (sees the criterion text and the confirmed facts only, never the first evaluator's reasoning, clause or claimed evidence) returns `confirmed` **and** code confirms the citation: its `source_quote` is a verbatim fragment of the criterion text, it cites at least one patient fact, and every cited fact is `known` in the profile with the cited value. A verifier that has no capacity, returns `cannot_substantiate`, or whose citation fails the code checks yields `no_capacity` / `unsubstantiated` ⇒ the trial is UNCERTAIN. A verifier `not_confirmed` yields `rejected` ⇒ UNCERTAIN (a disagreement between evaluator and verifier is uncertainty, not reassurance). One verified FAIL is enough; unverified FAILs never reduce it.
 
+**Policy R: self-report ceiling.** Every fact is visitor-provided and unverifiable. `/api/extract` signs what the server extracted; `/api/run` compares the profile it receives with that signed extraction and treats any fact that differs (edited, added, promoted from uncertain, answered) or any profile without a valid token as self-edited. The client never labels this. A trial whose scoring PASS cites a self-edited fact is capped at POSSIBLE; a verified FAIL citing only self-edited facts is UNCERTAIN. The cap only lowers a claim: Rule D, the abstention guard, the call cap and "overflow ⇒ UNCERTAIN" are unchanged. Regression cases: `src/lib/engine/tier.test.ts`, `src/lib/pipeline/handler-profile.test.ts`.
+
 **Run budget.** 80 calls = 40 slots (call + its single retry). Reserved: extraction 1, STRONG/POSSIBLE verification 8, FAIL checks 3 (reassigned from the unbuilt escalation stage); parse ≤ 14; unused verification reserve flows to FAIL checks. See `docs/run-plan.md`.
 
 ## 5. Adaptive question engine (pure function, no LLM)
@@ -76,7 +78,7 @@ Input: candidate trials (tier ≠ LIKELY_MISMATCH), current profile.
    - boolean / enum → all values (+ "I don't know")
    - numeric → buckets cut at the distinct threshold values appearing in candidate trials' criteria for `u` (e.g. LVEF thresholds {40, 50} → <40, 40–49, ≥50)
 3. For each `a ∈ A(u)`, re-run **typed evaluation + tiering** over all candidates with `u = a` (pure, instant).
-4. `gain(u)` = mean over `a` (uniform prior unless overridden) of the number of trials whose tier becomes decisive (→ STRONG or → LIKELY_MISMATCH) minus current decisive count.
+4. `gain(u)` = mean over `a` (uniform prior unless overridden) of the number of UNCERTAIN trials whose tier would rise to POSSIBLE. An answer is a visitor-supplied fact, so Policy R (§4) applies: it can never create STRONG or LIKELY_MISMATCH, and a counterfactual FAIL has no independent check (rule D), so "decisive" means UNCERTAIN → POSSIBLE. (Earlier text counted → STRONG or → LIKELY_MISMATCH; superseded.)
 5. `score(u) = gain(u) / ask_cost(u)` where `ask_cost` ∈ {1 easy, 2 needs a record, 3 needs a recent lab/test}.
 6. Return top 3 with rationale: "Affects N trials".
 7. On user answer: update profile, re-tier typed criteria in code; re-run LLM only for free-text criteria whose `depends_on` includes the answered fact (one small batched call per affected trial).

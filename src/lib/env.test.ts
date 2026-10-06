@@ -6,6 +6,7 @@ import {
   getPipelineEnv,
   getSupabaseEnv,
   getUpstashEnv,
+  getVisitorEnv,
   resetEnvCacheForTests,
 } from "./env";
 
@@ -34,6 +35,12 @@ const ALL_VARS = [
   "RATE_LIMIT_RUNS_PER_IP_PER_HOUR",
   "DAILY_RUN_BUDGET",
   "REPLAY_FALLBACK_ENABLED",
+  "VISITOR_INPUT_MODE",
+  "PROFILE_SIGNING_SECRET",
+  "RATE_LIMIT_IP_SALT",
+  "RATE_LIMIT_EXTRACT_PER_IP_PER_HOUR",
+  "DAILY_EXTRACT_BUDGET",
+  "MAX_CONCURRENT_RUNS",
 ];
 
 function captureError(fn: () => unknown): EnvError {
@@ -173,7 +180,7 @@ describe("pipeline and guard defaults mirror .env.example", () => {
       MAX_LLM_CALLS_PER_RUN: 80,
       LLM_CONCURRENCY: 6,
       TIER_UNKNOWN_THRESHOLD: 3,
-      MAX_INPUT_CHARS: 4000,
+      MAX_INPUT_CHARS: 2000,
       LOG_LEVEL: "info",
     });
   });
@@ -196,5 +203,35 @@ describe("pipeline and guard defaults mirror .env.example", () => {
   it("rejects zero / negative tuning values", () => {
     vi.stubEnv("LLM_CONCURRENCY", "0");
     expect(captureError(getPipelineEnv).variables).toEqual(["LLM_CONCURRENCY"]);
+  });
+});
+
+describe("visitor input group", () => {
+  const SECRET = "fictional-test-secret-0123456789-0123456789";
+  it("defaults to samples-only with conservative limits and needs no secrets", () => {
+    expect(getVisitorEnv()).toEqual({
+      VISITOR_INPUT_MODE: "samples",
+      RATE_LIMIT_EXTRACT_PER_IP_PER_HOUR: 12,
+      DAILY_EXTRACT_BUDGET: 300,
+      MAX_CONCURRENT_RUNS: 3,
+    });
+  });
+
+  it("open mode requires the signing secret and the IP-hash salt, and names them without values", () => {
+    vi.stubEnv("VISITOR_INPUT_MODE", "open");
+    const err = captureError(getVisitorEnv);
+    expect(err.group).toBe("visitor");
+    expect([...err.variables].sort()).toEqual(["PROFILE_SIGNING_SECRET", "RATE_LIMIT_IP_SALT"]);
+    vi.stubEnv("PROFILE_SIGNING_SECRET", SECRET);
+    vi.stubEnv("RATE_LIMIT_IP_SALT", "fictional-salt-0123456789");
+    resetEnvCacheForTests();
+    const ok = getVisitorEnv();
+    expect(ok.VISITOR_INPUT_MODE).toBe("open");
+    expect(JSON.stringify(captureError(() => { vi.stubEnv("PROFILE_SIGNING_SECRET", "short"); resetEnvCacheForTests(); getVisitorEnv(); }))).not.toContain("short");
+  });
+
+  it("rejects an unknown mode", () => {
+    vi.stubEnv("VISITOR_INPUT_MODE", "everyone");
+    expect(captureError(getVisitorEnv).variables).toEqual(["VISITOR_INPUT_MODE"]);
   });
 });

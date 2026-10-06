@@ -2,7 +2,7 @@
 // Usage:  PREVIEW_URL=https://<preview-host> [PREVIEW_SHARE_URL=<vercel bypass link>] [RUN_LIVE=1] [FILL_BUCKET=1] pnpm exec tsx eval/preview-sse-check.ts
 //   always     : GET /api/run (expect 405), bad body (expect 400), explicit replay request
 //   RUN_LIVE=1 : one live run (≈40-80 LLM calls, 60-105 s): per-event timing, progressive delivery, completion, tiers
-//   FILL_BUCKET=1 (needs UPSTASH_REDIS_REST_URL/TOKEN): fills THIS client's hourly rate-limit bucket, then expects a labelled
+//   FILL_BUCKET=1 (needs UPSTASH_REDIS_REST_URL/TOKEN and RATE_BUCKET_ID): fills THAT hourly rate-limit bucket, then expects a labelled
 //                rate_limited replay with no live events and no mixed state
 // Prints counts, timings and fixed codes only. Never prints the share link, cookies or keys.
 import { Ratelimit } from "@upstash/ratelimit";
@@ -95,8 +95,10 @@ async function main() {
     let cursor: string | number = 0; const ids = new Set<string>();
     do { const [next, keys] = (await redis.scan(cursor, { match: "tl:rl:*", count: 200 })) as [string, string[]]; cursor = next; keys.forEach((k) => ids.add(k.split(":")[2]!)); } while (String(cursor) !== "0");
     console.warn(`rate-limit buckets present: ${ids.size} (this client's bucket is the one created by the live run above)`);
-    if (ids.size !== 1) console.warn("  NOTE: more than one bucket exists; fill only buckets you own. Set RATE_BUCKET_ID to the bucket id to fill.");
-    const id = process.env.RATE_BUCKET_ID ?? [...ids][0];
+    // Never guess: with several clients' buckets present the first one is not necessarily ours, and filling someone else's bucket
+    // would rate-limit them. Without RATE_BUCKET_ID this step is skipped (reported as untested).
+    const id = process.env.RATE_BUCKET_ID;
+    if (!id) console.warn("  SKIPPED: set RATE_BUCKET_ID to the bucket id you own to run the rate-limit fallback check (not guessing among " + ids.size + " buckets).");
     if (id) {
       const lim = new Ratelimit({ redis, limiter: Ratelimit.slidingWindow(Number(process.env.RATE_LIMIT_RUNS_PER_IP_PER_HOUR ?? 8), "1 h"), prefix: "tl:rl", analytics: false });
       for (let i = 0; i < 9; i++) await lim.limit(id);

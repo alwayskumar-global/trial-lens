@@ -21,6 +21,8 @@ export interface TierCriterion {
   completeness: ParseCompleteness;
   /** Only meaningful for FAIL. Absent ⇒ not_run ⇒ the FAIL cannot make the trial LIKELY_MISMATCH. */
   failCheck?: FailCheck;
+  /** True when a fact this finding cites was edited, added or answered by the visitor (server-derived basis, never a client label). */
+  editedEvidence?: boolean;
 }
 
 export interface TierOptions {
@@ -49,4 +51,19 @@ export function tierTrial(criteria: readonly TierCriterion[], opts: TierOptions)
   const open = scoring.filter((c) => c.status === "UNKNOWN" || c.status === "AMBIGUOUS").length;
   if (scoring.some((c) => c.completeness !== "full") || open > opts.unknownThreshold) return "POSSIBLE";
   return "STRONG";
+}
+
+/**
+ * Policy R (self-report ceiling): a trial whose PASS rests on a visitor-edited fact is never STRONG, and a verified FAIL that
+ * rests only on visitor-edited facts never makes LIKELY_MISMATCH. The cap only lowers a claim; Rule D, the abstention guard and
+ * every UNCERTAIN rule above are untouched, so it can never raise a tier.
+ */
+export function tierTrialCapped(criteria: readonly TierCriterion[], opts: TierOptions): { tier: Tier; capped: boolean } {
+  const tier = tierTrial(criteria, opts);
+  const scoring = criteria.filter((c) => c.scoring);
+  if (tier === "LIKELY_MISMATCH" && !scoring.some((c) => c.status === "FAIL" && c.failCheck === "verified" && !c.editedEvidence)) {
+    return { tier: "UNCERTAIN", capped: true };
+  }
+  if (tier === "STRONG" && scoring.some((c) => c.status === "PASS" && c.editedEvidence)) return { tier: "POSSIBLE", capped: true };
+  return { tier, capped: false };
 }

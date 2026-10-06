@@ -68,4 +68,28 @@ describe("computeQuestions", () => {
     expect(a.length).toBeLessThanOrEqual(3);
     for (let i = 1; i < a.length; i++) expect(a[i - 1]!.score).toBeGreaterThanOrEqual(a[i]!.score);
   });
+
+  it("Policy R: ranking counts UNCERTAIN → POSSIBLE lifts only; an answer is never credited with creating STRONG", () => {
+    const p = profile({ age: 40 });
+    const blocked = trial(atom("Stage III disease", "stage", "eq", "III"), "stage", p);
+    const alreadyStrong = trial(atom("Age 18 or older", "age", "gte", 18), "other", p, "inclusion", "NCT00000002");
+    expect(alreadyStrong.tier).toBe("STRONG");
+    const [q] = computeQuestions([blocked, alreadyStrong], p, 3);
+    expect(q!.fact_key).toBe("stage");
+    expect(q!.score).toBeCloseTo(1 / 6); // only the blocked trial can be lifted, and only by "III"; the already-STRONG trial adds nothing
+    expect(q!.affects_trials).toBe(1);
+  });
+
+  it("a trial that is not UNCERTAIN is never counted as lifted (POSSIBLE stays POSSIBLE)", () => {
+    const p = profile({});
+    const possible = { ...trial(atom("Stage III disease", "stage", "eq", "III"), "stage", p), tier: "POSSIBLE" as const };
+    const [q] = computeQuestions([possible], p, 3);
+    expect(q!.score).toBe(0);
+  });
+
+  it("answers already edited elsewhere do not change the ranking rule (selfEdited is only additive)", () => {
+    const p = profile({});
+    const t = trial(atom("Stage III disease", "stage", "eq", "III"), "stage", p);
+    expect(computeQuestions([t], p, 3, 3, new Set(["age"]))).toEqual(computeQuestions([t], p, 3));
+  });
 });

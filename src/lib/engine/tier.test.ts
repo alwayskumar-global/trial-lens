@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tierTrial, type TierCriterion } from "./tier";
+import { tierTrial, tierTrialCapped, type TierCriterion } from "./tier";
 
 const c = (o: Partial<TierCriterion> = {}): TierCriterion => ({ scoring: true, category: "lab", status: "PASS", completeness: "full", ...o });
 const N = { unknownThreshold: 3 };
@@ -56,5 +56,48 @@ describe("tierTrial: rule D (FAIL must be independently verified)", () => {
   });
   it("a non-scoring unverified FAIL is ignored", () => {
     expect(tierTrial([c({ category: "stage" }), c({ scoring: false, status: "FAIL" })], N)).toBe("STRONG");
+  });
+});
+
+describe("tierTrialCapped: Policy R (self-report ceiling)", () => {
+  const cap = (cs: TierCriterion[], o: Parameters<typeof tierTrialCapped>[1] = N) => tierTrialCapped(cs, o);
+  it("row 1: all text-basis STRONG stays STRONG", () => {
+    expect(cap([c({ category: "stage" }), c()])).toEqual({ tier: "STRONG", capped: false });
+  });
+  it("rows 2 and 7: a PASS resting on an edited fact caps STRONG at POSSIBLE", () => {
+    expect(cap([c({ category: "stage", editedEvidence: true }), c()])).toEqual({ tier: "POSSIBLE", capped: true });
+  });
+  it("row 3: a verified FAIL on text-basis facts stays LIKELY_MISMATCH", () => {
+    expect(cap([c({ status: "FAIL", failCheck: "verified" })])).toEqual({ tier: "LIKELY_MISMATCH", capped: false });
+  });
+  it("rows 4 and 8: a verified FAIL resting only on edited facts is UNCERTAIN", () => {
+    expect(cap([c({ status: "FAIL", failCheck: "verified", editedEvidence: true })])).toEqual({ tier: "UNCERTAIN", capped: true });
+  });
+  it("a verified FAIL on text facts survives another FAIL that rests on an edited fact", () => {
+    expect(cap([c({ status: "FAIL", failCheck: "verified" }), c({ status: "FAIL", failCheck: "verified", editedEvidence: true })]).tier).toBe("LIKELY_MISMATCH");
+  });
+  it("rows 5 and 6: unverified FAIL, overflow and failed analysis stay UNCERTAIN whatever the basis", () => {
+    for (const editedEvidence of [false, true]) {
+      expect(cap([c({ status: "FAIL", failCheck: "no_capacity", editedEvidence })]).tier).toBe("UNCERTAIN");
+      expect(cap([c({ editedEvidence })], { ...N, analysisFailed: true }).tier).toBe("UNCERTAIN");
+      expect(cap([c({ category: null, status: "UNKNOWN", completeness: "unresolved", editedEvidence })]).tier).toBe("UNCERTAIN");
+    }
+  });
+  it("row 10: edited evidence on an UNKNOWN or non-deciding criterion changes nothing", () => {
+    expect(cap([c({ category: "stage" }), c({ status: "UNKNOWN", editedEvidence: true })])).toEqual({ tier: "STRONG", capped: false });
+  });
+  it("the cap only lowers: it never raises any tier (exhaustive over small criterion sets)", () => {
+    // claim strength: STRONG and LIKELY_MISMATCH are the two high claims; the cap may only move a result down this scale
+    const rank = { STRONG: 3, LIKELY_MISMATCH: 3, POSSIBLE: 2, UNCERTAIN: 1 } as const;
+    const statuses = ["PASS", "UNKNOWN", "AMBIGUOUS", "FAIL"] as const;
+    for (const s1 of statuses) for (const s2 of statuses) for (const e1 of [false, true]) for (const e2 of [false, true]) for (const fc of ["verified", "no_capacity"] as const) {
+      const cs = [c({ category: "stage", status: s1, failCheck: fc, editedEvidence: e1 }), c({ status: s2, failCheck: fc, editedEvidence: e2 })];
+      const base = tierTrial(cs, N), r = tierTrialCapped(cs, N);
+      if (r.capped) expect(rank[r.tier]).toBeLessThan(rank[base]);
+      else expect(r.tier).toBe(base);
+      // no edited fact ever carries a STRONG, and a mismatch always has an unedited verified FAIL behind it
+      if (r.tier === "STRONG") expect(cs.some((x) => x.status === "PASS" && x.editedEvidence)).toBe(false);
+      if (r.tier === "LIKELY_MISMATCH") expect(cs.some((x) => x.status === "FAIL" && x.failCheck === "verified" && !x.editedEvidence)).toBe(true);
+    }
   });
 });

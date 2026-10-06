@@ -14,17 +14,18 @@ import { assessCriterion, reconcileBatch, type CriterionAssessment, type ParseOu
 import { resolveFailCheck, withFailCheck } from "@/lib/engine/fail-check";
 import { computeQuestions } from "@/lib/engine/questions";
 import { RunBudget, type Stage } from "@/lib/engine/run-plan";
-import { tierTrial } from "@/lib/engine/tier";
+import { relyOnEdited } from "@/lib/engine/basis";
+import { tierTrialCapped } from "@/lib/engine/tier";
+import { extractProfile } from "@/lib/pipeline/extract";
 import type { CallStats } from "@/lib/llm/client";
 import { EVAL_SYSTEM, makeEvalSchema } from "@/prompts/evaluate";
-import { EXTRACT_SYSTEM, ExtractSchema } from "@/prompts/extract";
 import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt } from "@/prompts/clause-parse";
 import { buildFailVerifyUserPrompt, FAIL_VERIFY_SYSTEM } from "@/prompts/fail-verify";
 import { VERIFY_SYSTEM, VerifySchema } from "@/prompts/verify";
 import type { Tier, TrialResult } from "@/schema/assessment";
 import { makeClauseBatchSchema } from "@/schema/clause";
 import { makeFailCheckBatchSchema, type FailCheckItem } from "@/schema/fail-check";
-import { FactSchema, type Fact, type PatientProfile } from "@/schema/profile";
+import type { PatientProfile } from "@/schema/profile";
 import type { SseEvent } from "@/schema/sse";
 import { FACT_KEYS, type FactKey } from "@/schema/vocabulary";
 
@@ -80,7 +81,13 @@ interface TrialState {
   verifiedPass: boolean;
 }
 
-export async function runPipeline(profileText: string, deps: PipelineDeps, emit: (e: SseEvent) => void): Promise<void> {
+/**
+ * What a run starts from: the visitor's text (extraction is stage 1; legacy path, eval scripts, prepared fictional samples) or an
+ * already-extracted profile plus the keys the SERVER found edited against its signed extraction (Policy R, src/lib/engine/tier.ts).
+ */
+export type PipelineInput = string | { profile: PatientProfile; selfEdited: ReadonlySet<string> };
+
+export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit: (e: SseEvent) => void): Promise<void> {
   const wall0 = performance.now();
   const limit = pLimit(deps.concurrency);
   const budget = new RunBudget(deps.maxCalls);
@@ -96,18 +103,17 @@ export async function runPipeline(profileText: string, deps: PipelineDeps, emit:
   };
   const take = (s: Stage) => budget.take(s);
 
-  // 1. extraction (FAST). Output is re-validated with FactSchema: an invalid known fact becomes unknown.
-  const profile = await stage("extraction", async (): Promise<PatientProfile> => {
-    if (!take("extraction")) throw new PipelineError("model_unavailable");
-    const { data } = await deps.llm.call({ tier: "FAST", system: EXTRACT_SYSTEM, user: profileText, schema: ExtractSchema, schemaName: "facts", maxTokens: 4096 });
-    if (!data) throw new PipelineError("model_unavailable"); // no usable profile ⇒ nothing to compare; caller falls back to replay
-    const facts = Object.fromEntries(FACT_KEYS.map((k): [FactKey, Fact] => [k, { key: k, state: "unknown" }])) as Record<FactKey, Fact>;
-    for (const f of data.facts) {
-      const cand = FactSchema.safeParse({ key: f.key, state: f.state, ...(f.value !== null ? { value: f.value } : {}), ...(f.note ? { note: f.note } : {}) });
-      if (cand.success && cand.data.state !== "unknown") facts[f.key] = cand.data;
-    }
-    return { facts };
-  });
+  // 1. extraction (FAST), unless the caller already supplies a profile (then there is no extraction stage and no extraction call).
+  const selfEdited: ReadonlySet<string> = typeof input === "string" ? new Set<string>() : input.selfEdited;
+  const profile: PatientProfile =
+    typeof input === "string"
+      ? await stage("extraction", async (): Promise<PatientProfile> => {
+          if (!take("extraction")) throw new PipelineError("model_unavailable");
+          const p = await extractProfile(input, deps.llm);
+          if (!p) throw new PipelineError("model_unavailable"); // no usable profile ⇒ nothing to compare; caller falls back to replay
+          return p;
+        })
+      : input.profile;
   budget.release("extraction");
   emit({
     type: "profile",
@@ -170,7 +176,9 @@ export async function runPipeline(profileText: string, deps: PipelineDeps, emit:
 
   // 4. typed evaluation in code + abstention guard, first tier
   const retier = (s: TrialState) => {
-    s.tier = tierTrial(s.assess.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check })), { unknownThreshold: deps.unknownThreshold, expectedCriteria: s.sources.length });
+    const r = tierTrialCapped(s.assess.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check, editedEvidence: relyOnEdited(a.finding, selfEdited) })), { unknownThreshold: deps.unknownThreshold, expectedCriteria: s.sources.length });
+    s.tier = r.tier;
+    if (r.capped && !s.flags.includes("self_edited_fact")) s.flags.push("self_edited_fact"); // Policy R: a visitor-edited fact capped this trial
   };
   await stage("typed_evaluation", async () => {
     for (const s of states) {
@@ -262,7 +270,7 @@ export async function runPipeline(profileText: string, deps: PipelineDeps, emit:
   });
 
   // 8. adaptive questions (pure code; SPEC §5)
-  const questions = await stage("questions", async () => computeQuestions(states.map((s) => ({ sources: s.sources, outcomes: s.outcomes, assess: s.assess, tier: s.tier })), profile, deps.unknownThreshold));
+  const questions = await stage("questions", async () => computeQuestions(states.map((s) => ({ sources: s.sources, outcomes: s.outcomes, assess: s.assess, tier: s.tier })), profile, deps.unknownThreshold, 3, selfEdited));
   emit({ type: "question", questions });
 
   // results, in tier order

@@ -58,7 +58,7 @@ const pipelineSchema = z.object({
   MAX_LLM_CALLS_PER_RUN: positiveInt(80),
   LLM_CONCURRENCY: positiveInt(6),
   TIER_UNKNOWN_THRESHOLD: positiveInt(3),
-  MAX_INPUT_CHARS: positiveInt(4000),
+  MAX_INPUT_CHARS: positiveInt(2000), // one limit end to end: the Describe textarea allows the same 2000 characters
   LOG_LEVEL: z.preprocess(
     blankToUndefined,
     z.enum(["debug", "info", "warn", "error"]).default("info"),
@@ -70,6 +70,26 @@ const guardSchema = z.object({
   DAILY_RUN_BUDGET: positiveInt(150),
   REPLAY_FALLBACK_ENABLED: boolFlag(true),
 });
+
+// Visitor-entered input (docs/phase2-api.md "Visitor input"). Default `samples`: only the prepared fictional texts are accepted by
+// /api/extract and /api/run. `open` (arbitrary text reaches the model provider) is a separate, explicit switch that must stay off
+// until the privacy gate (provider zero-data-retention verified in writing) has passed; it additionally requires the signing secret
+// and the IP-hash salt.
+const visitorSchema = z
+  .object({
+    VISITOR_INPUT_MODE: z.preprocess(blankToUndefined, z.enum(["samples", "open"]).default("samples")),
+    PROFILE_SIGNING_SECRET: z.preprocess(blankToUndefined, z.string().min(32).optional()),
+    RATE_LIMIT_IP_SALT: z.preprocess(blankToUndefined, z.string().min(16).optional()),
+    RATE_LIMIT_EXTRACT_PER_IP_PER_HOUR: positiveInt(12),
+    DAILY_EXTRACT_BUDGET: positiveInt(300),
+    MAX_CONCURRENT_RUNS: positiveInt(3),
+  })
+  .superRefine((v, ctx) => {
+    if (v.VISITOR_INPUT_MODE !== "open") return;
+    for (const k of ["PROFILE_SIGNING_SECRET", "RATE_LIMIT_IP_SALT"] as const) {
+      if (v[k] === undefined) ctx.addIssue({ code: "custom", path: [k], message: "required when VISITOR_INPUT_MODE=open" });
+    }
+  });
 
 export class EnvError extends Error {
   readonly group: string;
@@ -133,20 +153,23 @@ const supabase = lazyGroup("supabase", supabaseSchema);
 const upstash = lazyGroup("upstash", upstashSchema);
 const pipeline = lazyGroup("pipeline", pipelineSchema);
 const guard = lazyGroup("guard", guardSchema);
+const visitor = lazyGroup("visitor", visitorSchema);
 
 export type NebiusEnv = Readonly<z.output<typeof nebiusSchema>>;
 export type SupabaseEnv = Readonly<z.output<typeof supabaseSchema>>;
 export type UpstashEnv = Readonly<z.output<typeof upstashSchema>>;
 export type PipelineEnv = Readonly<z.output<typeof pipelineSchema>>;
 export type GuardEnv = Readonly<z.output<typeof guardSchema>>;
+export type VisitorEnv = Readonly<z.output<typeof visitorSchema>>;
 
 export const getNebiusEnv = (): NebiusEnv => nebius.get();
 export const getSupabaseEnv = (): SupabaseEnv => supabase.get();
 export const getUpstashEnv = (): UpstashEnv => upstash.get();
 export const getPipelineEnv = (): PipelineEnv => pipeline.get();
 export const getGuardEnv = (): GuardEnv => guard.get();
+export const getVisitorEnv = (): VisitorEnv => visitor.get();
 
 /** Test-only: clear cached groups so the next call re-reads process.env. */
 export function resetEnvCacheForTests(): void {
-  for (const g of [nebius, supabase, upstash, pipeline, guard]) g.reset();
+  for (const g of [nebius, supabase, upstash, pipeline, guard, visitor]) g.reset();
 }

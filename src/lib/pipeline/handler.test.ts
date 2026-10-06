@@ -16,7 +16,7 @@ async function setup(over: Partial<RunHandlerDeps> = {}, withCase = true) {
   const logs: Array<Record<string, string | number | boolean>> = [];
   const allow = createRunGuard({ limiter: { limit: async () => ({ success: true }) }, counter: { incr: async () => 1, expire: async () => 0 }, dailyBudget: 10 });
   const deps: RunHandlerDeps = {
-    maxInputChars: 4000, replayFallbackEnabled: true, guard: () => allow, replay,
+    maxInputChars: 4000, replayFallbackEnabled: true, visitorInputMode: "open", guard: () => allow, replay,
     makePipeline: () => fakeDeps([trial("NCT00000001", ["Age 18 years or older."])]),
     ip: () => "1.2.3.4", log: (l) => logs.push(l), ...over,
   };

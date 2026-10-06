@@ -1,13 +1,21 @@
 // POST /api/run handler (SSE). Framework-agnostic and dependency-injected so the whole flow is testable offline.
 //
-// Contract: body {text} (live run) or {replay_id} (stored replay of a fictional profile). Events: mode, stage, counts,
-// profile, trial_result, question, done, error. Any guard refusal or provider outage falls back to a LABELLED replay
-// (never a blank error). Patient text is never logged, cached or persisted; only counts, timings and codes are logged.
+// Contract: body {text} (live run from text; extraction is stage 1), {replay_id} (stored replay of a fictional profile), or
+// {profile, extract_token?} (live run from a profile the visitor reviewed on the Confirm screen; no extraction call). Events: mode,
+// stage, counts, profile, trial_result, question, done, error. For text runs, a guard refusal or provider outage falls back to a
+// LABELLED replay. For profile runs there is NO silent replay (someone else's results would mislead): refusals are HTTP 429/503
+// and failures are an error event. Which facts the visitor edited is derived by the server from the signed extraction
+// (src/lib/profile/token.ts), never from a client label. Visitor text is never logged, cached or persisted; only counts, timings
+// and fixed codes are logged.
 import { z } from "zod";
-import type { RunGuard } from "@/lib/guards/run-guard";
+import type { ConcurrencyGate, RunGuard } from "@/lib/guards/run-guard";
 import { isReplayId, replayEvents, type ReplayStore } from "@/lib/cache/replay";
-import { PipelineError, runPipeline, type PipelineDeps } from "@/lib/pipeline/run";
+import { PipelineError, runPipeline, type PipelineDeps, type PipelineInput } from "@/lib/pipeline/run";
+import { selfEditedKeys, verifyExtraction } from "@/lib/profile/token";
+import { isPreparedText, stripControlChars } from "@/lib/sample/prepared";
+import { FactSchema, FactStateSchema, type PatientProfile } from "@/schema/profile";
 import { SseEventSchema, type SseEvent } from "@/schema/sse";
+import { FACT_KEYS, FactKeySchema } from "@/schema/vocabulary";
 
 type ModeReason = NonNullable<Extract<SseEvent, { type: "mode" }>["reason"]>;
 
@@ -21,13 +29,46 @@ export interface RunHandlerDeps {
   ip: (req: Request) => string;
   /** Counts/timings/codes only. Never pass request content. */
   log: (line: Record<string, string | number | boolean>) => void;
+  /** `samples`: only the prepared fictional texts (and profiles extracted from them) are accepted. `open`: any text. Required, no default. */
+  visitorInputMode: "samples" | "open";
+  /** Secret that signs/verifies extract tokens. Without it no token verifies (every fact counts as visitor-edited). */
+  signingSecret?: string | undefined;
+  now?: () => Date;
+  /** Global cap on in-flight live runs. Optional so tests and local runs need no Redis. */
+  gate?: () => ConcurrencyGate;
 }
 
-const Body = z.object({ text: z.string().optional(), replay_id: z.string().optional() }).strict();
+// A client profile is untrusted: strict shapes (an unknown key such as a `provenance` label is a 400), bounded strings, every
+// vocabulary key present, no notes (free text). The server derives which facts were edited; the client cannot claim it.
+const ClientFact = z
+  .strictObject({ key: FactKeySchema, state: FactStateSchema, value: z.union([z.number(), z.string().max(64), z.boolean()]).optional() })
+  .pipe(FactSchema);
+const ClientProfile = z
+  .strictObject({ facts: z.record(FactKeySchema, ClientFact) })
+  .superRefine((p, ctx) => {
+    for (const k of FACT_KEYS) {
+      if (p.facts[k]?.key !== k) ctx.addIssue({ code: "custom", path: ["facts", k], message: "missing or mismatched fact" });
+    }
+  });
+const Body = z.strictObject({ text: z.string().optional(), replay_id: z.string().optional(), profile: ClientProfile.optional(), extract_token: z.string().max(8192).optional() });
 
 const json = (status: number, code: string) => Response.json({ code }, { status, headers: { "cache-control": "no-store" } });
 
+/** Browser-initiated cross-site POSTs are refused (cost abuse from another origin). Scripts and same-origin pages send no foreign Origin. */
+export function isCrossSite(req: Request): boolean {
+  const site = req.headers.get("sec-fetch-site");
+  if (site) return site !== "same-origin" && site !== "none";
+  const origin = req.headers.get("origin");
+  if (!origin) return false;
+  try {
+    return new URL(origin).host !== (req.headers.get("host") ?? new URL(req.url).host);
+  } catch {
+    return true;
+  }
+}
+
 export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Response> {
+  if (isCrossSite(req)) return json(403, "forbidden");
   // Bounded read: refuse oversized bodies before parsing (text cap is in characters; allow JSON overhead).
   const raw = await req.text();
   if (raw.length > deps.maxInputChars * 6 + 1024) return json(413, "input_too_long");
@@ -37,14 +78,28 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
   } catch {
     return json(400, "bad_request");
   }
-  const { text, replay_id } = parsed;
-  if ((text === undefined) === (replay_id === undefined)) return json(400, "bad_request"); // exactly one
+  const { replay_id, profile, extract_token } = parsed;
+  const text = parsed.text === undefined ? undefined : stripControlChars(parsed.text);
+  if ([text, replay_id, profile].filter((v) => v !== undefined).length !== 1) return json(400, "bad_request"); // exactly one
+  if (extract_token !== undefined && profile === undefined) return json(400, "bad_request");
   if (text !== undefined && text.trim().length === 0) return json(400, "bad_request");
   if (text !== undefined && text.length > deps.maxInputChars) return json(413, "input_too_long");
   if (replay_id !== undefined && !isReplayId(replay_id)) return json(400, "bad_request");
+  if (text !== undefined && deps.visitorInputMode === "samples" && !isPreparedText(text)) return json(403, "visitor_input_disabled");
+
+  // Policy R basis: the server compares the profile with its own signed extraction. No valid token ⇒ every known fact is edited.
+  let input: PipelineInput | undefined;
+  if (profile !== undefined) {
+    const extracted = verifyExtraction(extract_token, deps.signingSecret, deps.now?.());
+    if (deps.visitorInputMode === "samples" && extracted === null) return json(403, "visitor_input_disabled");
+    const clean: PatientProfile = { facts: profile.facts as PatientProfile["facts"] };
+    input = { profile: clean, selfEdited: selfEditedKeys(clean, extracted) };
+  }
+  const visitorRun = input !== undefined; // no silent replay for these
 
   // Decide live vs replay BEFORE opening the stream so a refusal without fallback can still be an HTTP status.
   let fallback: ModeReason | null = replay_id !== undefined ? "requested" : null;
+  let release: (() => Promise<void>) | undefined;
   if (fallback === null) {
     let decision: Awaited<ReturnType<RunGuard["check"]>>;
     try {
@@ -53,8 +108,18 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
       decision = { ok: false, reason: "guard_unavailable" };
     }
     if (!decision.ok) fallback = decision.reason;
+    else if (deps.gate) {
+      let g: Awaited<ReturnType<ConcurrencyGate["acquire"]>>;
+      try {
+        g = await deps.gate().acquire();
+      } catch {
+        g = { ok: false, reason: "guard_unavailable" };
+      }
+      if (g.ok) release = g.release;
+      else fallback = g.reason === "busy" ? "rate_limited" : "guard_unavailable"; // "busy" is shown as the rate-limit state
+    }
   }
-  if (fallback !== null && fallback !== "requested" && !deps.replayFallbackEnabled) return json(fallback === "rate_limited" ? 429 : 503, fallback);
+  if (fallback !== null && fallback !== "requested" && (visitorRun || !deps.replayFallbackEnabled)) return json(fallback === "rate_limited" ? 429 : 503, fallback);
 
   const enc = new TextEncoder();
   const t0 = Date.now();
@@ -92,22 +157,28 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
         try {
           pipeline = deps.makePipeline(req.signal);
         } catch {
+          if (visitorRun) {
+            emit({ type: "error", code: "model_unavailable", message: "Live analysis is unavailable right now. Please try again in a moment.", fallback_to_replay: false });
+            deps.log({ evt: "run", mode: "live", ok: false, reason: "model_unavailable", ms: Date.now() - t0 });
+            return;
+          }
           await streamReplay("model_unavailable");
           return;
         }
         emit({ type: "mode", mode: "live" });
         let calls = 0;
         try {
-          await runPipeline(text!, pipeline, (e) => {
+          await runPipeline(input ?? text!, pipeline, (e) => {
             if (e.type === "done" && e.stats) calls = e.stats.llm_calls;
             emit(e);
           });
-          deps.log({ evt: "run", mode: "live", ok: true, calls, ms: Date.now() - t0 });
+          deps.log({ evt: "run", mode: "live", input: input ? "profile" : "text", ok: true, calls, ms: Date.now() - t0, ...(input && typeof input !== "string" ? { edited: input.selfEdited.size } : {}) });
         } catch (err) {
           if (err instanceof PipelineError && err.kind === "aborted") return;
           const kind: ModeReason = err instanceof PipelineError && err.kind === "ctgov_unavailable" ? "ctgov_unavailable" : "model_unavailable";
-          emit({ type: "error", code: err instanceof PipelineError ? err.kind : "internal", message: "Live analysis is unavailable, so a saved example is shown instead.", fallback_to_replay: deps.replayFallbackEnabled });
-          if (deps.replayFallbackEnabled) await streamReplay(kind);
+          const fallbackToReplay = deps.replayFallbackEnabled && !visitorRun;
+          emit({ type: "error", code: err instanceof PipelineError ? err.kind : "internal", message: fallbackToReplay ? "Live analysis is unavailable, so a saved example is shown instead." : "Live analysis is unavailable right now. Please try again in a moment.", fallback_to_replay: fallbackToReplay });
+          if (fallbackToReplay) await streamReplay(kind);
           else deps.log({ evt: "run", mode: "live", ok: false, reason: kind, ms: Date.now() - t0 });
         }
       } catch {
@@ -119,7 +190,11 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
         }
       } finally {
         finish();
+        await release?.();
       }
+    },
+    async cancel() {
+      await release?.();
     },
   });
   return new Response(stream, { headers: { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store, no-transform", "x-accel-buffering": "no" } });
