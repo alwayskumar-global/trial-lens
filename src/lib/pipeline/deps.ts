@@ -1,7 +1,7 @@
 // Production wiring for the pipeline: Nebius Token Factory (Nemotron FAST/MID), live CT.gov discovery, layered cache.
 // Model IDs come only from env. Throws EnvError when Nebius env is incomplete (handler turns that into a replay).
 import { discoverRecruitingBreastTrials } from "@/lib/ctgov/client";
-import { LayeredCriteriaCache, MemoryCriteriaCache, SupabaseCriteriaCache, type CriteriaCache } from "@/lib/cache/criteria-cache";
+import { LayeredCriteriaCache, MemoryCriteriaCache, ReadOnlyCriteriaCache, SupabaseCriteriaCache, type CriteriaCache } from "@/lib/cache/criteria-cache";
 import { EnvError, getNebiusEnv, getPipelineEnv } from "@/lib/env";
 import { callJson, CallCap, makeClient, type CallStats } from "@/lib/llm/client";
 import type { LlmCallArgs, LlmPort, PipelineDeps } from "@/lib/pipeline/run";
@@ -29,18 +29,20 @@ export function createLlmPort(maxCalls: number): LlmPort {
   };
 }
 
-// Module-level: survives warm invocations of the same function instance. Supabase persists across instances.
-let sharedCache: CriteriaCache | undefined;
-function criteriaCache(): CriteriaCache {
-  if (sharedCache) return sharedCache;
+// Module-level, one instance per mode: survives warm invocations of the same function instance. Supabase persists across instances.
+// The two modes are separate singletons keyed by the flag, so a writable instance can never be handed to a read-only request (or the reverse),
+// even if the flag differs between calls in one process.
+const sharedCaches: { writable?: CriteriaCache; readOnly?: CriteriaCache } = {};
+function criteriaCache(writes: boolean): CriteriaCache {
+  if (!writes) return (sharedCaches.readOnly ??= new ReadOnlyCriteriaCache(new SupabaseCriteriaCache()));
+  if (sharedCaches.writable) return sharedCaches.writable;
   let supa: CriteriaCache | undefined;
   try {
     supa = new SupabaseCriteriaCache(); // constructing is cheap; reads fail soft (treated as a miss) if env is unset
   } catch {
     supa = undefined;
   }
-  sharedCache = new LayeredCriteriaCache(supa ? [new MemoryCriteriaCache(), supa] : [new MemoryCriteriaCache()]);
-  return sharedCache;
+  return (sharedCaches.writable = new LayeredCriteriaCache(supa ? [new MemoryCriteriaCache(), supa] : [new MemoryCriteriaCache()]));
 }
 
 export function createPipelineDeps(signal: AbortSignal): PipelineDeps {
@@ -48,7 +50,7 @@ export function createPipelineDeps(signal: AbortSignal): PipelineDeps {
   return {
     llm: createLlmPort(p.MAX_LLM_CALLS_PER_RUN),
     discover: () => discoverRecruitingBreastTrials({ base: p.CTGOV_API_BASE, maxPages: 2, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) }),
-    cache: criteriaCache(),
+    cache: criteriaCache(p.CRITERIA_CACHE_WRITES),
     maxCalls: p.MAX_LLM_CALLS_PER_RUN,
     maxCandidates: p.MAX_CANDIDATE_TRIALS,
     concurrency: p.LLM_CONCURRENCY,

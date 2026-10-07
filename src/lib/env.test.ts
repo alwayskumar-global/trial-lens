@@ -29,6 +29,7 @@ const ALL_VARS = [
   "MAX_CANDIDATE_TRIALS",
   "MAX_LLM_CALLS_PER_RUN",
   "LLM_CONCURRENCY",
+  "CRITERIA_CACHE_WRITES",
   "TIER_UNKNOWN_THRESHOLD",
   "MAX_INPUT_CHARS",
   "LOG_LEVEL",
@@ -179,10 +180,19 @@ describe("pipeline and guard defaults mirror .env.example", () => {
       MAX_CANDIDATE_TRIALS: 30,
       MAX_LLM_CALLS_PER_RUN: 80,
       LLM_CONCURRENCY: 6,
+      CRITERIA_CACHE_WRITES: true,
       TIER_UNKNOWN_THRESHOLD: 3,
       MAX_INPUT_CHARS: 2000,
       LOG_LEVEL: "info",
     });
+  });
+
+  it("CRITERIA_CACHE_WRITES: only the exact strings true/false; a typo is an EnvError, never a silent re-enable", () => {
+    vi.stubEnv("CRITERIA_CACHE_WRITES", "false");
+    expect(getPipelineEnv().CRITERIA_CACHE_WRITES).toBe(false);
+    resetEnvCacheForTests();
+    vi.stubEnv("CRITERIA_CACHE_WRITES", "flase");
+    expect(() => getPipelineEnv()).toThrow(/CRITERIA_CACHE_WRITES/);
   });
 
   it("guard defaults", () => {

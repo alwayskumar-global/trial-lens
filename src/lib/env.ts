@@ -57,6 +57,9 @@ const pipelineSchema = z.object({
   MAX_CANDIDATE_TRIALS: positiveInt(30),
   MAX_LLM_CALLS_PER_RUN: positiveInt(80),
   LLM_CONCURRENCY: positiveInt(6),
+  // "false" = the criteria cache is read-only for this deployment (reads still reuse stored parses; nothing is ever written to Supabase or kept in memory).
+  // Default true keeps the production behavior. Any other value is an EnvError: a typo must never silently re-enable writes.
+  CRITERIA_CACHE_WRITES: boolFlag(true),
   TIER_UNKNOWN_THRESHOLD: positiveInt(3),
   MAX_INPUT_CHARS: positiveInt(2000), // one limit end to end: the Describe textarea allows the same 2000 characters
   LOG_LEVEL: z.preprocess(

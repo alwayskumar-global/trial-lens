@@ -72,6 +72,20 @@ export class SupabaseCriteriaCache implements CriteriaCache {
   }
 }
 
+/**
+ * Read-only view of the Supabase cache: `get` reads, `set` is a no-op. Holds no memory layer, so nothing from a run is retained either.
+ * Used when CRITERIA_CACHE_WRITES=false; the only write path (`SupabaseCriteriaCache.set`) is unreachable through this class.
+ */
+export class ReadOnlyCriteriaCache implements CriteriaCache {
+  constructor(private readonly source: Pick<CriteriaCache, "get">) {}
+  get(k: CacheKey) {
+    return this.source.get(k);
+  }
+  async set(): Promise<void> {
+    /* intentionally nothing */
+  }
+}
+
 /** Read-through: memory first, then Supabase; writes go to both. */
 export class LayeredCriteriaCache implements CriteriaCache {
   constructor(private readonly layers: readonly CriteriaCache[]) {}

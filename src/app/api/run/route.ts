@@ -11,6 +11,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
+const cacheWrites = (): boolean | string => {
+  try {
+    return getPipelineEnv().CRITERIA_CACHE_WRITES;
+  } catch {
+    return "env_invalid";
+  }
+};
+
 export function POST(req: Request): Promise<Response> {
   const v = visitorConfig();
   return handleRun(req, {
@@ -23,6 +31,6 @@ export function POST(req: Request): Promise<Response> {
     replay: new SupabaseReplayStore(),
     makePipeline: createPipelineDeps,
     ip: (r) => clientIp(r.headers),
-    log: (line) => process.stdout.write(JSON.stringify(line) + "\n"), // counts, timings and fixed codes only
+    log: (line) => process.stdout.write(JSON.stringify({ ...line, cache_writes: cacheWrites() }) + "\n"), // counts, timings and fixed codes only
   });
 }
