@@ -23,3 +23,6 @@ eval/spike/fixtures/
 
 # local-only agent notes (kept out of git). TASKS.md is tracked again (Kumar reversed its removal).
 CLAUDE.md
+
+# downloaded public eval datasets (licenses not all verified; never committed)
+eval/data/
