@@ -43,7 +43,7 @@ describe("computeQuestions", () => {
 
   it("builds numeric buckets cut at the thresholds in candidate criteria", () => {
     const p = profile({});
-    const ts = [trial(atom("LVEF 50% or higher", "lvef_percent", "gte", 50, "%"), "other", p, "inclusion", "NCT00000001"), trial(atom("LVEF 40% or higher", "lvef_percent", "gte", 40, "%"), "other", p, "inclusion", "NCT00000002")];
+    const ts = [trial(atom("LVEF 50% or higher", "lvef_percent", "gte", 50, "%"), "biomarker", p, "inclusion", "NCT00000001"), trial(atom("LVEF 40% or higher", "lvef_percent", "gte", 40, "%"), "biomarker", p, "inclusion", "NCT00000002")];
     const [q] = computeQuestions(ts, p, 3);
     expect(q!.answers.map((a) => a.label)).toEqual(["below 40 %", "40 to below 50 %", "50 % or higher", "I don't know"]);
     expect(q!.affects_trials).toBe(2);
@@ -83,8 +83,25 @@ describe("computeQuestions", () => {
   it("a trial that is not UNCERTAIN is never counted as lifted (POSSIBLE stays POSSIBLE)", () => {
     const p = profile({});
     const possible = { ...trial(atom("Stage III disease", "stage", "eq", "III"), "stage", p), tier: "POSSIBLE" as const };
-    const [q] = computeQuestions([possible], p, 3);
-    expect(q!.score).toBe(0);
+    expect(computeQuestions([possible], p, 3)).toEqual([]); // zero lift for every answer ⇒ no question at all
+  });
+
+  it("filters zero-gain questions: no question is created when every answer has zero measured lift, and any returned question has a lift", () => {
+    const p = profile({});
+    // Blocked by a second open criterion, so answering stage alone lifts nothing.
+    const blocked = trial(atom("Stage III disease", "stage", "eq", "III"), "stage", p);
+    const other = trial(atom("HER2 positive", "her2_status", "eq", "positive"), "biomarker", p, "inclusion", "NCT00000009");
+    const twoOpen: QuestionTrial = {
+      sources: [...blocked.sources, ...other.sources.map((s) => ({ ...s, id: `${s.id}:b` }))],
+      outcomes: [...blocked.outcomes, ...other.outcomes],
+      assess: [...blocked.assess, ...other.assess],
+      tier: "UNCERTAIN",
+    };
+    expect(answerLifts([twoOpen], p, 3).every(({ answers }) => answers.every((a) => a.lifted.length === 0))).toBe(true);
+    expect(computeQuestions([twoOpen], p, 3)).toEqual([]);
+    const qs = computeQuestions([twoOpen, trial(atom("Stage III disease", "stage", "eq", "III"), "stage", p, "inclusion", "NCT00000010")], p, 3);
+    expect(qs.map((q) => q.fact_key)).toEqual(["stage"]);
+    expect(qs.every((q) => q.score > 0)).toBe(true);
   });
 
   it("a would-be mismatch is never a lift (R2): answering 'Yes' to an exclusion leaves the trial UNCERTAIN", () => {

@@ -124,7 +124,9 @@ export function answerLifts(allTrials: readonly QuestionTrial[], profile: Patien
 }
 
 export function computeQuestions(allTrials: readonly QuestionTrial[], profile: PatientProfile, unknownThreshold: number, max = 3): AdaptiveQuestion[] {
-  const scored = answerLifts(allTrials, profile, unknownThreshold).map(({ entry, affecting, answers }): AdaptiveQuestion => {
+  // A question exists only if at least one answer has a measured lift (UNCERTAIN→POSSIBLE). Zero-gain questions are never created, so the
+  // UI can never promise a tier change that no answer produces.
+  const scored = answerLifts(allTrials, profile, unknownThreshold).filter(({ answers }) => answers.some((a) => a.lifted.length > 0)).map(({ entry, affecting, answers }): AdaptiveQuestion => {
     const gain = answers.reduce((s, a) => s + a.lifted.length, 0) / answers.length;
     const cost = entry.ask_cost ?? 3;
     const label = LABELS[entry.key as FactKey] ?? entry.key.replace(/_/g, " ");
