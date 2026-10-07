@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tierTrial, tierTrialCapped, type TierCriterion } from "./tier";
+import { ceilingTier, tierTrial, tierTrialCeiled, type TierCriterion } from "./tier";
 
 const c = (o: Partial<TierCriterion> = {}): TierCriterion => ({ scoring: true, category: "lab", status: "PASS", completeness: "full", ...o });
 const N = { unknownThreshold: 3 };
@@ -59,45 +59,84 @@ describe("tierTrial: rule D (FAIL must be independently verified)", () => {
   });
 });
 
-describe("tierTrialCapped: Policy R (self-report ceiling)", () => {
-  const cap = (cs: TierCriterion[], o: Parameters<typeof tierTrialCapped>[1] = N) => tierTrialCapped(cs, o);
-  it("row 1: all text-basis STRONG stays STRONG", () => {
-    expect(cap([c({ category: "stage" }), c()])).toEqual({ tier: "STRONG", capped: false });
+describe("Policy R2: no visitor fact is verified, so STRONG and LIKELY_MISMATCH are never emitted", () => {
+  const ceiled = (cs: TierCriterion[], o: Parameters<typeof tierTrialCeiled>[1] = N) => tierTrialCeiled(cs, o);
+
+  it("ceilingTier maps all four tiers", () => {
+    expect(ceilingTier("STRONG")).toEqual({ tier: "POSSIBLE", flag: "reported_only" });
+    expect(ceilingTier("LIKELY_MISMATCH")).toEqual({ tier: "UNCERTAIN", flag: "reported_conflict" });
+    expect(ceilingTier("POSSIBLE")).toEqual({ tier: "POSSIBLE" });
+    expect(ceilingTier("UNCERTAIN")).toEqual({ tier: "UNCERTAIN" });
   });
-  it("rows 2 and 7: a PASS resting on an edited fact caps STRONG at POSSIBLE", () => {
-    expect(cap([c({ category: "stage", editedEvidence: true }), c()])).toEqual({ tier: "POSSIBLE", capped: true });
+
+  // The approved truth table, row by row (engine outcome, Rule D / verification state → final tier, flag).
+  it("row 1: a scoring FAIL whose Rule D check is verified → UNCERTAIN + reported_conflict", () => {
+    expect(ceiled([c({ status: "FAIL", failCheck: "verified" })])).toEqual({ tier: "UNCERTAIN", flag: "reported_conflict" });
+    expect(ceiled([c({ status: "FAIL", failCheck: "verified" }), c({ status: "FAIL", failCheck: "no_capacity" }), c()]).tier).toBe("UNCERTAIN");
   });
-  it("row 3: a verified FAIL on text-basis facts stays LIKELY_MISMATCH", () => {
-    expect(cap([c({ status: "FAIL", failCheck: "verified" })])).toEqual({ tier: "LIKELY_MISMATCH", capped: false });
-  });
-  it("rows 4 and 8: a verified FAIL resting only on edited facts is UNCERTAIN", () => {
-    expect(cap([c({ status: "FAIL", failCheck: "verified", editedEvidence: true })])).toEqual({ tier: "UNCERTAIN", capped: true });
-  });
-  it("a verified FAIL on text facts survives another FAIL that rests on an edited fact", () => {
-    expect(cap([c({ status: "FAIL", failCheck: "verified" }), c({ status: "FAIL", failCheck: "verified", editedEvidence: true })]).tier).toBe("LIKELY_MISMATCH");
-  });
-  it("rows 5 and 6: unverified FAIL, overflow and failed analysis stay UNCERTAIN whatever the basis", () => {
-    for (const editedEvidence of [false, true]) {
-      expect(cap([c({ status: "FAIL", failCheck: "no_capacity", editedEvidence })]).tier).toBe("UNCERTAIN");
-      expect(cap([c({ editedEvidence })], { ...N, analysisFailed: true }).tier).toBe("UNCERTAIN");
-      expect(cap([c({ category: null, status: "UNKNOWN", completeness: "unresolved", editedEvidence })]).tier).toBe("UNCERTAIN");
+  it("rows 2-5: an unverified FAIL (not_run, no_capacity, rejected, unsubstantiated) → UNCERTAIN, no flag", () => {
+    for (const failCheck of [undefined, "not_run", "no_capacity", "rejected", "unsubstantiated"] as const) {
+      expect(ceiled([c({ status: "FAIL", ...(failCheck ? { failCheck } : {}) })])).toEqual({ tier: "UNCERTAIN" });
     }
   });
-  it("row 10: edited evidence on an UNKNOWN or non-deciding criterion changes nothing", () => {
-    expect(cap([c({ category: "stage" }), c({ status: "UNKNOWN", editedEvidence: true })])).toEqual({ tier: "STRONG", capped: false });
+  it("row 6: analysis failed, pending/unresolved, missing or no scoring criteria → UNCERTAIN", () => {
+    expect(ceiled([c()], { ...N, analysisFailed: true }).tier).toBe("UNCERTAIN");
+    expect(ceiled([c({ category: null, status: "UNKNOWN", completeness: "unresolved" })]).tier).toBe("UNCERTAIN");
+    expect(ceiled([c(), c()], { ...N, expectedCriteria: 3 }).tier).toBe("UNCERTAIN");
+    expect(ceiled([]).tier).toBe("UNCERTAIN");
   });
-  it("the cap only lowers: it never raises any tier (exhaustive over small criterion sets)", () => {
-    // claim strength: STRONG and LIKELY_MISMATCH are the two high claims; the cap may only move a result down this scale
-    const rank = { STRONG: 3, LIKELY_MISMATCH: 3, POSSIBLE: 2, UNCERTAIN: 1 } as const;
-    const statuses = ["PASS", "UNKNOWN", "AMBIGUOUS", "FAIL"] as const;
-    for (const s1 of statuses) for (const s2 of statuses) for (const e1 of [false, true]) for (const e2 of [false, true]) for (const fc of ["verified", "no_capacity"] as const) {
-      const cs = [c({ category: "stage", status: s1, failCheck: fc, editedEvidence: e1 }), c({ status: s2, failCheck: fc, editedEvidence: e2 })];
-      const base = tierTrial(cs, N), r = tierTrialCapped(cs, N);
-      if (r.capped) expect(rank[r.tier]).toBeLessThan(rank[base]);
-      else expect(r.tier).toBe(base);
-      // no edited fact ever carries a STRONG, and a mismatch always has an unedited verified FAIL behind it
-      if (r.tier === "STRONG") expect(cs.some((x) => x.status === "PASS" && x.editedEvidence)).toBe(false);
-      if (r.tier === "LIKELY_MISMATCH") expect(cs.some((x) => x.status === "FAIL" && x.failCheck === "verified" && !x.editedEvidence)).toBe(true);
+  it("row 7: a core criterion UNKNOWN, AMBIGUOUS or partial → UNCERTAIN", () => {
+    expect(ceiled([c({ category: "stage", status: "UNKNOWN" })]).tier).toBe("UNCERTAIN");
+    expect(ceiled([c({ category: "biomarker", status: "AMBIGUOUS" })]).tier).toBe("UNCERTAIN");
+    expect(ceiled([c({ category: "biomarker", completeness: "partial" })]).tier).toBe("UNCERTAIN");
+  });
+  it("row 8: a non-core partial criterion, or more open criteria than N, → POSSIBLE with no flag", () => {
+    expect(ceiled([c({ category: "stage" }), c({ completeness: "partial" })])).toEqual({ tier: "POSSIBLE" });
+    const u = () => c({ status: "UNKNOWN" });
+    expect(ceiled([c({ category: "stage" }), u(), u(), u(), u()])).toEqual({ tier: "POSSIBLE" });
+  });
+  it("row 9: everything passes and is fully parsed (the engine's STRONG) → POSSIBLE + reported_only", () => {
+    expect(ceiled([c({ category: "stage" }), c()])).toEqual({ tier: "POSSIBLE", flag: "reported_only" });
+    const u = () => c({ status: "UNKNOWN" });
+    expect(ceiled([c({ category: "stage" }), u(), u(), u()])).toEqual({ tier: "POSSIBLE", flag: "reported_only" }); // open ≤ N is still the engine's STRONG
+  });
+
+  const statuses = ["PASS", "UNKNOWN", "AMBIGUOUS", "FAIL"] as const;
+  const checks = [undefined, "verified", "rejected", "unsubstantiated", "no_capacity", "not_run"] as const;
+  const completes = ["full", "partial", "unresolved"] as const;
+  const cats = ["stage", "lab", null] as const;
+  const one: TierCriterion[] = [];
+  for (const scoring of [true, false]) for (const status of statuses) for (const failCheck of checks) for (const completeness of completes) for (const category of cats) {
+    one.push({ scoring, category, status, completeness, ...(failCheck ? { failCheck } : {}) });
+  }
+
+  it("exhaustive over every one- and two-criterion combination: only POSSIBLE or UNCERTAIN, never above the engine tier, idempotent", () => {
+    const strength = { STRONG: 3, LIKELY_MISMATCH: 3, POSSIBLE: 2, UNCERTAIN: 1 } as const;
+    const check = (cs: TierCriterion[], o: Parameters<typeof tierTrial>[1]) => {
+      const engine = tierTrial(cs, o), r = tierTrialCeiled(cs, o);
+      expect(["POSSIBLE", "UNCERTAIN"]).toContain(r.tier);
+      expect(strength[r.tier]).toBeLessThanOrEqual(strength[engine]);
+      if (engine === "POSSIBLE" || engine === "UNCERTAIN") expect(r).toEqual({ tier: engine });
+      expect(ceilingTier(r.tier)).toEqual({ tier: r.tier }); // idempotent: applying it again changes nothing
+      // the flags say exactly what happened
+      expect(r.flag).toBe(engine === "STRONG" ? "reported_only" : engine === "LIKELY_MISMATCH" ? "reported_conflict" : undefined);
+    };
+    for (const a of one) {
+      check([a], N);
+      check([a], { ...N, expectedCriteria: 2 });
+      check([a], { ...N, analysisFailed: true });
     }
+    for (const a of one) for (const b of one) check([a, b], N);
+  });
+
+  it("a would-be mismatch needs a verified FAIL; without one the engine itself never reaches it (Rule D unchanged)", () => {
+    let mismatches = 0;
+    for (const a of one) for (const b of one) {
+      if (tierTrial([a, b], N) === "LIKELY_MISMATCH") {
+        mismatches++;
+        expect([a, b].some((x) => x.scoring && x.status === "FAIL" && x.failCheck === "verified")).toBe(true);
+      }
+    }
+    expect(mismatches).toBeGreaterThan(0);
   });
 });

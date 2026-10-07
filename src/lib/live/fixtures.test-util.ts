@@ -18,4 +18,15 @@ export const assessedPossible = trial({
 export const noMet = trial({ nct_id: "NCT00000002", tier: "UNCERTAIN", criteria: [crit("a", "ECOG 0 or 1")], findings: [finding("a", "UNKNOWN")] });
 export const pending = trial({ nct_id: "NCT00000003", verifier_flags: ["analysis_pending"], criteria: [crit("a", "Recently diagnosed with stage II, III, or IV breast cancer"), crit("b", "Must be >= 18 years of age")] });
 export const failed = trial({ nct_id: "NCT00000004", analysis_failed: true, criteria: [crit("a", "Histologically confirmed breast cancer")] });
+// LEGACY: a stored pre-R2 value. The engine and replays no longer emit it; kept so the UI's handling of old stored results stays tested.
 export const mismatch = trial({ nct_id: "NCT00000005", tier: "LIKELY_MISMATCH", verified: true, criteria: [crit("a", "Age 65 years or older")], findings: [finding("a", "FAIL", ["age"])] });
+
+// Policy R2 results as they are emitted now. `reported_conflict` and `reported_only` are internal flags: nothing renders them.
+export const reportedConflict = trial({
+  nct_id: "NCT00000006", tier: "UNCERTAIN", verified: false, verifier_flags: ["reported_conflict"], fact_basis: "visitor_reported",
+  criteria: [crit("a", "Age 65 years or older")], findings: [{ ...finding("a", "FAIL", ["age"]), fail_check: "verified" as const }],
+});
+export const reportedOnly = trial({
+  nct_id: "NCT00000007", tier: "POSSIBLE", verified: true, verifier_flags: ["reported_only"], fact_basis: "visitor_reported",
+  criteria: [crit("a", "Women 18 years or older")], findings: [finding("a", "PASS", ["age"])],
+});

@@ -14,8 +14,7 @@ import { assessCriterion, reconcileBatch, type CriterionAssessment, type ParseOu
 import { resolveFailCheck, withFailCheck } from "@/lib/engine/fail-check";
 import { computeQuestions } from "@/lib/engine/questions";
 import { RunBudget, type Stage } from "@/lib/engine/run-plan";
-import { relyOnEdited } from "@/lib/engine/basis";
-import { tierTrialCapped } from "@/lib/engine/tier";
+import { ceilingTier, tierTrialCeiled } from "@/lib/engine/tier";
 import { extractProfile } from "@/lib/pipeline/extract";
 import type { CallStats } from "@/lib/llm/client";
 import { EVAL_SYSTEM, makeEvalSchema } from "@/prompts/evaluate";
@@ -85,9 +84,9 @@ interface TrialState {
 
 /**
  * What a run starts from: the visitor's text (extraction is stage 1; legacy path, eval scripts, prepared fictional samples) or an
- * already-extracted profile plus the keys the SERVER found edited against its signed extraction (Policy R, src/lib/engine/tier.ts).
+ * already-extracted profile the visitor reviewed. Either way every fact is the visitor's own statement (Policy R2).
  */
-export type PipelineInput = string | { profile: PatientProfile; selfEdited: ReadonlySet<string> };
+export type PipelineInput = string | { profile: PatientProfile };
 
 export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit: (e: SseEvent) => void): Promise<void> {
   const wall0 = performance.now();
@@ -106,7 +105,6 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
   const take = (s: Stage) => budget.take(s);
 
   // 1. extraction (FAST), unless the caller already supplies a profile (then there is no extraction stage and no extraction call).
-  const selfEdited: ReadonlySet<string> = typeof input === "string" ? new Set<string>() : input.selfEdited;
   const profile: PatientProfile =
     typeof input === "string"
       ? await stage("extraction", async (): Promise<PatientProfile> => {
@@ -177,10 +175,12 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
   budget.release("parse");
 
   // 4. typed evaluation in code + abstention guard, first tier
+  // Policy R2: EVERY re-tier (typed evaluation, free-text evaluation, each Rule D FAIL check) goes through the ceiling, so a trial is
+  // never STRONG or LIKELY_MISMATCH at any point. `finalizeTier` repeats it once more before results are built.
   const retier = (s: TrialState) => {
-    const r = tierTrialCapped(s.assess.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check, editedEvidence: relyOnEdited(a.finding, selfEdited) })), { unknownThreshold: deps.unknownThreshold, expectedCriteria: s.sources.length });
+    const r = tierTrialCeiled(s.assess.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check })), { unknownThreshold: deps.unknownThreshold, expectedCriteria: s.sources.length });
     s.tier = r.tier;
-    if (r.capped && !s.flags.includes("self_edited_fact")) s.flags.push("self_edited_fact"); // Policy R: a visitor-edited fact capped this trial
+    if (r.flag && !s.flags.includes(r.flag)) s.flags.push(r.flag);
   };
   await stage("typed_evaluation", async () => {
     for (const s of states) {
@@ -272,22 +272,29 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
   });
 
   // 8. adaptive questions (pure code; SPEC §5)
-  const questions = await stage("questions", async () => computeQuestions(states.map((s) => ({ sources: s.sources, outcomes: s.outcomes, assess: s.assess, tier: s.tier })), profile, deps.unknownThreshold, 3, selfEdited));
+  const questions = await stage("questions", async () => computeQuestions(states.map((s) => ({ sources: s.sources, outcomes: s.outcomes, assess: s.assess, tier: s.tier })), profile, deps.unknownThreshold));
   emit({ type: "question", questions });
+
+  // Final pass, idempotent: whatever any stage did, no trial leaves the pipeline above the R2 ceiling.
+  for (const s of states) s.tier = ceilingTier(s.tier).tier;
 
   // results, in tier order
   const toResult = (s: TrialState): TrialResult => {
     // Out of parse budget ⇒ pending (queued for cache warm-up, docs/run-plan.md); a rejected/failed parse ⇒ analysis_failed.
     const status = parseStatus(s.outcomes);
-    const flags = status === "pending" ? [...s.flags, "analysis_pending"] : s.flags;
+    // `reported_only` records that STRONG was lowered to POSSIBLE; it is dropped if verification later lowered the trial further.
+    const base = s.flags.filter((f) => f !== "reported_only" || s.tier === "POSSIBLE");
+    const flags = status === "pending" ? [...base, "analysis_pending"] : base;
     const open = s.assess.find((a) => a.scoring && (a.finding.status === "UNKNOWN" || a.finding.status === "AMBIGUOUS"));
     return {
       nct_id: s.trial.nct_id,
       title: s.trial.title,
       tier: s.tier,
       findings: s.assess.map((a) => a.finding),
-      verified: s.tier === "LIKELY_MISMATCH" ? true : s.verifiedPass,
+      // "A second automated pass found no conflict"; never true for a conflict and never a statement about the facts themselves.
+      verified: flags.includes("reported_conflict") ? false : s.verifiedPass,
       verifier_flags: flags,
+      fact_basis: "visitor_reported",
       sites: [],
       coordinator_questions: [],
       ...(status === "failed" ? { analysis_failed: true } : {}),

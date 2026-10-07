@@ -41,7 +41,7 @@ describe("POST /api/extract", () => {
     expect(logs).toEqual([{ evt: "extract", ok: true, facts: 3, calls: 1, ms: expect.any(Number) }]);
   });
 
-  it("the extract → review → run round trip: unchanged is text-basis, one edit is capped by the server", async () => {
+  it("the extract → review → run round trip: unchanged and edited profiles both end POSSIBLE under R2", async () => {
     const { deps } = setup();
     const body = (await (await handleExtract(post({ text: "fictional" }), deps)).json()) as { profile: { facts: Record<string, unknown> }; extract_token: string };
     const runDeps = async () => ({ maxInputChars: 2000, replayFallbackEnabled: true, visitorInputMode: "open" as const, signingSecret: SECRET, now: () => NOW, guard: allow, replay: new MemoryReplayStore(), makePipeline: () => fakeDeps([trial("NCT00000001", ["Age 18 years or older."])]), ip: () => "1.2.3.4", log: () => undefined });
@@ -49,7 +49,7 @@ describe("POST /api/extract", () => {
       const res = await handleRun(new Request("http://x/api/run", { method: "POST", body: JSON.stringify({ profile, extract_token: body.extract_token }) }), await runDeps());
       return (await res.text()).split("\n\n").filter(Boolean).map((c) => SseEventSchema.parse(JSON.parse(c.replace(/^data: /, "")))).flatMap((e: SseEvent) => (e.type === "trial_result" ? [e.assessment.tier] : []))[0];
     };
-    expect(await tier(body.profile)).toBe("STRONG");
+    expect(await tier(body.profile)).toBe("POSSIBLE");
     expect(await tier({ facts: { ...body.profile.facts, age: { key: "age", state: "known", value: 50 } } })).toBe("POSSIBLE");
   });
 

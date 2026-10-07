@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { OPEN_ON_CTGOV } from "@/lib/live/copy";
 import { cardModel, initialRun, reduceRun, type RunAction, type RunState } from "@/lib/live/model";
-import { assessedPossible, failed, mismatch, noMet, pending } from "@/lib/live/fixtures.test-util";
+import { assessedPossible, failed, mismatch, noMet, pending, reportedConflict, reportedOnly } from "@/lib/live/fixtures.test-util";
 import { FitBar } from "../results/FitBar";
 import { LiveCard } from "./LiveCard";
 import { LiveDetail } from "./LiveDetail";
@@ -185,6 +185,25 @@ describe("LiveDetail", () => {
 
   it("a likely mismatch never claims 'no conflict'", () => {
     expect(detail(mismatch)).not.toContain("found no conflict");
+  });
+
+  it("R2: a reported conflict never reads as verified, never as a mismatch, and its internal flag is never rendered", () => {
+    const h = detail(reportedConflict);
+    const card = html(<LiveCard m={cardModel(reportedConflict)} subject="the prepared fictional profile" onOpen={noop} />);
+    for (const out of [h, card]) {
+      expect(out).not.toMatch(/\bverified\b/i);
+      expect(out).not.toContain("found no conflict");
+      expect(out).not.toMatch(/reported_conflict|reported_only|fact_basis|visitor_reported|fail_check/);
+      expect(out).not.toMatch(/Likely mismatch/i);
+    }
+    expect(cardModel(reportedConflict).tier).toBe("uncertain");
+  });
+
+  it("R2: a reported-only POSSIBLE result shows no flag text either", () => {
+    const h = detail(reportedOnly);
+    expect(html(<LiveCard m={cardModel(reportedOnly)} subject="the prepared fictional profile" onOpen={noop} />)).not.toMatch(/reported_only|reported_conflict|fact_basis|visitor_reported/);
+    expect(h).not.toMatch(/reported_only|reported_conflict|fact_basis|visitor_reported/);
+    expect(cardModel(reportedOnly).tier).toBe("possible");
   });
 
   it("replay Detail keeps the persistent notice and fictional-profile wording", () => {

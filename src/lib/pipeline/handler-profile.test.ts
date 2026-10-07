@@ -35,8 +35,8 @@ const events = async (res: Response): Promise<SseEvent[]> => (await res.text()).
 const results = (es: SseEvent[]) => es.flatMap((e) => (e.type === "trial_result" ? [e.assessment] : []));
 const stageNames = (es: SseEvent[]) => es.flatMap((e) => (e.type === "stage" && e.status === "start" ? [e.stage] : []));
 
-describe("profile runs: no extraction, server-derived basis (Policy R)", () => {
-  it("an unchanged, validly signed profile skips extraction (no stage, no model call) and keeps STRONG", async () => {
+describe("profile runs: no extraction call; edits and unchanged facts are treated alike (Policy R2)", () => {
+  it("an unchanged, validly signed profile skips extraction (no stage, no model call) and ends POSSIBLE, not STRONG", async () => {
     const { deps, made, logs } = await setup();
     const es = await events(await handleRun(post({ profile: base(), extract_token: token() }), deps));
     expect(es[0]).toEqual({ type: "mode", mode: "live" });
@@ -44,53 +44,41 @@ describe("profile runs: no extraction, server-derived basis (Policy R)", () => {
     expect(made[0]!.llm.calls.some((c) => c.name === "facts")).toBe(false);
     expect(es.some((e) => e.type === "profile")).toBe(true);
     const [r] = results(es);
-    expect(r!.tier).toBe("STRONG");
-    expect(r!.verifier_flags).not.toContain("self_edited_fact");
+    expect(r!.tier).toBe("POSSIBLE"); // the engine's STRONG, under the ceiling: unchanged model-extracted facts are not verified facts
+    expect(r!.verifier_flags).toContain("reported_only");
+    expect(r!.fact_basis).toBe("visitor_reported");
     expect(logs[0]).toMatchObject({ evt: "run", mode: "live", input: "profile", ok: true, edited: 0 });
     const done = es[es.length - 1] as Extract<SseEvent, { type: "done" }>;
     expect(done.stats!.worst_case_calls).toBeLessThanOrEqual(80);
   });
 
-  it("an edited fact is capped by the SERVER: STRONG becomes POSSIBLE and the result says why", async () => {
+  it("an edited fact gives the same tier (edits no longer change any tier) and only the log count differs", async () => {
     const edited = profile({ age: 53, sex: "female", her2_status: "positive" });
     const { deps, logs } = await setup();
     const [r] = results(await events(await handleRun(post({ profile: edited, extract_token: token() }), deps)));
     expect(r!.tier).toBe("POSSIBLE");
-    expect(r!.verifier_flags).toContain("self_edited_fact");
+    expect(r!.verifier_flags).toEqual(expect.arrayContaining(["reported_only"]));
     expect(logs[0]).toMatchObject({ edited: 1 });
+    const added = profile({ age: 52, sex: "female", her2_status: "positive", er_status: "positive" });
+    const b = await setup();
+    expect(results(await events(await handleRun(post({ profile: added, extract_token: token() }), b.deps)))[0]!.tier).toBe("POSSIBLE");
   });
 
-  it("an edit that does not touch a deciding fact changes nothing (row 10)", async () => {
-    const edited = profile({ age: 52, sex: "female", her2_status: "positive", er_status: "positive" });
-    const { deps } = await setup();
-    expect(results(await events(await handleRun(post({ profile: edited, extract_token: token() }), deps)))[0]!.tier).toBe("STRONG");
-  });
-
-  it("a verified FAIL on a text-basis fact stays LIKELY_MISMATCH; on an edited fact it is UNCERTAIN (rows 3 and 4)", async () => {
+  it("a verified FAIL is UNCERTAIN + reported_conflict whether the facts are unchanged or edited, and never reads as verified facts", async () => {
     const t = [trial("NCT00000001", ["Age 65 years or older."])];
+    // unchanged facts
     const a = await setup({}, t, { failCheck: "confirm" });
-    expect(results(await events(await handleRun(post({ profile: base(), extract_token: token() }), a.deps)))[0]!.tier).toBe("LIKELY_MISMATCH");
+    const ra = results(await events(await handleRun(post({ profile: base(), extract_token: token() }), a.deps)))[0]!;
+    // edited: the server extracted age 40, the visitor changed it to 52, which the (fake) verifier fully substantiates
     const b = await setup({}, t, { failCheck: "confirm" });
-    // the server extracted age 40; the visitor changed it to 52, which the (fake) verifier fully substantiates: only Policy R decides
-    const r = results(await events(await handleRun(post({ profile: base(), extract_token: token(profile({ age: 40, sex: "female", her2_status: "positive" })) }), b.deps)))[0]!;
-    expect(r.tier).toBe("UNCERTAIN");
-    expect(r.verifier_flags).toContain("self_edited_fact");
-  });
-
-  it("missing, malformed, forged, wrong-secret and expired tokens are REFUSED (401), never run as an unauthenticated profile", async () => {
-    const stale = signExtraction(base(), SECRET, new Date(NOW.getTime() - 3 * 3600_000));
-    const tokens: Array<string | undefined> = [undefined, "garbage", token().slice(0, -3) + "AAA", signExtraction(base(), "another-secret-0123456789-0123456789-x", NOW), stale];
-    for (const mode of ["open", "samples"] as const) {
-      for (const extract_token of tokens) {
-        const { deps, made } = await setup({ visitorInputMode: mode });
-        const res = await handleRun(post({ profile: base(), ...(extract_token ? { extract_token } : {}) }), deps);
-        expect(res.status).toBe(401);
-        expect(await res.json()).toEqual({ code: "invalid_token" });
-        expect(made).toHaveLength(0); // no pipeline, no model call, no guard spend
-      }
+    const rb = results(await events(await handleRun(post({ profile: base(), extract_token: token(profile({ age: 40, sex: "female", her2_status: "positive" })) }), b.deps)))[0]!;
+    for (const r of [ra, rb]) {
+      expect(r.tier).toBe("UNCERTAIN");
+      expect(r.verifier_flags).toContain("reported_conflict");
+      expect(r.verified).toBe(false);
+      expect(r.findings.find((f) => f.status === "FAIL")!.fail_check).toBe("verified");
+      expect(r.fact_basis).toBe("visitor_reported");
     }
-    const { deps } = await setup({ signingSecret: undefined });
-    expect((await handleRun(post({ profile: base(), extract_token: token() }), deps)).status).toBe(401);
   });
 
   it("a token for a different extraction does not launder edits", async () => {

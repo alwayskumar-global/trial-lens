@@ -21,8 +21,6 @@ export interface TierCriterion {
   completeness: ParseCompleteness;
   /** Only meaningful for FAIL. Absent ⇒ not_run ⇒ the FAIL cannot make the trial LIKELY_MISMATCH. */
   failCheck?: FailCheck;
-  /** True when a fact this finding cites was edited, added or answered by the visitor (server-derived basis, never a client label). */
-  editedEvidence?: boolean;
 }
 
 export interface TierOptions {
@@ -54,16 +52,22 @@ export function tierTrial(criteria: readonly TierCriterion[], opts: TierOptions)
 }
 
 /**
- * Policy R (self-report ceiling): a trial whose PASS rests on a visitor-edited fact is never STRONG, and a verified FAIL that
- * rests only on visitor-edited facts never makes LIKELY_MISMATCH. The cap only lowers a claim; Rule D, the abstention guard and
- * every UNCERTAIN rule above are untouched, so it can never raise a tier.
+ * Policy R2 (approved): every fact is the visitor's own statement and nothing in TrialLens verifies any of them, whether the model
+ * extracted it from text, the visitor typed it, edited it or answered a question. So the engine's two high claims are never made:
+ *   STRONG          → POSSIBLE   (flag `reported_only`)
+ *   LIKELY_MISMATCH → UNCERTAIN  (flag `reported_conflict`)
+ * POSSIBLE and UNCERTAIN pass through. The ceiling only lowers a claim and is idempotent. Rule D, the abstention guard, the call cap and
+ * "overflow ⇒ UNCERTAIN" are untouched. A `fail_check: "verified"` finding means the criterion comparison was independently re-checked
+ * against the reported facts; it never means the facts themselves were verified.
  */
-export function tierTrialCapped(criteria: readonly TierCriterion[], opts: TierOptions): { tier: Tier; capped: boolean } {
-  const tier = tierTrial(criteria, opts);
-  const scoring = criteria.filter((c) => c.scoring);
-  if (tier === "LIKELY_MISMATCH" && !scoring.some((c) => c.status === "FAIL" && c.failCheck === "verified" && !c.editedEvidence)) {
-    return { tier: "UNCERTAIN", capped: true };
-  }
-  if (tier === "STRONG" && scoring.some((c) => c.status === "PASS" && c.editedEvidence)) return { tier: "POSSIBLE", capped: true };
-  return { tier, capped: false };
+export type CeilingFlag = "reported_only" | "reported_conflict";
+export function ceilingTier(tier: Tier): { tier: Tier; flag?: CeilingFlag } {
+  if (tier === "STRONG") return { tier: "POSSIBLE", flag: "reported_only" };
+  if (tier === "LIKELY_MISMATCH") return { tier: "UNCERTAIN", flag: "reported_conflict" };
+  return { tier };
+}
+
+/** `tierTrial` followed by the R2 ceiling: the only tier function the pipeline uses. */
+export function tierTrialCeiled(criteria: readonly TierCriterion[], opts: TierOptions): { tier: Tier; flag?: CeilingFlag } {
+  return ceilingTier(tierTrial(criteria, opts));
 }

@@ -14,6 +14,7 @@ import { PipelineError, runPipeline, type PipelineDeps, type PipelineInput } fro
 import { selfEditedKeys, verifyExtraction } from "@/lib/profile/token";
 import { isPreparedText, stripControlChars } from "@/lib/sample/prepared";
 import { FactSchema, FactStateSchema, type PatientProfile } from "@/schema/profile";
+import { assertEmittable, enforceTrialCeiling } from "@/lib/engine/ceiling";
 import { SseEventSchema, type SseEvent } from "@/schema/sse";
 import { FACT_KEYS, FactKeySchema } from "@/schema/vocabulary";
 
@@ -91,13 +92,15 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
   // simply re-runs extraction), never run as an unauthenticated profile. The server then derives, by comparison, which facts were
   // edited. Samples mode accepts only an UNCHANGED profile from a token issued for a prepared fictional sample.
   let input: PipelineInput | undefined;
+  let editedCount = 0; // counts only (log line); edits do not affect any tier under Policy R2
   if (profile !== undefined) {
     const verified = verifyExtraction(extract_token, deps.signingSecret, deps.now?.());
     if (verified === null) return json(401, "invalid_token");
     const clean: PatientProfile = { facts: profile.facts as PatientProfile["facts"] };
     const edited = selfEditedKeys(clean, verified.facts);
     if (deps.visitorInputMode === "samples" && (!verified.sample || edited.size > 0)) return json(403, "visitor_input_disabled");
-    input = { profile: clean, selfEdited: edited };
+    input = { profile: clean };
+    editedCount = edited.size;
   }
   const visitorRun = input !== undefined; // no silent replay for these
 
@@ -134,7 +137,10 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
         if (closed) return;
         const v = SseEventSchema.safeParse(e);
         if (!v.success) throw new Error("SSE_CONTRACT"); // internal contract bug: never forward an unvalidated event
-        controller.enqueue(enc.encode(`data: ${JSON.stringify(v.data)}\n\n`));
+        // Policy R2 backstop for live AND replayed results: cap, then refuse anything still above the ceiling.
+        const out = enforceTrialCeiling(v.data);
+        assertEmittable(out);
+        controller.enqueue(enc.encode(`data: ${JSON.stringify(out)}\n\n`));
       };
       const finish = () => {
         if (!closed) {
@@ -176,7 +182,7 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
             if (e.type === "done" && e.stats) calls = e.stats.llm_calls;
             emit(e);
           });
-          deps.log({ evt: "run", mode: "live", input: input ? "profile" : "text", ok: true, calls, ms: Date.now() - t0, ...(input && typeof input !== "string" ? { edited: input.selfEdited.size } : {}) });
+          deps.log({ evt: "run", mode: "live", input: input ? "profile" : "text", ok: true, calls, ms: Date.now() - t0, ...(input ? { edited: editedCount } : {}) });
         } catch (err) {
           if (err instanceof PipelineError && err.kind === "aborted") return;
           const kind: ModeReason = err instanceof PipelineError && err.kind === "ctgov_unavailable" ? "ctgov_unavailable" : "model_unavailable";

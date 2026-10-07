@@ -105,15 +105,16 @@ interface CriterionFinding {
   guard_downgraded?: boolean;   // true if PASS/FAIL coerced to UNKNOWN
 }
 
-type Tier = "STRONG" | "POSSIBLE" | "UNCERTAIN" | "LIKELY_MISMATCH";
+type Tier = "STRONG" | "POSSIBLE" | "UNCERTAIN" | "LIKELY_MISMATCH"; // Policy R2: only POSSIBLE and UNCERTAIN are ever emitted; the other two are legacy values kept so stored replays validate (SPEC §4)
 
 interface TrialAssessment {
   nct_id: string;
   title: string;
   tier: Tier;
   findings: CriterionFinding[];
-  verified: boolean;
-  verifier_flags: string[];
+  verified: boolean;            // a second automated pass found no conflict; never means the facts were verified; false for reported_conflict
+  verifier_flags: string[];     // fixed strings, internal (e.g. reported_only, reported_conflict); never shown as text
+  fact_basis?: "visitor_reported"; // always set on emitted results (optional only for stored legacy replays)
   sites: Array<{ facility: string; city?: string; distance_miles?: number }>;
   coordinator_questions: string[];
   analysis_failed?: boolean;

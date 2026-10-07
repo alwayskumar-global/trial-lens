@@ -2,15 +2,14 @@
 //
 // For each askable fact that is unknown AND blocks a typed criterion in a candidate trial, simulate every possible
 // answer (typed re-evaluation + tiering only) and measure how many UNCERTAIN candidates would rise to POSSIBLE. An answer is a
-// visitor-supplied fact, so Policy R (tier.ts) applies: it can never create STRONG or a LIKELY_MISMATCH. A counterfactual FAIL also
-// carries no independent check (rule D). So "decisive" means UNCERTAIN → POSSIBLE (or better, if no answered fact carries the PASS).
+// visitor-supplied fact, so Policy R2 (tier.ts) applies to it like to every other fact: no STRONG and no LIKELY_MISMATCH, ever. A
+// counterfactual FAIL also carries no independent check (rule D). So "decisive" means UNCERTAIN → POSSIBLE.
 // score = gain / ask_cost. The result is a hint about which answer could sharpen results, not a prediction: the real run re-verifies
 // after an answer.
 import { leaves } from "@/lib/engine/clause";
 import { applyAbstentionGuard } from "@/lib/engine/guard";
 import { assessCriterion, type CriterionAssessment, type ParseOutcome, type SourceCriterion } from "@/lib/engine/reconcile";
-import { relyOnEdited } from "@/lib/engine/basis";
-import { tierTrialCapped } from "@/lib/engine/tier";
+import { tierTrialCeiled } from "@/lib/engine/tier";
 import type { AdaptiveQuestion, Tier } from "@/schema/assessment";
 import type { PatientProfile } from "@/schema/profile";
 import { VOCABULARY, type FactKey, type VocabularyEntry } from "@/schema/vocabulary";
@@ -70,8 +69,7 @@ function answerSet(entry: VocabularyEntry, thresholds: readonly number[]): Answe
   return a.length === 0 ? [] : [...a, { label: "I don't know", value: null }];
 }
 
-/** `selfEdited`: keys the visitor already edited this session (the server's basis); the answered key is added per counterfactual. */
-export function computeQuestions(allTrials: readonly QuestionTrial[], profile: PatientProfile, unknownThreshold: number, max = 3, selfEdited: ReadonlySet<string> = new Set()): AdaptiveQuestion[] {
+export function computeQuestions(allTrials: readonly QuestionTrial[], profile: PatientProfile, unknownThreshold: number, max = 3): AdaptiveQuestion[] {
   const trials = allTrials.filter((t) => t.tier !== "LIKELY_MISMATCH");
   // criteria (per trial) that a typed answer on `key` could decide
   const blocking = (t: QuestionTrial, key: string): number[] =>
@@ -86,7 +84,6 @@ export function computeQuestions(allTrials: readonly QuestionTrial[], profile: P
     const decided = answers.map((ans) => {
       if (ans.value === null) return 0; // "I don't know" changes nothing
       const cf: PatientProfile = { facts: { ...profile.facts, [entry.key]: { key: entry.key, state: "known", value: ans.value } } as PatientProfile["facts"] };
-      const edited = new Set([...selfEdited, entry.key]); // an answer is a visitor-supplied fact (Policy R)
       return trials.filter((t) => {
         const idx = new Set(blocking(t, entry.key));
         if (idx.size === 0 || t.tier !== "UNCERTAIN") return false;
@@ -95,9 +92,9 @@ export function computeQuestions(allTrials: readonly QuestionTrial[], profile: P
           const re = assessCriterion(t.sources[i]!, t.outcomes[i]!, cf);
           return { ...re, finding: applyAbstentionGuard(re.finding, cf).finding };
         });
-        // counterfactual FAILs have no independent check ⇒ UNCERTAIN (rule D); a PASS resting on the answer is capped at POSSIBLE (Policy R)
-        const { tier } = tierTrialCapped(crit.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check, editedEvidence: relyOnEdited(a.finding, edited) })), { unknownThreshold, expectedCriteria: t.sources.length });
-        return tier === "POSSIBLE" || tier === "STRONG";
+        // counterfactual FAILs have no independent check ⇒ UNCERTAIN (rule D); a would-be STRONG is POSSIBLE and a would-be mismatch UNCERTAIN (R2)
+        const { tier } = tierTrialCeiled(crit.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check })), { unknownThreshold, expectedCriteria: t.sources.length });
+        return tier === "POSSIBLE";
       }).length;
     });
     const gain = decided.reduce((s, n) => s + n, 0) / decided.length;

@@ -87,9 +87,10 @@ describe("computeQuestions", () => {
     expect(q!.score).toBe(0);
   });
 
-  it("answers already edited elsewhere do not change the ranking rule (selfEdited is only additive)", () => {
+  it("a would-be mismatch is never a lift (R2): answering 'Yes' to an exclusion leaves the trial UNCERTAIN", () => {
     const p = profile({});
-    const t = trial(atom("Stage III disease", "stage", "eq", "III"), "stage", p);
-    expect(computeQuestions([t], p, 3, 3, new Set(["age"]))).toEqual(computeQuestions([t], p, 3));
+    const t = trial(atom("Prior trastuzumab treatment", "prior_trastuzumab", "eq", true), "prior_therapy", p, "exclusion");
+    const [q] = computeQuestions([t], p, 3);
+    expect(q!.score).toBeCloseTo(1 / 3); // only "No" lifts it; "Yes" would be a conflict, which is not a lift
   });
 });

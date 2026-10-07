@@ -61,3 +61,23 @@ describe("no screen addresses the visitor as the source of the profile", () => {
     expect(readFileSync("src/components/feedback/SafetyBanner.tsx", "utf8")).toMatch(/with the prepared fictional profile\./);
   });
 });
+
+// Policy R2: a second automated pass re-checks how criteria compare with what was REPORTED. No screen may read as if TrialLens
+// verified the visitor's medical facts or confirmed a conflict as true.
+describe("no visitor-facing string presents the reported facts as verified", () => {
+  const VERIFIED_FACTS = [
+    /\b(your|the) (facts?|information|diagnos\w*|details|records?) (is|are|was|were|has been|have been) (verified|confirmed)\b/i,
+    /\b(verified|confirmed) (your|the) (facts?|information|diagnos\w*|details|records?)\b/i,
+    /\bmedically (verified|confirmed)\b/i,
+    /\b(we|TrialLens|an? (second )?(automated )?check) (has |have )?(verified|confirmed) (that )?(your|you|the facts?|the information)\b/i,
+  ];
+  for (const f of ["src/components", "src/lib/sample", "src/lib/live", "src/app"].flatMap(files)) {
+    it(f, () => {
+      const src = readFileSync(f, "utf8");
+      for (const re of VERIFIED_FACTS) expect(src, String(re)).not.toMatch(re);
+    });
+  }
+  it("the internal flags are never mapped to visitor text", () => {
+    for (const f of ["src/components", "src/lib/live"].flatMap(files).filter((x) => !/\.test-util\./.test(x))) expect(readFileSync(f, "utf8"), f).not.toMatch(/reported_conflict|reported_only/);
+  });
+});

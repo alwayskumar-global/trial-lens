@@ -44,19 +44,38 @@ describe("runPipeline", () => {
     expect(r!.findings.some((f) => f.status === "UNKNOWN")).toBe(true);
   });
 
-  it("RULE D: a code FAIL with no verifier result stays UNCERTAIN; only a cited, verified FAIL is LIKELY_MISMATCH", async () => {
+  it("RULE D + R2: only a cited, verified FAIL is a conflict, and even that is UNCERTAIN (never LIKELY_MISMATCH)", async () => {
     const t = [trial("NCT00000001", ["Age 65 years or older."])];
     const unverified = results(await collect(fakeDeps(t, { failCheck: "fail" })))[0]!;
     expect(unverified.tier).toBe("UNCERTAIN");
     expect(unverified.findings.find((f) => f.status === "FAIL")!.fail_check).toBe("not_run");
+    expect(unverified.verifier_flags).not.toContain("reported_conflict");
     const rejected = results(await collect(fakeDeps(t, { failCheck: "reject" })))[0]!;
     expect(rejected.tier).toBe("UNCERTAIN");
-    const verified = results(await collect(fakeDeps(t, { failCheck: "confirm" })))[0]!;
-    expect(verified.tier).toBe("LIKELY_MISMATCH");
-    expect(verified.verified).toBe(true);
+    expect(rejected.verifier_flags).not.toContain("reported_conflict");
+    const conflict = results(await collect(fakeDeps(t, { failCheck: "confirm" })))[0]!;
+    expect(conflict.tier).toBe("UNCERTAIN"); // the engine's LIKELY_MISMATCH, capped by the R2 ceiling after the Rule D re-tier
+    expect(conflict.verifier_flags).toContain("reported_conflict");
+    expect(conflict.findings.find((f) => f.status === "FAIL")!.fail_check).toBe("verified"); // the comparison was re-checked ...
+    expect(conflict.verified).toBe(false); // ... which is never presented as verification of the facts
+    expect(conflict.fact_basis).toBe("visitor_reported");
   });
 
-  it("capacity overflow stays UNCERTAIN, never LIKELY_MISMATCH, and the cap holds", async () => {
+  it("R2: a trial the engine would call STRONG ends POSSIBLE with reported_only; starved of a verify slot it ends UNCERTAIN", async () => {
+    const t = [trial("NCT00000001", ["Age 18 years or older."])];
+    const ok = results(await collect(fakeDeps(t)))[0]!;
+    expect(ok.tier).toBe("POSSIBLE");
+    expect(ok.verifier_flags).toContain("reported_only");
+    expect(ok.verified).toBe(true); // a second automated pass found no conflict; says nothing about the facts
+    const blocked = results(await collect(fakeDeps(t, { verify: "block" })))[0]!;
+    expect(blocked.tier).toBe("UNCERTAIN");
+    expect(blocked.verifier_flags).toContain("verifier_disagreement");
+    expect(blocked.verifier_flags).not.toContain("reported_only"); // stale flag dropped once verification lowered it further
+    const failed = results(await collect(fakeDeps(t, { verify: "fail" })))[0]!;
+    expect(failed.tier).toBe("UNCERTAIN");
+  });
+
+  it("capacity overflow stays UNCERTAIN, never a conflict-as-mismatch, and the cap holds", async () => {
     // 60 fully cached FAIL trials: more FAIL checks demanded than slots exist.
     const trials = Array.from({ length: 60 }, (_, i) => trial(`NCT${String(10000000 + i)}`, ["Age 65 years or older."]));
     const cache = new MemoryCriteriaCache();
@@ -67,14 +86,46 @@ describe("runPipeline", () => {
     const deps = fakeDeps(trials, { failCheck: "confirm" }, { cache, maxCandidates: 60 });
     const es = await collect(deps);
     const rs = results(es);
-    const mismatch = rs.filter((r) => r.tier === "LIKELY_MISMATCH").length;
+    const conflict = rs.filter((r) => r.verifier_flags.includes("reported_conflict")).length;
     const noCap = rs.filter((r) => r.findings.some((f) => f.fail_check === "no_capacity")).length;
-    expect(mismatch).toBeGreaterThan(0);
+    expect(conflict).toBeGreaterThan(0);
     expect(noCap).toBeGreaterThan(0);
-    expect(mismatch + noCap).toBe(60);
-    expect(rs.filter((r) => r.findings.some((f) => f.fail_check === "no_capacity")).every((r) => r.tier === "UNCERTAIN")).toBe(true);
+    expect(conflict + noCap).toBe(60);
+    expect(rs.every((r) => r.tier === "UNCERTAIN")).toBe(true);
+    expect(rs.filter((r) => r.findings.some((f) => f.fail_check === "no_capacity")).every((r) => !r.verifier_flags.includes("reported_conflict"))).toBe(true);
     expect(deps.llm.used()).toBeLessThanOrEqual(80);
     expect((es[es.length - 1] as Extract<SseEvent, { type: "done" }>).stats!.worst_case_calls).toBeLessThanOrEqual(80);
+  });
+
+  it("R2 property: across scripts and trial sets no emitted result is STRONG or LIKELY_MISMATCH; the cap and ordering hold", async () => {
+    const sets = [
+      [trial("NCT00000001", ["Age 18 years or older.", "Willing to follow study procedures."])],
+      [trial("NCT00000001", ["Age 65 years or older."]), trial("NCT00000002", ["Age 18 years or older."], ["Active infection requiring treatment."])],
+      [trial("NCT00000001", ["Age 18 years or older."]), trial("NCT00000002", ["Age 18 years or older.", "Able to understand and sign consent."]), trial("NCT00000003", ["Age 65 years or older."])],
+    ];
+    const rank = ["STRONG", "POSSIBLE", "UNCERTAIN", "LIKELY_MISMATCH"];
+    let runs = 0;
+    for (const trials of sets) for (const evaluate of ["unknown", "fail"] as const) for (const verify of ["none", "block", "fail"] as const) for (const failCheck of ["confirm", "fail", "reject"] as const) {
+      const deps = fakeDeps(trials, { evaluate, verify, failCheck });
+      const es = await collect(deps);
+      const rs = results(es);
+      expect(rs).toHaveLength(trials.length);
+      for (const r of rs) {
+        expect(["POSSIBLE", "UNCERTAIN"]).toContain(r.tier);
+        expect(r.fact_basis).toBe("visitor_reported");
+        if (r.verifier_flags.includes("reported_conflict")) {
+          expect(r.tier).toBe("UNCERTAIN");
+          expect(r.verified).toBe(false);
+        }
+      }
+      const order = rs.map((r) => rank.indexOf(r.tier));
+      expect([...order].sort()).toEqual(order);
+      const done = es[es.length - 1] as Extract<SseEvent, { type: "done" }>;
+      expect(deps.llm.used()).toBeLessThanOrEqual(80);
+      expect(done.stats!.worst_case_calls).toBeLessThanOrEqual(80);
+      runs++;
+    }
+    expect(runs).toBe(54);
   });
 
   it("reuses cached parses: no parse calls on a warm run", async () => {

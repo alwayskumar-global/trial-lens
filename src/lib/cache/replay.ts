@@ -1,6 +1,7 @@
 // Replay mode (SPEC §6): precomputed full outputs for FICTIONAL profiles, stored in Supabase `replay_cases`.
 // A replay is always labelled as such to the client ("mode" event); it never poses as a live run.
 import { z } from "zod";
+import { applyCeilingToAssessment } from "@/lib/engine/ceiling";
 import { getSupabase } from "@/lib/supabase";
 import { SseEventSchema, type SseEvent } from "@/schema/sse";
 
@@ -58,7 +59,8 @@ export class SupabaseReplayStore implements ReplayStore {
 /**
  * The event sequence for streaming a stored case: labelled `mode`, the stored events, then `done`.
  * `stage` events are NOT replayed: a saved run must never look like live progress to any consumer of the stream.
+ * Policy R2 is applied at read time: results stored before it (which may hold STRONG or LIKELY_MISMATCH) are streamed under the ceiling.
  */
 export function replayEvents(c: ReplayCase, reason: Extract<SseEvent, { type: "mode" }>["reason"]): SseEvent[] {
-  return [{ type: "mode", mode: "replay", ...(reason ? { reason } : {}), replay_id: c.id, label: c.label }, ...c.events.filter((e) => e.type !== "stage"), { type: "done", replay: true }];
+  return [{ type: "mode", mode: "replay", ...(reason ? { reason } : {}), replay_id: c.id, label: c.label }, ...c.events.filter((e) => e.type !== "stage").map((e): SseEvent => (e.type === "trial_result" ? { ...e, assessment: applyCeilingToAssessment(e.assessment) } : e)), { type: "done", replay: true }];
 }
