@@ -177,12 +177,19 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
         }
         emit({ type: "mode", mode: "live" });
         let calls = 0;
+        // Token usage totals for the log line: integers and a flag only. When the provider reported none the token fields are OMITTED
+        // (unavailable is not zero); calls_without_usage > 0 means the totals are a lower bound.
+        let usageLog: Record<string, number> = {};
         try {
           await runPipeline(input ?? text!, pipeline, (e) => {
-            if (e.type === "done" && e.stats) calls = e.stats.llm_calls;
+            if (e.type === "done" && e.stats) {
+              calls = e.stats.llm_calls;
+              const u = e.stats.usage?.total;
+              if (u) usageLog = { calls_without_usage: u.calls_without_usage, ...(u.prompt_tokens !== null ? { prompt_tokens: u.prompt_tokens } : {}), ...(u.completion_tokens !== null ? { completion_tokens: u.completion_tokens } : {}) };
+            }
             emit(e);
           });
-          deps.log({ evt: "run", mode: "live", input: input ? "profile" : "text", ok: true, calls, ms: Date.now() - t0, ...(input ? { edited: editedCount } : {}) });
+          deps.log({ evt: "run", mode: "live", input: input ? "profile" : "text", ok: true, calls, ...usageLog, ms: Date.now() - t0, ...(input ? { edited: editedCount } : {}) });
         } catch (err) {
           if (err instanceof PipelineError && err.kind === "aborted") return;
           const kind: ModeReason = err instanceof PipelineError && err.kind === "ctgov_unavailable" ? "ctgov_unavailable" : "model_unavailable";

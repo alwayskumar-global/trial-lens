@@ -22,7 +22,7 @@ export function createLlmPort(maxCalls: number): LlmPort {
         return await callJson({ client, cap, model: (a.tier === "FAST" ? env.NEMOTRON_MODEL_FAST : env.NEMOTRON_MODEL_MID)!, mode: "json_schema", system: a.system, user: a.user, schema: a.schema, schemaName: a.schemaName, maxTokens: a.maxTokens, extraBody: LOW, ...(a.echoOnRetry === false ? { echoOnRetry: false } : {}) });
       } catch {
         // CALL_CAP_EXCEEDED or an unexpected SDK error: degrade, never crash the run.
-        const stats: CallStats = { attempts: 0, firstValid: false, finalValid: false, fenced: false, latencyMs: 0, promptTokens: 0, completionTokens: 0, rateLimited: 0, httpErrors: 0, truncated: false, errorKind: "CALL_FAILED", problems: [] };
+        const stats: CallStats = { attempts: 0, firstValid: false, finalValid: false, fenced: false, latencyMs: 0, promptTokens: 0, completionTokens: 0, model: "unknown", responses: 0, usageComplete: false, rateLimited: 0, httpErrors: 0, truncated: false, errorKind: "CALL_FAILED", problems: [] };
         return { data: null, stats };
       }
     },

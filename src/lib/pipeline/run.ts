@@ -17,6 +17,7 @@ import { RunBudget, type Stage } from "@/lib/engine/run-plan";
 import { ceilingTier, tierTrialCeiled } from "@/lib/engine/tier";
 import { extractProfile } from "@/lib/pipeline/extract";
 import type { CallStats } from "@/lib/llm/client";
+import { UsageMeter, type UsageStage } from "@/lib/llm/usage";
 import { EVAL_SYSTEM, makeEvalSchema } from "@/prompts/evaluate";
 import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt } from "@/prompts/clause-parse";
 import { buildFailVerifyUserPrompt, FAIL_VERIFY_SYSTEM } from "@/prompts/fail-verify";
@@ -39,6 +40,8 @@ export class PipelineError extends Error {
 }
 
 export interface LlmCallArgs<T> {
+  /** Which pipeline stage makes the call (token usage is accounted per stage and model; labels only). */
+  stage: UsageStage;
   tier: "FAST" | "MID";
   system: string;
   user: string;
@@ -90,6 +93,16 @@ export type PipelineInput = string | { profile: PatientProfile };
 
 export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit: (e: SseEvent) => void): Promise<void> {
   const wall0 = performance.now();
+  // Token usage per stage and model (counts only), fed by every LLM call; reported once in the final `done` event.
+  const meter = new UsageMeter();
+  const llm: LlmPort = {
+    used: () => deps.llm.used(),
+    async call<T>(a: LlmCallArgs<T>) {
+      const r = await deps.llm.call(a);
+      meter.record(a.stage, a.tier, r.stats);
+      return r;
+    },
+  };
   const limit = pLimit(deps.concurrency);
   const budget = new RunBudget(deps.maxCalls);
   const checkAbort = () => {
@@ -109,7 +122,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
     typeof input === "string"
       ? await stage("extraction", async (): Promise<PatientProfile> => {
           if (!take("extraction")) throw new PipelineError("model_unavailable");
-          const p = await extractProfile(input, deps.llm);
+          const p = await extractProfile(input, llm);
           if (!p) throw new PipelineError("model_unavailable"); // no usable profile ⇒ nothing to compare; caller falls back to replay
           return p;
         })
@@ -162,8 +175,8 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
       const results = await Promise.all(parts.map((chunk) => limit(async () => {
         checkAbort();
         if (!take("parse")) return reconcileBatch(chunk, null, "not_attempted");
-        const { data } = await deps.llm.call({
-          tier: "MID", system: buildClauseParseSystemPrompt(), user: buildClauseBatchUserPrompt(chunk.map((c, i) => ({ index: i, type: c.type, text: c.text }))),
+        const { data } = await llm.call({
+          stage: "parse", tier: "MID", system: buildClauseParseSystemPrompt(), user: buildClauseBatchUserPrompt(chunk.map((c, i) => ({ index: i, type: c.type, text: c.text }))),
           schema: makeClauseBatchSchema(chunk.map((c) => c.text)), schemaName: "clause_batch", maxTokens: 8192,
         });
         return reconcileBatch(chunk, data, "batch_rejected");
@@ -203,7 +216,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
       if (!take("evaluate")) return; // overflow: its free-text criteria stay UNKNOWN; trial stays partial (never STRONG)
       const items = s.assess.map((a, i) => ({ a, i })).filter(({ a }) => a.completeness === "partial" && a.finding.status === "UNKNOWN").slice(0, 40);
       const user = `Patient confirmed facts: ${JSON.stringify(knownFacts)}\nCriteria (one JSON object per line):\n${items.map(({ i }, k) => JSON.stringify({ index: k, type: s.sources[i]!.type, text: s.sources[i]!.text })).join("\n")}`;
-      const { data } = await deps.llm.call({ tier: "MID", system: EVAL_SYSTEM, user, schema: makeEvalSchema(items.length), schemaName: "findings", maxTokens: 8192 });
+      const { data } = await llm.call({ stage: "evaluate", tier: "MID", system: EVAL_SYSTEM, user, schema: makeEvalSchema(items.length), schemaName: "findings", maxTokens: 8192 });
       data?.findings.forEach((f) => {
         const target = items[f.index]!;
         target.a.finding = applyAbstentionGuard({ criterion_id: target.a.criterion_id, status: f.status, evidence: f.evidence, rationale: f.rationale, source: "llm_mid" }, profile).finding;
@@ -225,7 +238,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
       }
       const items = s.sources.slice(0, 60);
       const user = `Patient confirmed facts: ${JSON.stringify(knownFacts)}\nCriteria:\n${items.map((c, i) => JSON.stringify({ index: i, type: c.type, text: c.text })).join("\n")}`;
-      const { data } = await deps.llm.call({ tier: "MID", system: VERIFY_SYSTEM, user, schema: VerifySchema, schemaName: "verify", maxTokens: 4096 });
+      const { data } = await llm.call({ stage: "verify", tier: "MID", system: VERIFY_SYSTEM, user, schema: VerifySchema, schemaName: "verify", maxTokens: 4096 });
       if (!data) {
         s.tier = "UNCERTAIN";
         s.flags.push("verification_failed");
@@ -259,7 +272,7 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
         return;
       }
       const user = buildFailVerifyUserPrompt(knownFacts, fails.map(({ i }, k) => ({ index: k, type: s.sources[i]!.type, text: s.sources[i]!.text })));
-      const { data } = await deps.llm.call({ tier: "MID", system: FAIL_VERIFY_SYSTEM, user, schema: makeFailCheckBatchSchema(fails.length), schemaName: "fail_check", maxTokens: 8192 });
+      const { data } = await llm.call({ stage: "mismatch", tier: "MID", system: FAIL_VERIFY_SYSTEM, user, schema: makeFailCheckBatchSchema(fails.length), schemaName: "fail_check", maxTokens: 8192 });
       if (!data) {
         apply(() => "not_run");
         retier(s);
@@ -316,5 +329,5 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
   for (const s of states) by[parseStatus(s.outcomes)]++;
   emit({ type: "counts", ...by });
   const b = budget.stats();
-  emit({ type: "done", replay: false, stats: { llm_calls: deps.llm.used(), worst_case_calls: b.worstCaseCalls, wall_ms: Math.round(performance.now() - wall0) } });
+  emit({ type: "done", replay: false, stats: { llm_calls: deps.llm.used(), worst_case_calls: b.worstCaseCalls, wall_ms: Math.round(performance.now() - wall0), usage: meter.snapshot() } });
 }

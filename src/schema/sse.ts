@@ -2,6 +2,10 @@ import { z } from "zod";
 import { AdaptiveQuestionSchema, STUDY_QUESTIONS_VERSION, StudyQuestionSchema, TrialResultSchema } from "./assessment";
 import { FactKeySchema } from "./vocabulary";
 
+const Count = z.number().int().nonnegative();
+const UsageGroupSchema = z.strictObject({ calls: Count, calls_with_usage: Count, calls_without_usage: Count, prompt_tokens: Count.nullable(), completion_tokens: Count.nullable() });
+const UsageStageRowSchema = UsageGroupSchema.extend({ stage: z.enum(["extraction", "parse", "evaluate", "verify", "mismatch"]), tier: z.enum(["FAST", "MID"]), model: z.string().min(1).max(200) });
+
 export const SseEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("stage"), stage: z.string(), status: z.enum(["start", "done"]) }),
   z.object({
@@ -32,7 +36,15 @@ export const SseEventSchema = z.discriminatedUnion("type", [
     type: z.literal("done"),
     replay: z.boolean(),
     // Run accounting (counts only). worst_case_calls <= MAX_LLM_CALLS_PER_RUN by construction.
-    stats: z.object({ llm_calls: z.number().int().nonnegative(), worst_case_calls: z.number().int().nonnegative(), wall_ms: z.number().int().nonnegative() }).optional(),
+    stats: z
+      .object({
+        llm_calls: z.number().int().nonnegative(),
+        worst_case_calls: z.number().int().nonnegative(),
+        wall_ms: z.number().int().nonnegative(),
+        /** Token usage per stage and model (counts only). `null` tokens = the provider reported no usage (unavailable, never 0); `calls_without_usage > 0` = lower bound. */
+        usage: z.strictObject({ version: z.literal("u-1"), stages: z.array(UsageStageRowSchema), total: UsageGroupSchema }).optional(),
+      })
+      .optional(),
   }),
   z.object({
     type: z.literal("mode"),

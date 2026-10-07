@@ -9,8 +9,8 @@ import type { LlmClauseCriterion } from "@/schema/clause";
 
 export const PROFILE_TEXT = "SENTINEL-PATIENT-TEXT: fictional 52-year-old woman with HER2-positive breast cancer.";
 
-export const stats = (errorKind: string | null = null): CallStats => ({
-  attempts: 1, firstValid: !errorKind, finalValid: !errorKind, fenced: false, latencyMs: 1, promptTokens: 0, completionTokens: 0, rateLimited: 0, httpErrors: 0, truncated: false, errorKind, problems: [],
+export const stats = (errorKind: string | null = null, usage: { prompt: number; completion: number } | null = null, model = "fake-model"): CallStats => ({
+  attempts: 1, firstValid: !errorKind, finalValid: !errorKind, fenced: false, latencyMs: 1, promptTokens: usage?.prompt ?? 0, completionTokens: usage?.completion ?? 0, model, responses: 1, usageComplete: usage !== null, rateLimited: 0, httpErrors: 0, truncated: false, errorKind, problems: [],
 });
 
 export const trial = (id: string, inclusion: string[], exclusion: string[] = [], extra: Partial<Trial> = {}): Trial => ({
@@ -26,6 +26,8 @@ export interface Script {
   evaluate?: "unknown" | "fail";
   verify?: "none" | "block" | "fail";
   failCheck?: "confirm" | "fail" | "reject";
+  /** What the fake provider reports as token usage: fixed counts (default) or nothing at all (usage unavailable). */
+  usage?: "reported" | "missing";
 }
 
 const defaultFacts: NonNullable<Script["facts"]> = [
@@ -52,8 +54,10 @@ export function fakeLlm(script: Script = {}): LlmPort & { calls: Array<{ name: s
       used++;
       calls.push({ name: a.schemaName, tier: a.tier });
       seen.push({ name: a.schemaName, system: a.system, user: a.user, echoOnRetry: a.echoOnRetry });
-      const ok = (o: unknown) => ({ data: (a.schema as z.ZodType<T>).parse(o), stats: stats() });
-      const bad = { data: null, stats: stats("HTTP_503") };
+      const model = a.tier === "FAST" ? "fake-fast" : "fake-mid";
+      const reported = script.usage === "missing" ? null : { prompt: 100, completion: 50 };
+      const ok = (o: unknown) => ({ data: (a.schema as z.ZodType<T>).parse(o), stats: stats(null, reported, model) });
+      const bad = { data: null, stats: stats("HTTP_503", null, model) };
       const lines = a.user.split("\n").filter((l) => l.startsWith("{"));
       switch (a.schemaName) {
         case "facts":

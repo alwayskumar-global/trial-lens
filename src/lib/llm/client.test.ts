@@ -63,3 +63,51 @@ describe("validation retry: model output is not fed back when echoOnRetry is fal
     expect(safeProblem([{ path: ["facts", 3, "state"], code: "invalid_value" }, { path: ["facts", "Weird Key (SENTINEL)", 0], code: "invalid_type" }, { path: [], code: "custom" }])).toBe("facts.3.state: invalid_value; facts.?.0: invalid_type; (root): custom");
   });
 });
+
+
+describe("token usage accounting: missing provider usage is unavailable, never zero", () => {
+  function clientWith(replies: Array<{ content: string; usage?: unknown }>) {
+    let n = 0;
+    return { chat: { completions: { create: async () => {
+      const r = replies[n++] ?? replies[replies.length - 1]!;
+      return { choices: [{ message: { content: r.content }, finish_reason: "stop" }], ...(r.usage === undefined ? {} : { usage: r.usage }) };
+    } } } } as unknown as OpenAI;
+  }
+  const call = (replies: Array<{ content: string; usage?: unknown }>) =>
+    callJson({ client: clientWith(replies), cap: new CallCap(4), model: "model-x", mode: "prompt_only", system: "S", user: "U", schema: Schema, schemaName: "facts" });
+  const goodJson = JSON.stringify({ facts: [{ key: "age", value: 52 }] });
+  const badJson = JSON.stringify({ facts: [{ key: "stage", value: "x" }] });
+
+  it("complete usage on the only response", async () => {
+    const { stats } = await call([{ content: goodJson, usage: { prompt_tokens: 120, completion_tokens: 45 } }]);
+    expect(stats).toMatchObject({ promptTokens: 120, completionTokens: 45, responses: 1, usageComplete: true, model: "model-x" });
+  });
+  it("no usage object: unavailable (usageComplete false, nothing added), not 0 tokens of usage", async () => {
+    const { stats } = await call([{ content: goodJson }]);
+    expect(stats.usageComplete).toBe(false);
+    expect(stats.responses).toBe(1);
+    expect(stats.promptTokens).toBe(0); // nothing reported; the flag, not this number, says it is unavailable
+  });
+  it("usage with a missing or invalid field is unavailable", async () => {
+    for (const usage of [{ prompt_tokens: 10 }, { prompt_tokens: 10, completion_tokens: "5" }, { prompt_tokens: -1, completion_tokens: 3 }, { prompt_tokens: 1.5, completion_tokens: 3 }, null]) {
+      const { stats } = await call([{ content: goodJson, usage }]);
+      expect(stats.usageComplete, JSON.stringify(usage)).toBe(false);
+      expect(stats.promptTokens).toBe(0);
+      expect(stats.completionTokens).toBe(0);
+    }
+  });
+  it("two attempts, both with usage: summed and complete", async () => {
+    const { stats } = await call([{ content: badJson, usage: { prompt_tokens: 100, completion_tokens: 20 } }, { content: goodJson, usage: { prompt_tokens: 110, completion_tokens: 25 } }]);
+    expect(stats).toMatchObject({ attempts: 2, responses: 2, promptTokens: 210, completionTokens: 45, usageComplete: true });
+  });
+  it("two attempts, the second without usage: incomplete (the reported part is kept in the sums, the flag marks it partial)", async () => {
+    const { stats } = await call([{ content: badJson, usage: { prompt_tokens: 100, completion_tokens: 20 } }, { content: goodJson }]);
+    expect(stats).toMatchObject({ attempts: 2, responses: 2, promptTokens: 100, completionTokens: 20, usageComplete: false });
+  });
+  it("no response at all (HTTP error): usage is unavailable", async () => {
+    const client = { chat: { completions: { create: async () => { throw new Error("boom"); } } } } as unknown as OpenAI;
+    const { data, stats } = await callJson({ client, cap: new CallCap(4), model: "model-x", mode: "prompt_only", system: "S", user: "U", schema: Schema, schemaName: "facts" });
+    expect(data).toBeNull();
+    expect(stats).toMatchObject({ responses: 0, usageComplete: false });
+  });
+});

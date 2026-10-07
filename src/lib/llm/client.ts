@@ -15,8 +15,15 @@ export interface CallStats {
   finalValid: boolean;
   fenced: boolean; // output needed code-fence stripping
   latencyMs: number; // first attempt only, incl. 429 waits excluded
+  /** Sum of tokens the provider REPORTED (valid `usage` only). A response without usable usage adds nothing here and sets `usageComplete` false: it is never counted as 0. */
   promptTokens: number;
   completionTokens: number;
+  /** Configured model id (non-secret configuration). */
+  model: string;
+  /** HTTP responses received (a call can make 1-2 attempts, plus 429 waits that return no response). */
+  responses: number;
+  /** True only if at least one response arrived and EVERY received response carried finite, non-negative integer prompt and completion token counts. */
+  usageComplete: boolean;
   rateLimited: number; // 429 responses seen
   httpErrors: number; // non-429 API errors
   truncated: boolean; // finish_reason=length on any attempt
@@ -53,8 +60,10 @@ function responseFormat(mode: Mode, schema: z.ZodType, name: string): OpenAI.Cha
   return undefined;
 }
 
+const validCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+const missingUsage = new WeakSet<CallStats>();
 /** One chat request with 429 exponential backoff (max 3 waits). Returns content or throws a labelled error. */
 async function chat(
   client: OpenAI,
@@ -64,10 +73,16 @@ async function chat(
 ): Promise<{ content: string; finish: string | null }> {
   for (let i = 0; ; i++) {
     cap.take();
+    let usageMissing = false;
     try {
       const res = await client.chat.completions.create(params);
-      stats.promptTokens += res.usage?.prompt_tokens ?? 0;
-      stats.completionTokens += res.usage?.completion_tokens ?? 0;
+      stats.responses++;
+      const u = res.usage;
+      if (validCount(u?.prompt_tokens) && validCount(u?.completion_tokens)) {
+        stats.promptTokens += u!.prompt_tokens;
+        stats.completionTokens += u!.completion_tokens;
+      } else usageMissing = true; // unavailable, not zero
+      if (usageMissing) missingUsage.add(stats);
       const ch = res.choices[0];
       if (ch?.finish_reason === "length") stats.truncated = true;
       return { content: ch?.message?.content ?? "", finish: ch?.finish_reason ?? null };
@@ -115,7 +130,11 @@ export function safeProblem(issues: ReadonlyArray<{ path: ReadonlyArray<Property
 export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null; stats: CallStats }> {
   const stats: CallStats = {
     attempts: 0, firstValid: false, finalValid: false, fenced: false, latencyMs: 0,
-    promptTokens: 0, completionTokens: 0, rateLimited: 0, httpErrors: 0, truncated: false, errorKind: null, problems: [],
+    promptTokens: 0, completionTokens: 0, model: a.model, responses: 0, usageComplete: false, rateLimited: 0, httpErrors: 0, truncated: false, errorKind: null, problems: [],
+  };
+  const finish = (data: T | null) => {
+    stats.usageComplete = stats.responses > 0 && !missingUsage.has(stats);
+    return { data, stats };
   };
   const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
     { role: "system", content: a.system },
@@ -135,7 +154,7 @@ export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null;
     } catch (e) {
       stats.errorKind = (e as Error).message;
       if (attempt === 1) stats.latencyMs = Math.round(performance.now() - t0);
-      return { data: null, stats };
+      return finish(null);
     }
     if (attempt === 1) stats.latencyMs = Math.round(performance.now() - t0);
     const { text, fenced } = stripFences(content);
@@ -146,7 +165,7 @@ export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null;
       if (parsed.success) {
         if (attempt === 1) stats.firstValid = true;
         stats.finalValid = true;
-        return { data: parsed.data, stats };
+        return finish(parsed.data);
       }
       problem = a.echoOnRetry === false ? safeProblem(parsed.error.issues) : parsed.error.issues.slice(0, 5).map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`).join("; ");
     } catch {
@@ -167,5 +186,5 @@ export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null;
       stats.errorKind = "ZOD_INVALID_AFTER_RETRY";
     }
   }
-  return { data: null, stats };
+  return finish(null);
 }
