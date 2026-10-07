@@ -2,8 +2,8 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-describe("eval/relevance-impact.ts is read-only", () => {
-  const src = readFileSync("eval/relevance-impact.ts", "utf8").replace(/^\s*\/\/.*$/gm, "");
+describe.each(["eval/relevance-impact.ts", "eval/fail-closed-impact.ts"])("%s is read-only", (file) => {
+  const src = readFileSync(file, "utf8").replace(/^\s*\/\/.*$/gm, "");
   it("contains no Supabase write, rpc, replay put or model call", () => {
     expect(src).not.toMatch(/\.(insert|update|upsert|delete|rpc)\s*\(/);
     expect(src).not.toMatch(/\.put\s*\(/);
