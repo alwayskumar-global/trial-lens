@@ -12,15 +12,13 @@
 8. **Budget and accounting**: `RunBudget` evaluate slots (shared pool, after parse; unused reserve released forward), `done.stats.usage` rows (`evaluate`), `docs/cost-per-run.md` call-shape text, `eval/cost-per-run.ts` constants, the live stage list label "Comparing wording that needs a closer read" (`copy.ts`, a UI string).
 9. **Offline/eval consumers**: the harness's UNKNOWN-detection precision/recall and unsupported-assumption counters read statuses and `guard_downgraded`; replay generation (`precompute-replay.ts`) would store whatever the stage returns.
 
-## Projected effects of REMOVING the stage (no call made)
-- **Calls.** Stored replays show trials with model-evaluated rows (an estimate of evaluate calls, one per trial): **26 / 26 / 28 of 30**. Recorded spike runs: 12 and 22 evaluate calls out of 34 HTTP calls (`docs/spike-results.md`), so removal would cut roughly 35% to 65% of a warm run's calls. The reservation arithmetic is unchanged in shape (one slot = two calls); evaluate draws on the shared pool after parse, so its removal frees shared slots, which today are released forward to verification and fail checks.
-- **Fail-check demand falls even if the stage is KEPT**: model FAILs no longer reach Rule D (8 / 8 / 10 trials with a model FAIL in the stored replays), so the 3-slot FAIL-check reserve is needed for code FAILs only; `no_capacity` on model FAILs (20 / 5 / 11 rows) disappears by construction.
-- **Latency.** Not measurable without calls and not recorded per stage. Two recorded warm runs had 12 and 22 evaluate calls and wall times of 62 s and 65 s, so the stage's wall time is not the dominant term at concurrency 6 (parse and extraction dominated: "FAST extraction dominated wall time", parse batches about 23 s each). Treat the saving as small and unmeasured; a measured per-stage timing needs a live run Kumar authorizes.
-- **Cost.** Evaluate token counts were never recorded (`docs/cost-per-run.md`), so only the call-count share above is known.
-- **What is lost:** the model notes on UNKNOWN rows, and the AMBIGUOUS "judgment" state (unused in the stored replays).
+## What is NOT known (no saving is estimated)
+Kumar's instruction (2026-10-07): the evaluate-stage calls stay unchanged, and because their latency and token cost have not been measured, **no saving from removing them is estimated here** (an earlier draft of this file quoted call-share percentages and a latency inference; they are withdrawn). What exists is only counts of what the stored fictional replays hold: trials with model-evaluated rows 26 / 26 / 28 of 30 (a count of rows, not of calls), model-evaluated UNKNOWN rows 291 / 320 / 357 before the change, and trials with a model FAIL 8 / 8 / 10 against a code FAIL in 1 / 1 / 0. Per-stage latency and evaluate token counts require a live run that Kumar authorizes (`done.stats.usage` and per-stage wall time would then be recorded). Until then the call-budget and wall-time effects of keeping, shrinking or removing the stage are unknown.
+- **One qualitative point that needs no measurement:** model FAILs no longer reach Rule D (the guard runs first), so the fail-check stage sees code FAILs only whichever option is chosen.
+- **What removal would change for a visitor (not a saving):** the model's notes on UNKNOWN rows and the AMBIGUOUS "judgment" state (unused in the stored replays) would disappear.
 
 ## Options (none chosen)
-A. Keep the stage unchanged (this change); revisit with measured usage from an authorized live run.
+A. Keep the stage unchanged (this change, as instructed); revisit with measured usage from an authorized live run.
 B. Keep the call but request only UNKNOWN/AMBIGUOUS-with-note (smaller output, same consumers); needs a prompt change and a prompt-version bump.
 C. Remove the stage; update `copy.ts`, `run-plan.ts` allocation, cost docs and stage tests; accept the loss of notes and of the AMBIGUOUS state.
 D. Keep it, but only for criteria whose parse could be AMBIGUOUS in a useful way (needs a definition not yet written).

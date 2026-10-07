@@ -64,7 +64,6 @@
    "streamedEventTypes_after": {
     "profile": 1,
     "counts": 2,
-    "question": 1,
     "trial_result": 30
    },
    "countsEvent_unchanged": true,
@@ -76,15 +75,11 @@
    "panelIfComputedNow_newRule": {
     "withStoredFindings": [
      "ecog:3",
-     "disease_setting:1",
-     "prior_other_malignancy:1"
+     "disease_setting:1"
     ],
     "withDowngradedFindings": [
      "ecog:3",
-     "disease_setting:1",
-     "er_status:1",
-     "pr_status:1",
-     "prior_other_malignancy:1"
+     "disease_setting:1"
     ]
    }
   },
@@ -150,7 +145,6 @@
    "streamedEventTypes_after": {
     "profile": 1,
     "counts": 2,
-    "question": 1,
     "trial_result": 30
    },
    "countsEvent_unchanged": true,
@@ -162,13 +156,11 @@
    "panelIfComputedNow_newRule": {
     "withStoredFindings": [
      "ecog:3",
-     "disease_setting:1",
-     "prior_other_malignancy:1"
+     "disease_setting:1"
     ],
     "withDowngradedFindings": [
      "ecog:3",
-     "disease_setting:1",
-     "prior_other_malignancy:1"
+     "disease_setting:1"
     ]
    }
   },
@@ -229,7 +221,6 @@
    "streamedEventTypes_after": {
     "profile": 1,
     "counts": 2,
-    "question": 1,
     "trial_result": 30
    },
    "countsEvent_unchanged": true,
@@ -241,13 +232,11 @@
    "panelIfComputedNow_newRule": {
     "withStoredFindings": [
      "ecog:2",
-     "disease_setting:1",
-     "prior_other_malignancy:1"
+     "disease_setting:1"
     ],
     "withDowngradedFindings": [
      "ecog:2",
-     "disease_setting:1",
-     "prior_other_malignancy:1"
+     "disease_setting:1"
     ]
    }
   }

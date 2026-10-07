@@ -223,7 +223,8 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
         const guarded = applyAbstentionGuard({ criterion_id: target.a.criterion_id, status: f.status, evidence: f.evidence, rationale: f.rationale, source: "llm_mid" }, profile).finding;
         // Fail-closed (approved 2026-10-07): a free-text PASS/FAIL stands only if the code evaluation of the whole clause reaches the same status.
         const o = s.outcomes[target.i]!;
-        target.a.finding = o.state === "parsed" ? failClosedFinding(guarded, o.clause, s.sources[target.i]!.type, profile) : guarded;
+        // An unparsed outcome has no clause to derive support from: a model PASS/FAIL on it can never stand (null clause = no proof).
+        target.a.finding = failClosedFinding(guarded, o.state === "parsed" ? o.clause : null, s.sources[target.i]!.type, profile);
       });
       retier(s);
     })));

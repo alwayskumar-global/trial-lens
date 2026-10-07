@@ -8,7 +8,11 @@
 //   - verified: kept unless the final tier is not POSSIBLE (live behavior: only POSSIBLE trials credit a verification pass). The verifier reads criteria and facts,
 //     not findings, so its result is not invalidated by downgraded findings; it is not re-run.
 //   - top_unknown: recomputed as the first open scoring criterion.
-//   - `study_questions` events are DROPPED (panels computed before the rule may rest on rejected-atom dependencies; no panel is shown until the backfill is approved).
+//   - `study_questions` events are DROPPED (panels computed before the rule may rest on rejected-atom dependencies; no panel is shown until the backfill is approved) and so are
+//     legacy `question` events (answer-oriented, no longer emitted, ignored by the client).
+//   - flags: `reported_conflict` is kept only while the final tier is UNCERTAIN and a FAIL finding with a verified check still supports it; `reported_only` only while the final tier
+//     is POSSIBLE. A stale flag from a stored (post-R2) replay cannot survive recomputed findings/tiers that no longer support it; the read-time ceiling re-adds a flag only for a
+//     stored LIKELY_MISMATCH/STRONG that is still one.
 //   - `counts` (assessed / pending / failed, about parsing) are unchanged. The result is re-sorted by final tier like a live run.
 // The read-time Policy R2 ceiling still runs after this (it adds `reported_conflict` only to a trial that is still LIKELY_MISMATCH, which no longer exists here).
 import type { CriterionFinding } from "@/schema/criteria";
@@ -30,37 +34,44 @@ export function downgradeStoredFinding(f: CriterionFinding): CriterionFinding {
   return { ...rest, status: "UNKNOWN", evidence: [], rationale: NOT_ENOUGH_INFO, guard_downgraded: true };
 }
 
+/** Drop a stale `reported_conflict` / `reported_only` flag the (recomputed) findings and tier no longer support. Pure; returns the same array when nothing changes. */
+function reconcileFlags(a: TrialResult): string[] {
+  const finalTier = ceilingTier(a.tier).tier;
+  const conflictSupported = finalTier === "UNCERTAIN" && a.findings.some((f) => f.status === "FAIL" && f.fail_check === "verified");
+  const kept = a.verifier_flags.filter((f) => (f === "reported_conflict" ? conflictSupported : f === "reported_only" ? finalTier === "POSSIBLE" : true));
+  return kept.length === a.verifier_flags.length ? a.verifier_flags : kept;
+}
+
 export function failClosedTrial(a: TrialResult): TrialResult {
   const findings = a.findings.map(downgradeStoredFinding);
-  if (findings.every((f, i) => f === a.findings[i])) return a; // nothing model-only: untouched
-  const crit = a.criteria;
-  let tier: Tier = "UNCERTAIN";
-  if (crit && crit.length > 0) {
-    const byId = new Map(findings.map((f) => [f.criterion_id, f]));
-    const tc: TierCriterion[] = crit.map((c) => ({
-      scoring: c.category !== "consent_logistics",
-      category: c.category as TierCriterion["category"],
-      status: byId.get(c.id)?.status ?? "UNKNOWN",
-      completeness: c.completeness,
-      failCheck: byId.get(c.id)?.fail_check,
-    }));
-    const recomputed = tierTrial(tc, { unknownThreshold: REPLAY_TIER_UNKNOWN_THRESHOLD, expectedCriteria: crit.length });
-    // never raised; a stored LIKELY_MISMATCH rested on a (model-only) FAIL, so it becomes UNCERTAIN whatever the recomputation says
-    tier = a.tier === "LIKELY_MISMATCH" ? "UNCERTAIN" : RANK.indexOf(recomputed) > RANK.indexOf(a.tier) ? recomputed : a.tier;
+  const downgraded = !findings.every((f, i) => f === a.findings[i]);
+  let out: TrialResult = a;
+  if (downgraded) {
+    const crit = a.criteria;
+    let tier: Tier = "UNCERTAIN";
+    if (crit && crit.length > 0) {
+      const byId = new Map(findings.map((f) => [f.criterion_id, f]));
+      const tc: TierCriterion[] = crit.map((c) => ({
+        scoring: c.category !== "consent_logistics",
+        category: c.category as TierCriterion["category"],
+        status: byId.get(c.id)?.status ?? "UNKNOWN",
+        completeness: c.completeness,
+        failCheck: byId.get(c.id)?.fail_check,
+      }));
+      const recomputed = tierTrial(tc, { unknownThreshold: REPLAY_TIER_UNKNOWN_THRESHOLD, expectedCriteria: crit.length });
+      // never raised; a stored LIKELY_MISMATCH rested on a (model-only) FAIL, so it becomes UNCERTAIN whatever the recomputation says
+      tier = a.tier === "LIKELY_MISMATCH" ? "UNCERTAIN" : RANK.indexOf(recomputed) > RANK.indexOf(a.tier) ? recomputed : a.tier;
+    }
+    const finalTier = ceilingTier(tier).tier;
+    const open = crit?.find((c) => c.category !== "consent_logistics" && ["UNKNOWN", "AMBIGUOUS"].includes(findings.find((f) => f.criterion_id === c.id)?.status ?? "UNKNOWN"));
+    out = { ...a, findings, tier, verified: a.verified && finalTier === "POSSIBLE", ...(crit ? { top_unknown: open?.id ?? null } : {}) };
   }
-  const finalTier = ceilingTier(tier).tier;
-  const open = crit?.find((c) => c.category !== "consent_logistics" && ["UNKNOWN", "AMBIGUOUS"].includes(findings.find((f) => f.criterion_id === c.id)?.status ?? "UNKNOWN"));
-  return {
-    ...a,
-    findings,
-    tier,
-    verified: a.verified && finalTier === "POSSIBLE",
-    ...(crit ? { top_unknown: open?.id ?? null } : {}),
-  };
+  const flags = reconcileFlags(out); // applies to every trial, touched or not: a stale flag must not outlive what supported it
+  return flags === out.verifier_flags ? out : { ...out, verifier_flags: flags } // `verified` is never re-credited by removing a flag;
 }
 
 export function failClosedStoredEvents<E extends StoredEvent>(events: readonly E[]): E[] {
-  const mapped = events.filter((e) => e.type !== "study_questions").map((e): E => (e.type === "trial_result" ? { ...e, assessment: failClosedTrial(e.assessment) } : e));
+  const mapped = events.filter((e) => e.type !== "study_questions" && e.type !== "question").map((e): E => (e.type === "trial_result" ? { ...e, assessment: failClosedTrial(e.assessment) } : e));
   // re-sort the trial results by final tier, stably, keeping every other event where it was
   const slots = mapped.flatMap((e, i) => (e.type === "trial_result" ? [i] : []));
   const sorted = slots.map((i) => mapped[i]!).sort((x, y) => (TIER_ORDER.indexOf(ceilingTier(x.type === "trial_result" ? x.assessment.tier : "UNCERTAIN").tier)) - (TIER_ORDER.indexOf(ceilingTier(y.type === "trial_result" ? y.assessment.tier : "UNCERTAIN").tier)));

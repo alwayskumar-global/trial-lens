@@ -71,8 +71,9 @@ export interface Accepted {
  * Fail-closed acceptance of a free-text finding for one parsed criterion. A PASS/FAIL stands only if the code evaluation of the whole clause reaches the SAME
  * status and every cited key is among the facts that evaluation actually compared. Otherwise UNKNOWN with no evidence.
  */
-export function acceptFreeTextFinding(finding: Pick<CriterionFinding, "status" | "evidence">, clause: ClauseNode, type: "inclusion" | "exclusion", profile: PatientProfile): Accepted {
+export function acceptFreeTextFinding(finding: Pick<CriterionFinding, "status" | "evidence">, clause: ClauseNode | null, type: "inclusion" | "exclusion", profile: PatientProfile): Accepted {
   if (finding.status !== "PASS" && finding.status !== "FAIL") return { status: finding.status, evidence: [...finding.evidence], accepted: true, reason: "not_pass_fail" };
+  if (clause === null) return { status: "UNKNOWN", evidence: [], accepted: false, reason: "no_independent_proof" }; // an unparsed criterion has nothing to derive from
   const ev = evaluateClause(clause, profile);
   const codeStatus = statusFromTruth(type, ev.truth);
   const supported = codeStatus === finding.status && finding.evidence.length > 0 && finding.evidence.every((k) => (ev.evidence as string[]).includes(k));
@@ -88,7 +89,7 @@ export const NOT_ENOUGH_INFO = "Not enough confirmed information to decide.";
  * The pipeline entry point (stage `evaluate`, after the abstention guard): returns the finding unchanged when accepted, else the same finding as UNKNOWN with no
  * evidence, `guard_downgraded`, and no Rule D state (a downgraded FAIL has nothing to confirm). `source` is kept, as the existing guard keeps it.
  */
-export function failClosedFinding(finding: CriterionFinding, clause: ClauseNode, type: "inclusion" | "exclusion", profile: PatientProfile): CriterionFinding {
+export function failClosedFinding(finding: CriterionFinding, clause: ClauseNode | null, type: "inclusion" | "exclusion", profile: PatientProfile): CriterionFinding {
   const r = acceptFreeTextFinding(finding, clause, type, profile);
   if (r.accepted) return finding;
   const { fail_check: _fc, applicability: _ap, ...rest } = finding;

@@ -35,19 +35,19 @@ describe("studyTeamQuestions", () => {
   });
 
   it("omits an unsupported dependency: the original wording has no cue for the fact", () => {
-    const t = study("NCT00000004", [{ leaf: text("Able to attend visits", ["ecog"]), wording: "Able to attend all study visits" }], p0);
+    const t = study("NCT00000004", [{ leaf: atom("ECOG 0-1", "ecog", "in", ["0", "1"]), wording: "Able to attend all study visits" }], p0);
     expect(studyTeamQuestions([t], p0)).toEqual([]);
   });
 
   it("uses strict cues for the noisy keys: the word 'cancer' alone does not support 'another cancer in the past'", () => {
-    const t = study("NCT00000005", [{ leaf: text("Confirmed breast cancer", ["prior_other_malignancy"]), wording: "Histologically confirmed breast cancer", category: "diagnosis" }], p0);
+    const t = study("NCT00000005", [{ leaf: atom("Confirmed breast cancer", "prior_other_malignancy", "eq", true), wording: "Histologically confirmed breast cancer", category: "diagnosis" }], p0);
     expect(studyTeamQuestions([t], p0)).toEqual([]);
-    const ok = study("NCT00000006", [{ leaf: text("No other malignancy", ["prior_other_malignancy"]), wording: "No other malignancy within the last 5 years", category: "comorbidity" }], p0);
+    const ok = study("NCT00000006", [{ leaf: atom("Other malignancy", "prior_other_malignancy", "eq", true), wording: "No other malignancy within the last 5 years", category: "comorbidity" }], p0);
     expect(studyTeamQuestions([ok], p0)[0]!.fact_key).toBe("prior_other_malignancy");
   });
 
   it("treatment wording alone does not support 'time since the last systemic treatment'", () => {
-    const t = study("NCT00000007", [{ leaf: text("Treatment with ACEI/ARB", ["days_since_last_systemic_therapy"]), wording: "Treatment with ACEI/ARB." }], p0);
+    const t = study("NCT00000007", [{ leaf: atom("Treatment with ACEI/ARB", "days_since_last_systemic_therapy", "lte", 14, "days"), wording: "Treatment with ACEI/ARB." }], p0);
     expect(studyTeamQuestions([t], p0)).toEqual([]);
   });
 
@@ -87,10 +87,32 @@ describe("studyTeamQuestions", () => {
     // semantic rejection: the atom stays an atom but is not executable
     const sem = study("NCT00000021", [{ leaf: atom("Pregnancy-test", "pregnant", "eq", true), wording: "Pregnancy-test" }, { leaf: atom("Treated stable", "cns_mets", "eq", "treated_stable"), wording: "Treated stable brain metastases", category: "comorbidity" }], p0);
     expect(studyTeamQuestions([sem], p0)).toEqual([]);
-    // vetting rejection: a text leaf that retained the key, in a criterion whose vet status is atoms_downgraded
-    const t = study("NCT00000022", [{ leaf: text("ECOG performance status 0-1 or better", ["ecog"]), wording: "ECOG performance status 0-1 or better" }], p0);
-    expect(studyTeamQuestions([t], p0)[0]?.fact_key).toBe("ecog"); // vet "ok": a parser text leaf still counts (unchanged)
-    const downgraded: QuestionTrial = { ...t, outcomes: t.outcomes.map((o) => (o.state === "parsed" ? { ...o, vet: "atoms_downgraded" as const } : o)) };
-    expect(studyTeamQuestions([downgraded], p0)).toEqual([]); // same leaf, vetting downgraded an atom: no authority
+    // vetting rejection: a text leaf that retained the key, whatever the criterion's vet status
+    for (const vet of ["ok", "atoms_downgraded"] as const) {
+      const t = study("NCT00000022", [{ leaf: text("ECOG performance status 0-1 or better", ["ecog"]), wording: "ECOG performance status 0-1 or better" }], p0);
+      const v: QuestionTrial = { ...t, outcomes: t.outcomes.map((o) => (o.state === "parsed" ? { ...o, vet } : o)) };
+      expect(studyTeamQuestions([v], p0)).toEqual([]);
+    }
+  });
+
+  it("text-leaf topics are left out: a parser-declared key is not a question even when the wording has the cue, and another leaf supplying the cue does not help", () => {
+    // wording has an ECOG cue, but the only leaf that declares `ecog` is a text leaf; the cue sits in ANOTHER leaf
+    const two: QuestionTrial = (() => {
+      const wording = "Performance requirement; ECOG performance status 0-1";
+      const leafA = text("Performance requirement", ["ecog"]); // declares the key, carries no cue
+      const leafB = text("ECOG performance status 0-1", []); // carries the cue, declares nothing
+      const sources = [{ id: "NCT00000023:inclusion:0", nct_id: "NCT00000023", type: "inclusion" as const, text: wording }];
+      const outcomes: ParseOutcome[] = [{ state: "parsed", category: "performance", scoring: true, clause: { kind: "all", children: [leafToNode(leafA), leafToNode(leafB)] }, completeness: "partial", vet: "ok" }];
+      return { sources, outcomes, assess: sources.map((s, i) => assessCriterion(s, outcomes[i]!, p0)), tier: "UNCERTAIN" };
+    })();
+    expect(studyTeamQuestions([two], p0)).toEqual([]);
+  });
+
+  it("an executable atom still yields its question when a text leaf of the same criterion declares a different key", () => {
+    const wording = "ECOG performance status 0-1 and willing to travel";
+    const sources = [{ id: "NCT00000024:inclusion:0", nct_id: "NCT00000024", type: "inclusion" as const, text: wording }];
+    const outcomes: ParseOutcome[] = [{ state: "parsed", category: "performance", scoring: true, clause: { kind: "all", children: [leafToNode(atom("ECOG performance status 0-1", "ecog", "in", ["0", "1"])), leafToNode(text("willing to travel", ["age"]))] }, completeness: "partial", vet: "ok" }];
+    const t: QuestionTrial = { sources, outcomes, assess: sources.map((s, i) => assessCriterion(s, outcomes[i]!, p0)), tier: "UNCERTAIN" };
+    expect(studyTeamQuestions([t], p0).map((q) => q.fact_key)).toEqual(["ecog"]);
   });
 });

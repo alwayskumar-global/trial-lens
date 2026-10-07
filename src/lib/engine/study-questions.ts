@@ -5,7 +5,7 @@
 // in one study count once. Every study entry carries the NCT id and the original criterion wording, so each item can link to its study and
 // show the criterion verbatim. A dependency that cannot be supported is omitted (never guessed): a (criterion, fact) pair is supported only if
 //   - the criterion is scoring and its finding is UNKNOWN or AMBIGUOUS,
-//   - its parsed clause references the fact (atom fact_key or text-leaf depends_on),
+//   - its parsed clause references the fact through an EXECUTABLE atom (text-leaf depends_on is not used),
 //   - the ORIGINAL wording contains a cue for that fact (strict cues for the noisy keys), and
 //   - the visitor's profile does not already hold the fact as known.
 // Pregnancy-related and non-askable facts (age, sex) are never offered. Keys that come only from a rejected atom are never offered (see the leaf loop below).
@@ -65,14 +65,10 @@ export function studyTeamQuestions(trials: readonly QuestionTrial[], profile: Pa
       if (!a || !o || o.state !== "parsed" || !a.scoring) return;
       if (a.finding.status !== "UNKNOWN" && a.finding.status !== "AMBIGUOUS") return;
       const keys = new Set<FactKey>();
-      // A key is a candidate only from an EXECUTABLE atom, or from a text leaf of a criterion in which vetting downgraded no atom (`vet: "ok"`). A rejected atom's
-      // retained depends_on must not become a question by accident: an atom that fails its guards, and every text leaf of a criterion whose vetting downgraded an
-      // atom (a cached outcome cannot say which text leaf was the rejected atom), contribute nothing. Independently supported text leaves: see fail-closed.ts.
-      for (const l of leaves(o.clause)) {
-        if (l.kind === "atom") {
-          if (atomProblems(l).length === 0) keys.add(l.fact_key);
-        } else if (l.kind === "text" && o.vet === "ok") l.depends_on.forEach((k) => keys.add(k));
-      }
+      // A key is a candidate ONLY from an executable atom (`atomProblems` empty), whose own source already had to mention the fact. Text-leaf `depends_on` is parser-declared and
+      // is NOT trusted (and the wording-wide cue below cannot vouch for it: another leaf may supply the cue), and a rejected atom's retained key never becomes a question.
+      // Text-leaf topics are left out until a leaf-local rule is reviewed (`independentlySupportedTextKeys` in fail-closed.ts is the proposal; nothing uses it).
+      for (const l of leaves(o.clause)) if (l.kind === "atom" && atomProblems(l).length === 0) keys.add(l.fact_key);
       for (const k of keys) {
         if (NOT_OFFERED.has(k) || profile.facts[k]?.state === "known" || !TOPIC[k] || !cueFor(k).test(src.text)) continue;
         const studies = byKey.get(k) ?? new Map<string, StudyCriterionRef[]>();

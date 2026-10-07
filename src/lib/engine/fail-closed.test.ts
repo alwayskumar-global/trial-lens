@@ -1,7 +1,7 @@
 // Tests for the PROPOSED fail-closed acceptance (not wired). Fictional criteria only; parser output is hand-written and goes through the REAL vetting.
 import { describe, expect, it } from "vitest";
 import { toClauseTree } from "./clause";
-import { acceptFreeTextFinding, authoritativeKeys, leafProvenance } from "./fail-closed";
+import { acceptFreeTextFinding, authoritativeKeys, failClosedFinding, leafProvenance } from "./fail-closed";
 import { vetCriterion } from "./coverage";
 import { atom, block, crit, critBlocks, profile, text } from "./test-helpers";
 
@@ -87,5 +87,17 @@ describe("atoms downgraded to text keep depends_on but never regain authority", 
     const bad = leafProvenance("ER positive and something the parser dropped entirely", "inclusion", crit([atom("ER positive", "er_status", "eq", "positive")], { category: "biomarker" }));
     expect(bad.vet).toBe("coverage_failed");
     expect(bad.leaves[0]).toMatchObject({ origin: "criterion_rejected", authoritative: false });
+  });
+});
+
+describe("an unparsed outcome can never keep a model PASS or FAIL", () => {
+  it("failClosedFinding with no clause downgrades PASS and FAIL (even with known, cited evidence), keeps UNKNOWN/AMBIGUOUS", () => {
+    const p = profile({ age: 47 });
+    for (const status of ["PASS", "FAIL"] as const) {
+      const r = failClosedFinding({ criterion_id: "u", status, evidence: ["age"], rationale: "model words", source: "llm_mid", fail_check: "verified" }, null, "inclusion", p);
+      expect(r).toMatchObject({ status: "UNKNOWN", evidence: [], guard_downgraded: true });
+      expect(r.fail_check).toBeUndefined();
+    }
+    expect(failClosedFinding({ criterion_id: "u", status: "AMBIGUOUS", evidence: [], rationale: "x", source: "llm_mid" }, null, "inclusion", p).status).toBe("AMBIGUOUS");
   });
 });
