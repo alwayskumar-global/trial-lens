@@ -116,3 +116,12 @@ Vocabulary:
 ${FACT_KEYS.join(", ")}
 Enum values: stage 0|I|II|III|IV; disease_setting early|locally_advanced|metastatic; ecog 0-4 as strings; her2_status positive|negative|low; er_status/pr_status positive|negative; menopausal_status pre|peri|post; sex female|male|other; cns_mets none|treated_stable|active; cardiac_disease none|history|active.
 Output ONLY JSON {"facts":[...]}.`;
+
+/** The hedging sentence added in `hardened-2` (inserted before the security rules). */
+export const HEDGING_LINE = `A fact stated with hedging ("I think", "I believe", "maybe", "about", "approximately", "not sure", "as far as I know", "that I know of") is "uncertain" with its value, never "known".`;
+
+/** `hardened-1` system prompt as shipped before `hardened-2` (= current text minus the hedging line); the diagnostic arm B of the hardened-2 run. */
+export const hardened1System = (current: string): string => current.replace(`\n${HEDGING_LINE}`, "");
+
+/** The case whose hardened-1 extraction hit the 4,096-token cap; repeated on hardened-2 (x2) and hardened-1 (x2). */
+export const TRUNCATION_CASE_ID = "prepared-hrpos-stage2";

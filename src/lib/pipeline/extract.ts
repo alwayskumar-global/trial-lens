@@ -21,7 +21,7 @@ export function profileFromExtraction(data: Extraction): PatientProfile {
 /** One FAST call (plus its single validation retry inside the port). null ⇒ no usable profile. */
 export async function extractProfile(profileText: string, llm: LlmPort): Promise<PatientProfile | null> {
   // echoOnRetry:false: the output can repeat or obey text the visitor wrote, so it is never fed back on the validation retry.
-  const { data } = await llm.call({ tier: "FAST", system: EXTRACT_SYSTEM, user: buildExtractUserPrompt(profileText), schema: ExtractSchema, schemaName: "facts", maxTokens: 4096, echoOnRetry: false });
+  const { data } = await llm.call({ tier: "FAST", system: EXTRACT_SYSTEM, user: buildExtractUserPrompt(profileText), schema: ExtractSchema, schemaName: "facts", maxTokens: 8192, echoOnRetry: false });
   if (!data) return null;
   return profileFromExtraction(data);
 }

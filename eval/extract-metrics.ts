@@ -86,7 +86,7 @@ export function percentile(xs: readonly number[], p: number): number | null {
 
 export interface CallRecord {
   caseId: string;
-  arm: "A" | "B";
+  arm: "A" | "B" | "C";
   firstValid: boolean;
   finalValid: boolean;
   attempts: number;
@@ -119,7 +119,7 @@ export interface ArmSummary {
 }
 
 /** One summary per arm. `unique` counts only the first call per case (the repeats are extra latency samples, not extra cases). */
-export function summarizeArm(records: readonly CallRecord[], arm: "A" | "B"): ArmSummary {
+export function summarizeArm(records: readonly CallRecord[], arm: "A" | "B" | "C"): ArmSummary {
   const rs = records.filter((r) => r.arm === arm);
   const seen = new Set<string>();
   const uniq = rs.filter((r) => (seen.has(r.caseId) ? false : (seen.add(r.caseId), true)));
@@ -162,7 +162,11 @@ export const actualSpend = (promptTokens: number, completionTokens: number, p: n
   promptTokens * p + completionTokens * c;
 
 /** Problems that must abort BEFORE the first paid call. Empty = go. `entry` is the model's record from the account's /models?verbose=true. */
-export function checkModelEntry(entry: { id?: unknown; pricing?: { prompt?: unknown; completion?: unknown } } | undefined, configuredId: string | undefined): string[] {
+export function checkModelEntry(
+  entry: { id?: unknown; pricing?: { prompt?: unknown; completion?: unknown } } | undefined,
+  configuredId: string | undefined,
+  bound: { worst: (p: number, c: number) => number; limit: number } = { worst: (p, c) => estimateMaxSpend(CONFIRMED.totalCallCap, p, c), limit: CONFIRMED.maxSpendUsd },
+): string[] {
   const out: string[] = [];
   if (!entry) return ["the configured model is not in the account's model list"];
   if (configuredId !== CONFIRMED.modelId) out.push("NEMOTRON_MODEL_FAST differs from the confirmed model id");
@@ -170,8 +174,8 @@ export function checkModelEntry(entry: { id?: unknown; pricing?: { prompt?: unkn
   const p = Number(entry.pricing?.prompt), c = Number(entry.pricing?.completion);
   if (!(p === CONFIRMED.promptPerToken)) out.push("prompt price differs from the confirmed price");
   if (!(c === CONFIRMED.completionPerToken)) out.push("completion price differs from the confirmed price");
-  const worst = estimateMaxSpend(CONFIRMED.totalCallCap, Number.isFinite(p) ? p : Infinity, Number.isFinite(c) ? c : Infinity);
-  if (!(worst <= CONFIRMED.maxSpendUsd)) out.push("estimated maximum spend exceeds the limit");
+  const worst = bound.worst(Number.isFinite(p) ? p : Infinity, Number.isFinite(c) ? c : Infinity);
+  if (!(worst <= bound.limit)) out.push("estimated maximum spend exceeds the limit");
   return out;
 }
 
@@ -186,12 +190,30 @@ export interface StopState {
 }
 
 /** Why the run must stop now, or null. Provider errors stop immediately; a validation failure after the retry is data, not an error. */
-export function stopReason(s: StopState): string | null {
+export function stopReason(s: StopState, callCap: number = OFFLINE_CALL_CAP): string | null {
   if (s.lastErrorKind && s.lastErrorKind !== "ZOD_INVALID_AFTER_RETRY") return `provider/network error: ${s.lastErrorKind}`;
-  if (s.callsMade >= OFFLINE_CALL_CAP) return "call cap reached";
+  if (s.callsMade >= callCap) return "call cap reached";
   if (s.tokens > CONFIRMED.tokenBudget) return "token budget exceeded";
   if (s.elapsedMs > CONFIRMED.wallClockMs) return "wall-clock cap exceeded";
   const first6 = s.firstCallsInvalid.slice(0, 6);
   if (first6.length >= 6 && first6.filter(Boolean).length >= 3) return "3 of the first 6 calls ended invalid after the retry";
   return null;
 }
+
+// ---- hardened-2 validation run (approved ceiling: 32 offline FAST calls, $0.065, fictional text only) -------------------------------
+export const H2 = {
+  callCap: 32, // HTTP level, counts retries
+  maxSpendUsd: 0.065,
+  hardened1MaxTokens: 4096, // diagnostic repeats of the failing text on the shipped hardened-1 settings
+  hardened2MaxTokens: 8192,
+  /** planned: 12 cases + 2 repeats on hardened-2, 2 repeats on hardened-1 */
+  plannedCalls: 16,
+} as const;
+
+const attemptCost = (outTokens: number, p: number, c: number): number => CONFIRMED.assumedPromptTokens * p + outTokens * c;
+/** Worst case for the whole run if every call used both attempts at its full output cap (hardened-2: 28 attempts, hardened-1: 4 attempts). */
+export const estimateH2Max = (p: number = CONFIRMED.promptPerToken, c: number = CONFIRMED.completionPerToken): number =>
+  28 * attemptCost(H2.hardened2MaxTokens, p, c) + 4 * attemptCost(H2.hardened1MaxTokens, p, c);
+/** True when one more call (two attempts at the given cap, worst case) could take the spend past the limit. */
+export const wouldExceedSpend = (spentUsd: number, nextOutTokens: number, p: number = CONFIRMED.promptPerToken, c: number = CONFIRMED.completionPerToken): boolean =>
+  spentUsd + 2 * attemptCost(nextOutTokens, p, c) > H2.maxSpendUsd + 1e-12;

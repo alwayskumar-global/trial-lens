@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EXTRACT_SYSTEM } from "../src/prompts/extract";
-import { DEV_CASES, PREVIEW_CASE_IDS, REPEAT_CASE_IDS, SPIKE0_SYSTEM, type DevCase } from "./extract-dev-cases";
-import { actualSpend, checkModelEntry, CONFIRMED, estimateMaxSpend, OFFLINE_CALL_CAP, percentile, scoreCase, stopReason, summarizeArm, type CallRecord, type ExtractedFact } from "./extract-metrics";
+import { DEV_CASES, HEDGING_LINE, hardened1System, TRUNCATION_CASE_ID, PREVIEW_CASE_IDS, REPEAT_CASE_IDS, SPIKE0_SYSTEM, type DevCase } from "./extract-dev-cases";
+import { actualSpend, checkModelEntry, CONFIRMED, estimateH2Max, estimateMaxSpend, H2, wouldExceedSpend, OFFLINE_CALL_CAP, percentile, scoreCase, stopReason, summarizeArm, type CallRecord, type ExtractedFact } from "./extract-metrics";
 
 const k = (key: string, value: ExtractedFact["value"], note?: string): ExtractedFact => ({ key, state: "known", value, ...(note ? { note } : {}) });
 const u = (key: string, value: ExtractedFact["value"]): ExtractedFact => ({ key, state: "uncertain", value });
@@ -39,7 +39,7 @@ describe("dev cases", () => {
   });
   it("arm B's system prompt is exactly arm A's (spike-0) text plus an appended security paragraph", () => {
     expect(EXTRACT_SYSTEM.startsWith(SPIKE0_SYSTEM)).toBe(true);
-    expect(EXTRACT_SYSTEM.slice(SPIKE0_SYSTEM.length)).toMatch(/^\nSecurity rules:/);
+    expect(EXTRACT_SYSTEM.slice(SPIKE0_SYSTEM.length)).toMatch(/^\nA fact stated with hedging[^\n]*\nSecurity rules:/);
   });
 });
 
@@ -157,3 +157,33 @@ describe("cost bound, preflight and stop conditions", () => {
     expect(stopReason({ ...base, callsMade: 5, firstCallsInvalid: [true, true, true, false, false] })).toBeNull(); // needs 6 calls first
   });
 });
+
+describe("hardened-2 validation run limits", () => {
+  it("worst case stays within the approved $0.065 and 32 HTTP calls", () => {
+    expect(H2.callCap).toBe(32);
+    expect(H2.plannedCalls).toBe(DEV_CASES.length + 4);
+    expect(estimateH2Max()).toBeLessThanOrEqual(H2.maxSpendUsd);
+  });
+  it("preflight against the H2 bound aborts on a price change", () => {
+    const bound = { worst: estimateH2Max, limit: H2.maxSpendUsd };
+    const ok = { id: CONFIRMED.modelId, pricing: { prompt: "0.00000006", completion: "0.00000024" } };
+    expect(checkModelEntry(ok, CONFIRMED.modelId, bound)).toEqual([]);
+    expect(checkModelEntry({ ...ok, pricing: { prompt: "0.00000006", completion: "0.0000003" } }, CONFIRMED.modelId, bound)).toEqual(expect.arrayContaining(["completion price differs from the confirmed price", "estimated maximum spend exceeds the limit"]));
+  });
+  it("spend guard stops before a call that could pass the limit", () => {
+    expect(wouldExceedSpend(0, 8192)).toBe(false);
+    expect(wouldExceedSpend(0.0629, 8192)).toBe(true);
+  });
+  it("the stop reason honours a custom call cap", () => {
+    expect(stopReason({ callsMade: 32, tokens: 0, elapsedMs: 0, lastErrorKind: null, firstCallsInvalid: [] }, 32)).toBe("call cap reached");
+    expect(stopReason({ callsMade: 31, tokens: 0, elapsedMs: 0, lastErrorKind: null, firstCallsInvalid: [] }, 32)).toBeNull();
+  });
+  it("hardened-1 text is the current prompt minus exactly the hedging line", () => {
+    expect(EXTRACT_SYSTEM).toContain(HEDGING_LINE);
+    const h1 = hardened1System(EXTRACT_SYSTEM);
+    expect(h1).not.toContain("stated with hedging");
+    expect(h1.startsWith(SPIKE0_SYSTEM + "\nSecurity rules:")).toBe(true);
+    expect(DEV_CASES.some((c) => c.id === TRUNCATION_CASE_ID)).toBe(true);
+  });
+});
+

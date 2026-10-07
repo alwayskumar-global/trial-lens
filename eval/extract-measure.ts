@@ -11,8 +11,8 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { callJson, CallCap, makeClient } from "../src/lib/llm/client";
 import { profileFromExtraction } from "../src/lib/pipeline/extract";
 import { buildExtractUserPrompt, EXTRACT_SYSTEM, ExtractSchema } from "../src/prompts/extract";
-import { DEV_CASES, PREVIEW_CASE_IDS, REPEAT_CASE_IDS, SPIKE0_SYSTEM, type DevCase } from "./extract-dev-cases";
-import { actualSpend, checkModelEntry, CONFIRMED, estimateMaxSpend, OFFLINE_CALL_CAP, scoreCase, stopReason, summarizeArm, type CallRecord, type ExtractedFact } from "./extract-metrics";
+import { DEV_CASES, hardened1System, PREVIEW_CASE_IDS, REPEAT_CASE_IDS, SPIKE0_SYSTEM, TRUNCATION_CASE_ID, type DevCase } from "./extract-dev-cases";
+import { actualSpend, checkModelEntry, CONFIRMED, estimateH2Max, estimateMaxSpend, H2, wouldExceedSpend, OFFLINE_CALL_CAP, scoreCase, stopReason, summarizeArm, type CallRecord, type ExtractedFact } from "./extract-metrics";
 
 const LABEL = "DEVELOPMENT CHECK: 12 author-written fictional cases with author-written labels; not measured clinical accuracy";
 const OUT_DIR = "eval/reports";
@@ -126,8 +126,81 @@ async function runPreview(): Promise<void> {
   say(`${out.length}/${PREVIEW_CASE_IDS.length} Preview requests succeeded${stop ? `; stopped: ${stop}` : ""}`);
 }
 
+// ---- hardened-2 validation (approved: ≤ 32 offline FAST calls, ≤ $0.065, fictional text only) -----------------------------------------
+const H2_LABEL = "DEVELOPMENT CHECK (hardened-2): 12 author-written fictional cases with author-written labels; not measured clinical accuracy";
+
+function planH2(): void {
+  say(`== ${H2_LABEL}`);
+  say(`model to be re-confirmed from the account before any call: ${CONFIRMED.modelId}; prices ${CONFIRMED.promptPerToken} / ${CONFIRMED.completionPerToken} per token`);
+  say(`planned: C hardened-2 (max_tokens ${H2.hardened2MaxTokens}) on ${DEV_CASES.length} cases + ${TRUNCATION_CASE_ID} x2; B hardened-1 (max_tokens ${H2.hardened1MaxTokens}) ${TRUNCATION_CASE_ID} x2 = ${H2.plannedCalls} typical; HTTP-call ceiling ${H2.callCap}`);
+  say(`worst-case spend if every call retries at full cap: $${estimateH2Max().toFixed(4)} (limit $${H2.maxSpendUsd}); the run also stops before a call that could pass the limit`);
+  say(`stops: provider/network error or timeout; 3 of the first 6 invalid; ${CONFIRMED.tokenBudget} tokens; ${CONFIRMED.wallClockMs / 60000} min; spend guard; preflight mismatch`);
+  for (const n of ["NEBIUS_API_KEY", "NEBIUS_BASE_URL", "NEMOTRON_MODEL_FAST", "NODE_USE_ENV_PROXY"]) say(`env ${n}: ${process.env[n] ? "present" : "not set"}`);
+}
+
+async function runH2(): Promise<void> {
+  const need = ["NEBIUS_API_KEY", "NEBIUS_BASE_URL", "NEMOTRON_MODEL_FAST"].filter((n) => !process.env[n]);
+  if (need.length) throw new Error(`missing env: ${need.join(", ")}. No call was made.`);
+  const model = process.env.NEMOTRON_MODEL_FAST!;
+  const r = await fetch(`${process.env.NEBIUS_BASE_URL!.replace(/\/$/, "")}/models?verbose=true`, { headers: { authorization: `Bearer ${process.env.NEBIUS_API_KEY}` } });
+  if (!r.ok) throw new Error(`preflight failed: model list HTTP ${r.status}. No inference call was made.`);
+  const list = ((await r.json()) as { data?: Array<{ id?: unknown; pricing?: { prompt?: unknown; completion?: unknown } }> }).data ?? [];
+  const entry = list.find((m) => m.id === model);
+  const problems = checkModelEntry(entry, model, { worst: estimateH2Max, limit: H2.maxSpendUsd });
+  if (problems.length) throw new Error(`preflight aborted before any paid call: ${problems.join("; ")}`);
+  say(`preflight OK: ${model}; account prices ${String(entry?.pricing?.prompt)} / ${String(entry?.pricing?.completion)} per token; worst case $${estimateH2Max().toFixed(4)} (limit $${H2.maxSpendUsd})`);
+
+  const client = makeClient();
+  const cap = new CallCap(H2.callCap);
+  const trunc = DEV_CASES.find((c) => c.id === TRUNCATION_CASE_ID)!;
+  const h1System = hardened1System(EXTRACT_SYSTEM);
+  if (h1System === EXTRACT_SYSTEM) throw new Error("hardened-1 text could not be derived from the current prompt. No call was made.");
+  const order: Array<{ c: DevCase; arm: "B" | "C" }> = [
+    ...DEV_CASES.map((c) => ({ c, arm: "C" as const })),
+    { c: trunc, arm: "C" }, { c: trunc, arm: "B" }, { c: trunc, arm: "C" }, { c: trunc, arm: "B" },
+  ];
+  const records: CallRecord[] = [];
+  const firstInvalid: boolean[] = [];
+  let tokens = 0, promptT = 0, completionT = 0, lastErr: string | null = null, stopped: string | null = null;
+  const t0 = Date.now();
+  for (const { c, arm } of order) {
+    const maxTokens = arm === "C" ? H2.hardened2MaxTokens : H2.hardened1MaxTokens;
+    stopped = stopReason({ callsMade: cap.used, tokens, elapsedMs: Date.now() - t0, lastErrorKind: lastErr, firstCallsInvalid: firstInvalid }, H2.callCap)
+      ?? (wouldExceedSpend(actualSpend(promptT, completionT), maxTokens) ? "spend guard: the next call could pass the $0.065 limit" : null);
+    if (stopped) break;
+    const { data, stats } = await callJson({
+      client, cap, model, mode: "json_schema", schema: ExtractSchema, schemaName: "facts", maxTokens, extraBody: { reasoning_effort: "low" },
+      system: arm === "C" ? EXTRACT_SYSTEM : h1System, user: buildExtractUserPrompt(c.text), echoOnRetry: false,
+    });
+    tokens += stats.promptTokens + stats.completionTokens; promptT += stats.promptTokens; completionT += stats.completionTokens;
+    lastErr = stats.errorKind;
+    if (firstInvalid.length < 6) firstInvalid.push(!stats.finalValid);
+    records.push({
+      caseId: c.id, arm, firstValid: stats.firstValid, finalValid: stats.finalValid, attempts: stats.attempts, latencyMs: stats.latencyMs,
+      promptTokens: stats.promptTokens, completionTokens: stats.completionTokens, score: data ? scoreCase(c, factsOf(profileFromExtraction(data))) : null,
+    });
+    say(`  ${String(records.length).padStart(2)}/${order.length} ${arm} ${c.id}: valid ${stats.firstValid ? "first" : stats.finalValid ? "after retry" : "NO"}, ${stats.latencyMs} ms, ${stats.promptTokens}+${stats.completionTokens} tokens, truncated ${stats.truncated ? "YES" : "no"}${lastErr && lastErr !== "ZOD_INVALID_AFTER_RETRY" ? `, error ${lastErr}` : ""}`);
+  }
+  const done = records.length === order.length;
+  const C = summarizeArm(records, "C"), Bsum = summarizeArm(records, "B");
+  const spend = actualSpend(promptT, completionT);
+  say(`\n== ${H2_LABEL}`);
+  say(`calls made: ${cap.used}/${H2.callCap} (HTTP level, incl. retries); tokens ${tokens}; actual spend ≈ $${spend.toFixed(5)} (limit $${H2.maxSpendUsd}); stopped early: ${!done ? stopped : "no"}`);
+  say(`C hardened-2 (12 cases, first call per case): usable ${records.filter((x) => x.arm === "C" && x.score).length}; recall ${C.hits}/${C.required} (wrong value ${C.wrongValue}, uncertain ${C.uncertainMiss}, absent ${C.absent}); false-known ${C.falseKnownTotal}; hedged ok ${C.hedgedOk}/${C.hedgedTotal}; injected obeyed ${C.markersObeyed}; prompt leaks ${C.promptLeaks}`);
+  say(`C all calls: valid first ${C.firstValid}/${C.calls}, final ${C.finalValid}/${C.calls}; latency p50 ${C.p50Ms} p95 ${C.p95Ms} max ${C.maxMs} ms`);
+  say(`B hardened-1 repeats of ${TRUNCATION_CASE_ID}: valid final ${Bsum.finalValid}/${Bsum.calls}`);
+  for (const rec of records) {
+    const s = rec.score;
+    const bits = s ? [s.wrongValue.length && `wrong: ${s.wrongValue.join(",")}`, s.uncertainMiss.length && `uncertain: ${s.uncertainMiss.join(",")}`, s.absent.length && `absent: ${s.absent.join(",")}`, (s.falseKnown.length || s.overconfident.length) && `false-known: ${[...s.falseKnown, ...s.overconfident].join(",")}`, s.markersObeyed.length && `OBEYED: ${s.markersObeyed.join(",")}`, s.promptLeak && "PROMPT LEAK"].filter(Boolean) : [];
+    say(`  ${rec.arm} ${rec.caseId}: ${s ? `${s.hits}/${s.required} hedged ok ${s.hedgedOk}/${s.hedgedTotal}${bits.length ? ` | ${bits.join(" | ")}` : ""}` : "no usable output"}`);
+  }
+  mkdirSync(OUT_DIR, { recursive: true });
+  writeFileSync(`${OUT_DIR}/hardened-2-dev-check.json`, JSON.stringify({ label: H2_LABEL, model, prices: { prompt: CONFIRMED.promptPerToken, completion: CONFIRMED.completionPerToken }, callsMade: cap.used, tokens, spendUsd: spend, stopped: !done ? stopped : null, summary: { C, B: Bsum }, records }, null, 2) + "\n");
+  say(`wrote ${OUT_DIR}/hardened-2-dev-check.json (counts and key names only)`);
+}
+
 const mode = process.argv[2];
-(mode === "--dry-run" ? Promise.resolve(plan()) : mode === "--run" ? runOffline() : mode === "--preview" ? runPreview() : Promise.reject(new Error("usage: --dry-run | --run | --preview"))).then(
+(mode === "--dry-run" ? Promise.resolve(plan()) : mode === "--dry-run-h2" ? Promise.resolve(planH2()) : mode === "--run-h2" ? runH2() : mode === "--run" ? runOffline() : mode === "--preview" ? runPreview() : Promise.reject(new Error("usage: --dry-run | --run | --preview"))).then(
   () => process.exit(0),
   (e: unknown) => {
     console.error(`extract-measure stopped: ${(e as Error)?.message?.slice(0, 240) ?? "unknown"}`);
