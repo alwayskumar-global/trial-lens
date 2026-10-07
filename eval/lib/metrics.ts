@@ -22,9 +22,9 @@ export interface CriterionMetrics {
   /** committed (PASS/FAIL) predictions where the gold says UNKNOWN, over all committed predictions: an assumption nothing supports. Target about 0. */
   unsupportedAssumptions: number;
   unsupportedAssumptionRate: number | null;
-  /** exclusion criteria whose gold is FAIL (patient excluded) that were predicted PASS, over all such criteria: the dangerous error */
-  falsePassExclusion: number;
-  falsePassExclusionRate: number | null;
+  /** exclusion CRITERIA whose gold is FAIL (the criterion is met, so the patient would be excluded by it) that were predicted PASS, over all such criteria. Criterion-level: not a statement about patients or trials. */
+  falsePassOnExclusionCriteria: number;
+  falsePassOnExclusionCriteriaRate: number | null;
   /** UNKNOWN detection: abstentions that were right / all abstentions, and abstentions caught / all gold UNKNOWN */
   unknownPrecision: number | null;
   unknownRecall: number | null;
@@ -49,7 +49,7 @@ export function criterionMetrics(rows: readonly ScoredCase[]): CriterionMetrics 
   return {
     scored, notApplicable, correct, accuracy: ratio(correct, scored), confusion,
     unsupportedAssumptions: unsupported, unsupportedAssumptionRate: ratio(unsupported, committed),
-    falsePassExclusion: exclFailPass, falsePassExclusionRate: ratio(exclFailPass, exclFail),
+    falsePassOnExclusionCriteria: exclFailPass, falsePassOnExclusionCriteriaRate: ratio(exclFailPass, exclFail),
     unknownPrecision: ratio(abstainedRight, abstained), unknownRecall: ratio(abstainedRight, goldUnknown),
   };
 }

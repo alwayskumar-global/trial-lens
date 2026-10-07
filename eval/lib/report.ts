@@ -25,7 +25,7 @@ export function renderMarkdown(run: EvalRun): string {
     "|---|---|",
     `| Criterion-level accuracy | ${pct(m.accuracy)} (${m.correct}/${m.scored}) |`,
     `| Unsupported-assumption rate | ${pct(m.unsupportedAssumptionRate)} (${m.unsupportedAssumptions} committed predictions with gold UNKNOWN) |`,
-    `| False-PASS rate on excluded patients | ${pct(m.falsePassExclusionRate)} (${m.falsePassExclusion}) |`,
+    `| False PASS on exclusion criteria (criterion-level) | ${pct(m.falsePassOnExclusionCriteriaRate)} (${m.falsePassOnExclusionCriteria}) |`,
     `| UNKNOWN detection precision / recall | ${pct(m.unknownPrecision)} / ${pct(m.unknownRecall)} |`,
     `| Tokens (prompt / completion) | ${run.cost.promptTokens ?? "unavailable"} / ${run.cost.completionTokens ?? "unavailable"}${run.cost.lowerBound ? " (lower bound: some calls reported no usage)" : ""} |`,
     `| Cost (account prices) | ${run.cost.costUsd === null ? "unavailable" : "$" + run.cost.costUsd.toFixed(4)}${run.cost.lowerBound ? " (lower bound)" : ""} |`,

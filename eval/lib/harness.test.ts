@@ -36,9 +36,9 @@ describe("metrics (hand-computed)", () => {
     expect(m.unsupportedAssumptions).toBe(1);
     expect(m.unsupportedAssumptionRate).toBeCloseTo(1 / 5); // committed: a, b, d, g, h
   });
-  it("false-PASS on excluded patients: gold FAIL on exclusion criteria predicted PASS", () => {
-    expect(m.falsePassExclusion).toBe(1);
-    expect(m.falsePassExclusionRate).toBeCloseTo(1 / 2);
+  it("false PASS on exclusion criteria: gold FAIL on an exclusion criterion predicted PASS (criterion-level)", () => {
+    expect(m.falsePassOnExclusionCriteria).toBe(1);
+    expect(m.falsePassOnExclusionCriteriaRate).toBeCloseTo(1 / 2);
   });
   it("UNKNOWN detection precision and recall", () => {
     expect(m.unknownPrecision).toBe(1); // 2 abstentions, both right
@@ -52,7 +52,7 @@ describe("metrics (hand-computed)", () => {
     const e = criterionMetrics([]);
     expect(e.accuracy).toBeNull();
     expect(e.unsupportedAssumptionRate).toBeNull();
-    expect(e.falsePassExclusionRate).toBeNull();
+    expect(e.falsePassOnExclusionCriteriaRate).toBeNull();
     expect(e.unknownRecall).toBeNull();
   });
 });
@@ -165,7 +165,7 @@ describe("runner and report", () => {
     expect(unk.metrics.unsupportedAssumptionRate).toBeNull(); // nothing committed
     const pass = await runEval({ cases, evaluator: alwaysPassEvaluator, config: DEFAULT_SWITCHES });
     expect(pass.metrics.unsupportedAssumptions).toBe(1);
-    expect(pass.metrics.falsePassExclusionRate).toBe(1);
+    expect(pass.metrics.falsePassOnExclusionCriteriaRate).toBe(1);
     expect(pass.configHash).toBe(configHash(DEFAULT_SWITCHES));
   });
   it("a table evaluator defaults to UNKNOWN for unlisted cases", async () => {
