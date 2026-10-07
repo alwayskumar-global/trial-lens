@@ -52,7 +52,7 @@ describe("liveAssertions", () => {
   });
   it("fails on over-cap calls, a fabricated 0 token count, and inconsistent usage totals", () => {
     const over = good().map((e) => (e.type === "done" ? ({ ...e, stats: { ...e.stats!, llm_calls: 90 } } as SseEvent) : e));
-    expect(failed(run(over)).join("|")).toMatch(/80-call cap/);
+    expect(failed(run(over)).join("|")).toMatch(/80-attempt cap/);
     const zero = good().map((e) => (e.type === "done" ? ({ ...e, stats: { ...e.stats!, usage: { ...e.stats!.usage!, stages: [usageRow("extraction", "FAST", 1, 0, 0, 0)] } } } as SseEvent) : e));
     expect(failed(run(zero)).join("|")).toMatch(/never a fabricated 0/);
   });
@@ -104,6 +104,22 @@ describe("liveAssertions", () => {
     expect(failed(run(noCounts)).join("|")).toMatch(/counts event was streamed/);
     const pend = good().map((e) => (e.type === "counts" ? ({ ...e, selected: 1, assessed: 0, pending: 1, failed: 0 } as SseEvent) : e));
     expect(failed(run(pend))).toEqual([]);
+  });
+
+  it("merges successive counts events (selection first, assessment totals later) before reconciling", () => {
+    const ev: SseEvent[] = good().filter((e) => e.type !== "counts");
+    const i = ev.findIndex((e) => e.type === "trial_result");
+    ev.splice(1, 0, { type: "counts", discovered: 40, filtered: 31, selected: 1 } as SseEvent);
+    ev.splice(i + 1, 0, { type: "counts", assessed: 0, pending: 1, failed: 0 } as SseEvent); // later event carries no `selected`
+    expect(failed(run(ev))).toEqual([]);
+    const off = ev.map((e) => (e.type === "counts" && e.assessed !== undefined ? ({ ...e, pending: 0 } as SseEvent) : e));
+    expect(failed(run(off)).join("|")).toMatch(/= selected = trial_result count/);
+  });
+
+  it("usage `calls` (logical) may be smaller than llm_calls (HTTP attempts, retries) but never larger", () => {
+    const withCalls = (llm: number) => good().map((e) => (e.type === "done" ? ({ ...e, stats: { ...e.stats!, llm_calls: llm } } as SseEvent) : e));
+    expect(failed(run(withCalls(42)))).toEqual([]); // 41 logical calls, 42 attempts: one retry
+    expect(failed(run(withCalls(40))).join("|")).toMatch(/never exceed HTTP attempts/);
   });
 
   it("stage usage rows must add up to the reported total", () => {

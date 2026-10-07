@@ -14,7 +14,9 @@ export function liveAssertions(lv: { status: number; ttfb: number; total: number
   const done = ev.find((e) => e.type === "done");
   const trials = ev.flatMap((e) => (e.type === "trial_result" ? [e.assessment] : []));
   const findings = trials.flatMap((a) => a.findings.map((f) => ({ nct: a.nct_id, f })));
-  const counts = ev.filter((e) => e.type === "counts").at(-1);
+  // `counts` is streamed in successive events (discovery/selection first, assessment totals later): merge them, later fields win.
+  const countEvents = ev.flatMap((e) => (e.type === "counts" ? [e] : []));
+  const counts = countEvents.length ? ({ type: "counts" as const, ...Object.assign({}, ...countEvents.map((c) => { const { type, ...rest } = c; void type; return rest; })) }) : undefined;
   const sq = ev.filter((e) => e.type === "study_questions");
   log(`live: status ${lv.status}, ttfb ${sec(lv.ttfb)}, total ${sec(lv.total)}, chunks ${lv.chunks}, events ${JSON.stringify(types(lv.events))}`);
 
@@ -77,26 +79,30 @@ export function liveAssertions(lv: { status: number; ttfb: number; total: number
   log(`  >60 s? ${lv.total > 60_000 ? "YES: beyond the default 60 s limit, so the longer maxDuration is active" : "no (completed under 60 s: this run does not prove the 300 s setting)"}`);
 
   // 6. counts: assessed + pending + failed = selected = number of streamed trial_results; cold-cache pending trials are reported on their own
-  if (counts && counts.type === "counts") {
-    log(`  counts (final): ${JSON.stringify({ ...counts, type: undefined })}`);
+  if (counts) {
+    log(`  counts (merged): ${JSON.stringify({ ...counts, type: undefined })}`);
     const { selected, assessed, pending, failed } = counts;
     check(selected !== undefined && assessed !== undefined && pending !== undefined && failed !== undefined && assessed + pending + failed === selected && selected === trials.length, `live: assessed + pending + failed = selected = trial_result count (${assessed ?? "?"}+${pending ?? "?"}+${failed ?? "?"} = ${selected ?? "?"}; ${trials.length} results)`);
   } else check(false, "live: a counts event was streamed");
   check(ev.at(-1)?.type === "done" && ev.filter((e) => e.type === "done").length === 1, "live: done is the single, last event");
   const pendingFlag = trials.filter((a) => a.verifier_flags.includes("analysis_pending")).length;
   const failedFlag = trials.filter((a) => a.analysis_failed).length;
-  log(`  COLD-CACHE / capacity (report separately, not failures): analysis_pending trials ${pendingFlag}; analysis_failed ${failedFlag}; counts.pending ${counts && counts.type === "counts" ? (counts.pending ?? 0) : "n/a"}`);
+  log(`  COLD-CACHE / capacity (report separately, not failures): analysis_pending trials ${pendingFlag}; analysis_failed ${failedFlag}; counts.pending ${counts ? (counts.pending ?? 0) : "n/a"}`);
 
   // 7. calls, cap and token usage
   if (done && done.type === "done" && done.stats) {
     const st = done.stats, u = st.usage;
-    log(`  calls: llm_calls ${st.llm_calls}, worst_case_calls ${st.worst_case_calls} (effective cap must be 80)`);
-    check(st.llm_calls <= 80 && st.worst_case_calls <= 80, "live: llm_calls and worst_case_calls within the 80-call cap");
+    log(`  llm_calls ${st.llm_calls} = HTTP request attempts incl. 429 and validation retries (what the 80 cap counts); worst_case_calls ${st.worst_case_calls}`);
+    check(st.llm_calls <= 80 && st.worst_case_calls <= 80, "live: llm_calls (HTTP request attempts) and worst_case_calls within the 80-attempt cap");
     check(!!u && u.version === "u-1", "live: usage block present (u-1)");
     if (u) {
       for (const r of u.stages) log(`  usage ${r.stage}/${r.tier}: calls ${r.calls}, with_usage ${r.calls_with_usage}, without ${r.calls_without_usage}, tokens in ${r.prompt_tokens ?? "unavailable"} out ${r.completion_tokens ?? "unavailable"}`);
       log(`  usage total: calls ${u.total.calls}, without_usage ${u.total.calls_without_usage}, tokens in ${u.total.prompt_tokens ?? "unavailable"} out ${u.total.completion_tokens ?? "unavailable"}${u.total.calls_without_usage > 0 ? " (LOWER BOUND)" : ""}`);
-      check(u.total.calls === st.llm_calls, "live: usage.total.calls equals llm_calls");
+      // usage `calls` counts LOGICAL model-call calls that sent at least one request; llm_calls counts HTTP attempts, so retries make it larger.
+      const extra = st.llm_calls - u.total.calls;
+      log(`  usage.total.calls ${u.total.calls} = logical calls; llm_calls - logical calls = ${extra} extra attempts (retries); which calls retried is not attributable from the stream`);
+      check(u.total.calls <= st.llm_calls, "live: logical calls (usage.total.calls) never exceed HTTP attempts (llm_calls)");
+      log(`  token coverage: ${u.total.calls_with_usage} of ${u.total.calls} logical calls reported complete usage; attempts that returned no response (429, errors) carry no tokens, so totals cover reported responses only`);
       const sum = (f: (r: { calls: number; calls_with_usage: number; calls_without_usage: number; prompt_tokens: number | null; completion_tokens: number | null }) => number | null) => (u.stages.some((r) => f(r) !== null) ? u.stages.reduce((a, r) => a + (f(r) ?? 0), 0) : null);
       check(sum((r) => r.calls) === u.total.calls && sum((r) => r.calls_with_usage) === u.total.calls_with_usage && sum((r) => r.calls_without_usage) === u.total.calls_without_usage && sum((r) => r.prompt_tokens) === u.total.prompt_tokens && sum((r) => r.completion_tokens) === u.total.completion_tokens, "live: stage usage totals equal the reported total (calls, with/without usage, prompt and completion tokens)");
       check(u.stages.every((r) => r.calls_with_usage + r.calls_without_usage === r.calls), "live: per-stage usage calls add up");

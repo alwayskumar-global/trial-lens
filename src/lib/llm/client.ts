@@ -31,11 +31,17 @@ export interface CallStats {
   problems: string[]; // validation problem per attempt (indices/counts/fixed phrases only; no criterion text)
 }
 
+/**
+ * Hard cap on HTTP request ATTEMPTS (every `chat` request: first try, 429 backoff retry and validation retry each take one).
+ * `used` counts requests actually allowed, so it never exceeds `max`: a refused attempt is not counted and sends nothing.
+ * This is the figure reported as `llm_calls`; it is not the number of logical `callJson` calls (see usage `calls`).
+ */
 export class CallCap {
   used = 0;
   constructor(readonly max: number) {}
   take(): void {
-    if (++this.used > this.max) throw new Error("CALL_CAP_EXCEEDED");
+    if (this.used >= this.max) throw new Error("CALL_CAP_EXCEEDED");
+    this.used++;
   }
 }
 
@@ -144,6 +150,7 @@ export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null;
   for (let attempt = 1; attempt <= 2; attempt++) {
     stats.attempts = attempt;
     const t0 = performance.now();
+    const usedBefore = a.cap.used;
     let content: string;
     try {
       ({ content } = await chat(
@@ -153,6 +160,8 @@ export async function callJson<T>(a: JsonCallArgs<T>): Promise<{ data: T | null;
       ));
     } catch (e) {
       stats.errorKind = (e as Error).message;
+      // Refused by the cap before any request of this attempt was sent: that attempt does not count (attempts === 0 means nothing was sent at all).
+      if (stats.errorKind === "CALL_CAP_EXCEEDED" && a.cap.used === usedBefore) stats.attempts = attempt - 1;
       if (attempt === 1) stats.latencyMs = Math.round(performance.now() - t0);
       return finish(null);
     }

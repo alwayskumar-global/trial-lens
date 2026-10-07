@@ -51,6 +51,7 @@ const ClientProfile = z
       if (p.facts[k]?.key !== k) ctx.addIssue({ code: "custom", path: ["facts", k], message: "missing or mismatched fact" });
     }
   });
+const RELEASE_WAIT_MS = 2000;
 const Body = z.strictObject({ text: z.string().optional(), replay_id: z.string().optional(), profile: ClientProfile.optional(), extract_token: z.string().max(8192).optional() });
 
 const json = (status: number, code: string) => Response.json({ code }, { status, headers: { "cache-control": "no-store" } });
@@ -206,8 +207,14 @@ export async function handleRun(req: Request, deps: RunHandlerDeps): Promise<Res
           /* stream already unusable */
         }
       } finally {
+        // Release BEFORE closing the stream: once the response ends the serverless instance may be frozen, and a decrement still in flight
+        // would be lost (the in-flight counter then stays up until its TTL). Bounded so a hung Redis call cannot hold the response open.
+        if (release) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          await Promise.race([Promise.resolve().then(release).catch(() => undefined), new Promise((r) => (timer = setTimeout(r, RELEASE_WAIT_MS)))]);
+          clearTimeout(timer);
+        }
         finish();
-        await release?.();
       }
     },
     async cancel() {
