@@ -1,0 +1,19 @@
+# Public eval datasets (TASKS Phase 1 "Public eval datasets"; SPEC §7)
+
+Checked 2026-10-07 from the agent environment (read-only; no paid call). Source of the cohort list: TrialGPT (Jin et al., "Matching patients to clinical trials with large language models", Nature Communications 15:9074, 2024) and its repository https://github.com/ncbi-nlp/TrialGPT. The paper itself (nature.com, arXiv) could not be opened from here; its figures below come from the repository README and web-search excerpts.
+
+| Dataset | Where | Reachable here? | License / terms | Granularity | Notes |
+|---|---|---|---|---|---|
+| **SIGIR 2016** (Koopman and Zuccon, "A test collection for matching patients to clinical trials") | in the TrialGPT repo `dataset/sigir/`; original https://data.csiro.au/collection/csiro:17152 | **Yes** (raw.githubusercontent.com). Files read: `queries.jsonl` 58 patient descriptions (31 KB; none mention breast cancer), `corpus.jsonl` ~16.4 MB trial documents (title + free text with inclusion/exclusion), `qrels/test.tsv` 3,835 rows | Repo: **public domain** notice (NCBI/NLM US Government work), read on GitHub. **The dataset's own license (CSIRO) was not read** (host blocked): treat redistribution as unverified; the harness caches it in gitignored `eval/data/` and never commits it. The repo asks that the original dataset papers be cited | **Trial-level only**: qrels labels per (patient, trial): 0 = 2,733, 1 = 681, 2 = 421 (SIGIR convention: 0 would not refer, 1 would consider, 2 would refer). No criterion-level labels | Mixed conditions, no breast-cancer slice |
+| **TREC Clinical Trials 2021 / 2022** | corpora via `ftp.ncbi.nlm.nih.gov/pub/lu/TrialGPT/` (README `wget` lines); topics and qrels at trec-cds.org / NIST | **No** (egress proxy 403) | **Not read** | Trial-level relevance (eligible / excluded / not relevant) per patient topic (from the paper; not verified here) | Breast-cancer content unknown until the files can be opened |
+| **TrialGPT criterion-level annotations** (1,015 patient-criterion pairs, three physicians) | Hugging Face `ncbi/TrialGPT-Criterion-Annotations` (paper's data availability statement, via search excerpt) | **No** (huggingface.co blocked) | **Not read** | **Criterion-level** (paper: criterion-level eligibility labels and explanation judgments); exact schema **unverified** | The only criterion-level gold among the three |
+| TrialGPT repo code and data files | https://github.com/ncbi-nlp/TrialGPT | Yes | **Public domain** (LICENSE text read) | n/a | `trial_info.json` and the TREC corpora are on NCBI FTP (blocked here) |
+
+## What is and is not established
+- **Availability:** SIGIR 2016 confirmed and downloadable. TREC 2021/2022 and the criterion-level annotations located by the authors' own README/paper but not reachable from this environment.
+- **License:** verified only for the TrialGPT repository (public domain). The licenses of SIGIR (CSIRO), TREC (NIST) and the Hugging Face annotation set were not read, so they are **unverified**.
+- **Annotation granularity:** SIGIR = trial-level (verified by reading `qrels/test.tsv`). Criterion-level exists upstream (the 1,015 pairs) but its schema is unread.
+- **Breast-cancer slice (SPEC §7 headline):** none in SIGIR. Unknown for TREC. Until the annotations can be inspected there is no confirmed breast-cancer criterion-level gold, so the headline number may have to come from the hand-built abstention set and author-labelled fictional profiles (labelled as such), which is a SPEC §7 fallback to decide only when the first full eval run is planned.
+
+## What would unblock the remaining checks (not asked now: the offline harness does not depend on it)
+Either allow outbound access for `huggingface.co`, `ftp.ncbi.nlm.nih.gov` and `trec.nist.gov` in the environment network settings, or download the files into `eval/data/` (gitignored) from a machine with access. Needed for the later "First full eval run" item, not for the harness code.

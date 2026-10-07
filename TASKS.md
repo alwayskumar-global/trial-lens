@@ -63,7 +63,7 @@ Write throwaway scripts in `/eval/spike`. Record results in `/docs/spike-results
 - [x] **Vercel streaming:** deploy a hello-world SSE route; confirm it streams through the platform for ≥ 60 s on your plan
   - Evidence (Preview, 2026-10-06): real `/api/run` on `dpl_ANYL58THqRQHqVwPjC1QjUFk4Eow` (SHA 7b5b9df) streamed for 93.2 s in 34 network chunks and ended `done(replay:false)`; 11/11 checks of `eval/preview-sse-check.ts`; function log `{"evt":"run","mode":"live","ok":true,"calls":41,"ms":93033}`. A hello-world route was not used (the real route was tested instead).
 - [ ] **Public eval datasets:** locate cohorts used in the TrialGPT paper; confirm availability, license, annotation granularity (VERIFY)
-  - Not done.
+  - **PARTIAL (checked 2026-10-07; `docs/eval-datasets.md`).** Located: SIGIR 2016, TREC CT 2021, TREC CT 2022 (183 synthetic patients) plus 1,015 physician-annotated patient-criterion pairs (TrialGPT, Nature Communications 2024; repo `ncbi-nlp/TrialGPT`). **SIGIR 2016: available and read** (in the repo: 58 patient descriptions, ~16 MB trial corpus, 3,835 qrels rows, labels 0/1/2; **trial-level only, not criterion-level; no breast-cancer patient**). **Repo license read: public domain (NCBI/NLM US Government work); the SIGIR/TREC corpora's own licenses were NOT read.** **Blocked from this environment (egress proxy): the criterion-level annotations (Hugging Face `ncbi/TrialGPT-Criterion-Annotations`, license and schema unread), the TREC corpora on `ftp.ncbi.nlm.nih.gov`, TREC and CSIRO pages.** So criterion-level availability, license and schema remain unverified; the item stays open. Does not block the offline harness.
 
 ## Phase 2 — Core engine (Oct 8–12)
 - [x] Zod schemas from SCHEMA.md
@@ -222,6 +222,10 @@ Policy R2 (above); server side of visitor input (Stages 1-2: extract split, sign
 5. **Organizer clarification (testing access):** do not assume that the replay fallback satisfies "free of charge and without any restriction" for judges; send the question drafted in `docs/cost-per-run.md` (Kumar to approve and send). Until answered, rate limiting and security controls are unchanged and the fallback stays as built.
 6. Stage 3 go/no-go (paused), plus scope wording, spend limits, missing design assets and the judging-deployment access model.
 
+## Open pre-submission decisions (Kumar; recorded, not blocking routine development)
+- **P1. Cost limit / daily budget for the demo window** (from our actual submission through the end of judging, Dec 15; judging the likely higher-use period). OPEN. `MAX_LLM_CALLS_PER_RUN`=80 and `DAILY_RUN_BUDGET`=150 stay unchanged until Kumar sets a budget; the projected worst case is a forecast, not a cap (`docs/cost-per-run.md`). **It is not re-asked in routine development updates;** it is raised only at the pre-submission gate or before a live run that Kumar separately authorizes.
+- **P2. Organizer question: does the replay fallback satisfy "free of charge and without any restriction" testing access?** OPEN (item 5 above; draft in `docs/cost-per-run.md`). Until answered, rate limiting and security controls stay as built.
+
 ## Wording conflicts (original wording vs currently approved scope)
 | Item (phase) | Original wording | Current approved scope |
 |---|---|---|
@@ -244,4 +248,4 @@ Policy R2 (above); server side of visitor input (Stages 1-2: extract split, sign
 
 ## Next unchecked task
 - **File order:** Phase 0, "Join **Nebius Builder Program**" (**KUMAR-OWNED**).
-- **Next task the agent can act on:** Phase 1 "Latency/cost": cost per run is now computed (arithmetic, below); setting `MAX_LLM_CALLS_PER_RUN` and `DAILY_RUN_BUDGET` needs Kumar's credit budget. **Separate decision pending:** the replay-data blocker (missing parse for NCT05693766). Still paused: parser calls, L1/L2/P1, wiring G1/G2, any extraction call, Stage 3, real visitor input, `VISITOR_INPUT_MODE=open`, Production.
+- **Next task the agent can act on:** Phase 3 "Eval harness in /eval: loaders, metrics, ablation switches" (offline; no paid call), after the Phase 1 "Public eval datasets" check. Open pre-submission decisions P1 (cost limit) and P2 (organizer question) are recorded above and are not asked again in routine updates. Still paused: visitor input (`VISITOR_INPUT_MODE=open`), Stage 3 UI, the replay backfill (missing parse NCT05693766), Production.
