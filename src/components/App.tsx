@@ -6,17 +6,13 @@ import { Describe } from "./screens/Describe";
 import { Detail } from "./screens/Detail";
 import { Processing } from "./screens/Processing";
 import { Results } from "./screens/Results";
-import { MOVES, TRIALS } from "@/lib/sample/triallens-sample";
-import type { Tier } from "./status/TierBadge";
+import { TRIALS } from "@/lib/sample/triallens-sample";
 
 type Screen = "describe" | "confirm" | "processing" | "results" | "detail";
 
 /** Describe → Confirm → Processing → Results → Detail. Demo only: fixed fictional profile and results; nothing the visitor types is read, stored or sent. */
 function FixedDemo() {
   const [screen, setScreen] = useState<Screen>("describe");
-  const [tiers, setTiers] = useState<Record<string, Tier>>({});
-  const [answer, setAnswer] = useState<string | null>(null);
-  const [updated, setUpdated] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [open, setOpen] = useState("t1");
 
@@ -29,28 +25,9 @@ function FixedDemo() {
     const h = setTimeout(() => setToast(null), 6000);
     return () => clearTimeout(h);
   }, [toast]);
-  useEffect(() => {
-    if (updated.length === 0) return;
-    const h = setTimeout(() => setUpdated([]), 4000);
-    return () => clearTimeout(h);
-  }, [updated]);
 
-  const trials = TRIALS.map((t) => ({ ...t, tier: tiers[t.id] ?? t.tier }));
-  const onAnswer = (a: string) => {
-    setAnswer(a);
-    const mv = MOVES[a];
-    if (!mv) {
-      setTiers({});
-      setUpdated([]);
-      setToast(a === "I don't know" || a === "Below 55%" ? "Noted. Results stay as they are. You can answer later." : "Good plan. Results stay as they are until you know.");
-      return;
-    }
-    setTiers(mv);
-    const ids = Object.keys(mv);
-    setUpdated(ids);
-    const strong = ids.filter((i) => mv[i] === "strong").length;
-    setToast(ids.length + (ids.length === 1 ? " trial moved." : " trials moved.") + (strong ? " " + strong + " is now a Strong potential match." : ""));
-  };
+  // Option B (2026-10-10): the fixed demo has no answer step and no tier updates; the sample trials are shown as they are.
+  const trials = TRIALS;
   const toProcessing = useCallback(() => setScreen("processing"), []);
   const toResults = useCallback(() => setScreen("results"), []);
 
@@ -59,7 +36,7 @@ function FixedDemo() {
   else if (screen === "confirm") view = <Confirm onBack={() => setScreen("describe")} onNext={toProcessing} />;
   else if (screen === "processing") view = <Processing onDone={toResults} />;
   else if (screen === "detail") view = <Detail trial={trials.find((t) => t.id === open) ?? trials[0]!} onBack={() => setScreen("results")} />;
-  else view = <Results trials={trials} answer={answer} onAnswer={onAnswer} updated={updated} onOpen={(id) => { setOpen(id); setScreen("detail"); }} toast={toast} setToast={setToast} />;
+  else view = <Results trials={trials} onOpen={(id) => { setOpen(id); setScreen("detail"); }} toast={toast} setToast={setToast} />;
   return <div className="tl-frame">{view}</div>;
 }
 

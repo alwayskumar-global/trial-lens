@@ -233,3 +233,57 @@ describe("LiveDetail", () => {
     expect(h).not.toContain("From the prepared fictional profile");
   });
 });
+
+describe("LiveResults: study-team question panel (Option B)", () => {
+  const item = {
+    fact_key: "ecog" as const, topic: "Daily activity level (ECOG performance status)", study_count: 2,
+    studies: [
+      { nct_id: "NCT04400695", criteria: [{ criterion_id: "NCT04400695:inclusion:0", type: "inclusion" as const, text: "Eastern Cooperative Oncology Group(ECOG) physical condition 0 or 1;" }] },
+      { nct_id: "NCT07290153", criteria: [{ criterion_id: "NCT07290153:exclusion:3", type: "exclusion" as const, text: "ECOG performance status of 3 or more" }] },
+    ],
+  };
+  const withPanel = (questions: Array<typeof item>) => run(...([{ type: "mode", mode: "replay" }, { type: "trial_result", assessment: assessedPossible }, { type: "study_questions", version: "sq-1", questions }, { type: "done", replay: true }] as RunAction[]));
+
+  it("shows the title, the topic, a distinct-study count, links to each study and the criterion wording verbatim", () => {
+    const h = html(<LiveResults run={withPanel([item])} onOpen={noop} />);
+    expect(h).toContain("Questions worth asking the study team");
+    expect(h).toContain("Daily activity level (ECOG performance status)");
+    expect(h).toContain("Open in 2 studies");
+    expect(h).toContain('href="https://clinicaltrials.gov/study/NCT04400695"');
+    expect(h).toContain('href="https://clinicaltrials.gov/study/NCT07290153"');
+    expect(h).toContain("Eastern Cooperative Oncology Group(ECOG) physical condition 0 or 1;");
+    expect(h).toContain("Exclusion criterion");
+    expect(h).toContain("The study team can confirm the detail.");
+    expect(h).toContain("These questions relate to the prepared fictional profile. They do not change the results shown.");
+  });
+
+  it("mobile variant is a collapsed disclosure with the title once and no repeated inner heading; the desktop card keeps its heading", () => {
+    const h = html(<LiveResults run={withPanel([item])} onOpen={noop} />);
+    const mobile = h.slice(h.indexOf('class="only-m"', h.indexOf("Questions worth asking")));
+    expect(mobile).toContain('<details class="disclose">');
+    expect(mobile).not.toMatch(/<h2/);
+    expect(mobile).toContain("Questions worth asking the study team (1)");
+    expect(h.match(/<h2[^>]*>Questions worth asking the study team<\/h2>/g)).toHaveLength(1);
+  });
+
+  it("has no answer buttons, chips, Copy or Print, and makes no tier promise", () => {
+    const h = html(<LiveResults run={withPanel([item])} onOpen={noop} />);
+    const panel = h.slice(h.indexOf("Questions worth asking"));
+    expect(panel).not.toMatch(/<button|aria-pressed|tl-achip|Copy|Print/);
+    expect(panel).not.toMatch(/most decisive|blocks the most|sharpen|could change|will change|will move|move to Possible|answer/i);
+  });
+
+  it("empty list: a small neutral state is shown (never hidden)", () => {
+    const h = html(<LiveResults run={withPanel([])} onOpen={noop} />);
+    expect(h).toContain("Questions worth asking the study team");
+    expect(h).toContain("No question could be identified from the criteria assessed in this run.");
+    expect(h).not.toContain("Show studies and criterion wording");
+  });
+
+  it("no event: nothing about the panel is shown and nothing is claimed", () => {
+    const h = html(<LiveResults run={resultsRun("replay")} onOpen={noop} />);
+    expect(h).not.toContain("Questions worth asking");
+    expect(h).not.toContain("No question could be identified");
+    expect(h).not.toContain("res-grid");
+  });
+});

@@ -81,3 +81,21 @@ describe("no visitor-facing string presents the reported facts as verified", () 
     for (const f of ["src/components", "src/lib/live"].flatMap(files).filter((x) => !/\.test-util\./.test(x))) expect(readFileSync(f, "utf8"), f).not.toMatch(/reported_conflict|reported_only/);
   });
 });
+
+// Study-team panel (Option B, Kumar 2026-10-10): a counterfactual lift is a prediction; the panel never promises a tier change, has no answer step and
+// no "decisiveness" claim. Applies to the panel component and the live copy.
+describe("study-team panel copy", () => {
+  const BAD = [/most decisive/i, /blocks the most/i, /sharpen/i, /\bwill (?:change|move|update)\b/i, /move to Possible/i, /answering (?:this|these|a)\b/i];
+  for (const f of ["src/components/results/StudyTeamPanel.tsx", ...files("src/lib/live")]) {
+    it(f, () => {
+      const src = readFileSync(f, "utf8");
+      for (const re of BAD) expect(src, String(re)).not.toMatch(re);
+    });
+  }
+  it("uses the approved title and notes exactly", () => {
+    const src = readFileSync("src/components/results/StudyTeamPanel.tsx", "utf8");
+    expect(src).toContain('"Questions worth asking the study team"');
+    expect(src).toContain('"These questions relate to the prepared fictional profile. They do not change the results shown."');
+    expect(src).toContain('"No question could be identified from the criteria assessed in this run."');
+  });
+});

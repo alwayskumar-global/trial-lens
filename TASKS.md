@@ -112,7 +112,7 @@ Figma first for hero screens (Oct 6–10), then build.
 - [x] Screen 3 Processing (live stage stream and counts)
   - Evidence: `LiveProcessing`/`Processing`, approved states in `docs/live-ui-proposal.md`, `live.test.tsx`.
 - [ ] Screen 4 Results (tier counts, cards, adaptive panel)
-  - **PARTIAL.** Tier counts, cards and Fit Line (`ce6e427`, equal-sized dots) done. Adaptive panel is absent in live mode (**DEFERRED**). Policy R2: STRONG and LIKELY_MISMATCH zones are never populated for any result. **DEVIATION (Option B):** the adaptive panel is the "Questions worth asking the study team" panel; mockups (desktop and mobile) are awaiting Kumar's approval and **no UI code is written until they are approved**.
+  - **PARTIAL.** Tier counts, cards and Fit Line (`ce6e427`, equal-sized dots) done. Adaptive panel is absent in live mode (**DEFERRED**). Policy R2: STRONG and LIKELY_MISMATCH zones are never populated for any result. **DEVIATION (Option B):** the adaptive panel is the "Questions worth asking the study team" panel. Mockups approved with revisions (2026-10-10); built for live/replay (`StudyTeamPanel.tsx`, `study_questions` sq-1 event, tests); fixed demo reflowed to one column with the question card removed; layout screenshots sent, awaiting Kumar's approval. **Replay data not stored:** dry-run validated `tnbc-caregiver` but stopped for the other two cases (missing parse for NCT05693766, not flagged pending/failed); nothing written (`docs/study-team-panel.md`).
 - [ ] Screen 5 Trial detail (eligibility matrix, why-it-surfaced, coordinator questions, site/contact, NCT link)
   - **PARTIAL.** Eligibility matrix, original wording and official NCT link done. Coordinator questions, site and contact are not built (`sites`/`coordinator_questions` are empty).
 - [x] Persistent safety banner; copy audit against CLAUDE.md safety rules (no "eligible"/"qualify")
@@ -240,4 +240,4 @@ Policy R2 (above); server side of visitor input (Stages 1-2: extract split, sign
 
 ## Next unchecked task
 - **File order:** Phase 0, "Join **Nebius Builder Program**" (**KUMAR-OWNED**).
-- **Next task the agent can act on:** the Option B panel is approved in principle; **desktop and mobile mockups are awaiting Kumar's approval before any UI code**. Still paused: parser calls, L1/L2/P1, wiring G1/G2, any extraction call, Stage 3, real visitor input, `VISITOR_INPUT_MODE=open`, Production.
+- **Next task the agent can act on:** Option B panel built; **awaiting Kumar's review of the screenshots (fixed-demo reflow, replay panel, empty state, live Processing label) and his decision on the replay blocker** (missing cached parse for NCT05693766 in two of three replay cases; options in the report: stop, or a ceilinged re-parse of that one trial, or regenerate). Still paused: parser calls, L1/L2/P1, wiring G1/G2, any extraction call, Stage 3, real visitor input, `VISITOR_INPUT_MODE=open`, Production.

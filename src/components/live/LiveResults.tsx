@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { FitBar } from "../results/FitBar";
 import { FitLine } from "../results/FitLine";
+import { StudyTeamPanel } from "../results/StudyTeamPanel";
 import { TierBadge, type Tier } from "../status/TierBadge";
 import { LIVE_SUBJECT, NOT_ANALYZED_GROUP, NOT_ANALYZED_GROUP_NOTE, REPLAY_SUBJECT } from "@/lib/live/copy";
 import { cardModel, tierCounts, trialKind, uiTier, type RunState } from "@/lib/live/model";
@@ -61,6 +62,7 @@ export function LiveResults({ run, onOpen }: { run: RunState; onOpen: (nct: stri
           </div>
           <FitLegend />
         </div>
+        <div className={run.studyQuestions ? "res-grid" : undefined}>
         <div className="stack g32">
           {sectionTiers.map((k) => {
             const list = assessed.filter((t) => uiTier(t) === k);
@@ -91,6 +93,12 @@ export function LiveResults({ run, onOpen }: { run: RunState; onOpen: (nct: stri
               <div className="in stack g16">{mismatches.map(card)}</div>
             </details>
           )}
+        </div>
+        {run.studyQuestions && (
+          <aside className="sticky rail">
+            <StudyTeamPanel questions={run.studyQuestions} />
+          </aside>
+        )}
         </div>
       </main>
     </LiveShell>

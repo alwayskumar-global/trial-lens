@@ -53,12 +53,6 @@ const named: SampleTrial[] = [
 ];
 export const TRIALS: readonly SampleTrial[] = named;
 
-/** Tier changes caused by each answer to the adaptive question (design: MOVES). */
-export const MOVES: Readonly<Record<string, Readonly<Record<string, Tier>>>> = {
-  // No answer produces STRONG, and none produces Likely mismatch (that needs a Rule-D-verified conflict).
-  "55% or higher": { t8: "possible" },
-};
-
 export const TIERS: ReadonlyArray<{ k: Tier; n: string }> = [
   { k: "strong", n: "Strong potential match" },
   { k: "possible", n: "Possible match" },
@@ -98,7 +92,3 @@ export const QUESTIONS: readonly string[] = [
 export const DETAIL_PLAIN =
   "This sample study tests a new treatment option for people with HER2-positive breast cancer after surgery. Researchers want to learn whether it lowers the chance of the cancer coming back. Participants visit the clinic regularly for treatment and check-ups.";
 
-export const ADAPTIVE_QUESTION = {
-  question: "Do you know your most recent heart ultrasound result (LVEF)?",
-  answers: ["55% or higher", "Below 55%", "I don't know", "I'll check with my care team"],
-};
