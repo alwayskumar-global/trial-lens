@@ -61,6 +61,11 @@ export const OPEN_ON_CTGOV = "Open on ClinicalTrials.gov";
 export const LIVE_SUBJECT = "the prepared fictional profile";
 export const REPLAY_SUBJECT = "the fictional profile";
 export const ASK_TEAM = "Worth asking the study team.";
+/**
+ * Approved by Kumar (2026-10-07), fictional-profile variant: shown beside a neutral icon when a second automated pass found no conflict.
+ * `subject` is LIVE_SUBJECT or REPLAY_SUBJECT. Visitor-specific wording ("Your reported details") is reserved for the visitor-UI review.
+ */
+export const secondComparison = (subject: string): string => `A second automated comparison found no conflict in the criteria it checked. ${subject.charAt(0).toUpperCase()}${subject.slice(1)} was not independently verified.`;
 
 export const ERROR_TITLE = "Live analysis isn't available right now"; // approved
 export const ERROR_BODY = "No results are available from this run. Please try again later."; // approved wording: "Nothing was analyzed" can be false after partial progress

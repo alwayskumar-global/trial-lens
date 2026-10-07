@@ -3,7 +3,7 @@ import { Button } from "../actions/Button";
 import { CriterionGroup } from "../results/CriterionStrip";
 import { StatusGlyph } from "../status/StatusGlyph";
 import { TierBadge } from "../status/TierBadge";
-import { FAILED_DETAIL, FAILED_TAG, LIVE_SUBJECT, OPEN_ON_CTGOV, PENDING_DETAIL, PENDING_TAG, REPLAY_SUBJECT } from "@/lib/live/copy";
+import { FAILED_DETAIL, FAILED_TAG, LIVE_SUBJECT, OPEN_ON_CTGOV, PENDING_DETAIL, PENDING_TAG, REPLAY_SUBJECT, secondComparison } from "@/lib/live/copy";
 import { detailModel, uiTier, type RunState } from "@/lib/live/model";
 import type { TrialResult } from "@/schema/assessment";
 import { CriterionRow } from "./CriterionRow";
@@ -105,8 +105,8 @@ export function LiveDetail({ run, trial: t, onBack }: { run: RunState; trial: Tr
                   </li>
                   {t.verified && t.tier !== "LIKELY_MISMATCH" && (
                     <li>
-                      <StatusGlyph status="meets" />
-                      <span>A second automated check found no conflict</span>
+                      <StatusGlyph status="neutral" />
+                      <span>{secondComparison(subject)}</span>
                     </li>
                   )}
                 </ul>

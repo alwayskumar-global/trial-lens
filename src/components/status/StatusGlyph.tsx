@@ -1,6 +1,9 @@
 export type CriterionStatus = "meets" | "unknown" | "judgment" | "conflict";
+/** `neutral` is an informational note, never a criterion result: an outlined circle with no mark and no colour signal. */
+export type GlyphStatus = CriterionStatus | "neutral";
 
-const LABELS: Record<CriterionStatus, string> = {
+const LABELS: Record<GlyphStatus, string> = {
+  neutral: "Note",
   meets: "Meets",
   unknown: "Unknown (ask)",
   judgment: "Needs clinical judgment",
@@ -8,7 +11,7 @@ const LABELS: Record<CriterionStatus, string> = {
 };
 
 export interface StatusGlyphProps {
-  status?: CriterionStatus;
+  status?: GlyphStatus;
   size?: number;
   withLabel?: boolean;
   label?: string;
@@ -32,6 +35,7 @@ export function StatusGlyph({ status = "meets", size = 20, withLabel = false, la
       aria-label={withLabel ? undefined : t}
       aria-hidden={withLabel ? true : undefined}
     >
+      {status === "neutral" && <circle cx="12" cy="12" r="9" />}
       {status === "meets" && (
         <>
           <circle cx="12" cy="12" r="9" fill="currentColor" />

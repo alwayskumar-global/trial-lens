@@ -183,6 +183,25 @@ describe("LiveDetail", () => {
     expect(p).toContain("Recently diagnosed with stage II, III, or IV breast cancer");
   });
 
+  it("second-comparison line (approved 2026-10-07): exact fictional-profile wording, neutral icon, no green check", () => {
+    const li = (h: string) => /<li>(?:(?!<\/li>).)*second automated comparison(?:(?!<\/li>).)*<\/li>/.exec(h)?.[0] ?? "";
+    const live = li(detail(assessedPossible));
+    expect(live).toContain("A second automated comparison found no conflict in the criteria it checked. The prepared fictional profile was not independently verified.");
+    expect(live).toContain("tl-glyph--neutral");
+    expect(live).not.toContain("tl-glyph--meets");
+    expect(detail(assessedPossible)).not.toContain("A second automated check");
+    const saved = li(detail(assessedPossible, "replay"));
+    expect(saved).toContain("A second automated comparison found no conflict in the criteria it checked. The fictional profile was not independently verified.");
+    expect(saved).not.toContain("prepared fictional profile");
+    expect(saved).toContain("tl-glyph--neutral");
+  });
+
+  it("the second-comparison line never appears for an unverified result or a reported conflict", () => {
+    expect(detail(noMet)).not.toContain("second automated comparison");
+    expect(detail(reportedConflict)).not.toContain("second automated comparison");
+    expect(detail(mismatch)).not.toContain("second automated comparison");
+  });
+
   it("a likely mismatch never claims 'no conflict'", () => {
     expect(detail(mismatch)).not.toContain("found no conflict");
   });

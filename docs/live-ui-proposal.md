@@ -39,7 +39,8 @@ Status: **approved by Kumar (revision 2, mockups at 5caf7a6) and implemented** b
 | Replay notice, other reasons | "Live analysis isn't available right now, so this is a saved example about a fictional person. It does not use your description." |
 | Detail subtitle (assessed) | "Original wording from ClinicalTrials.gov, with what we compared it to. Open any row to read it." |
 | Detail subtitle (pending) | "Original wording from ClinicalTrials.gov. Nothing has been compared with your information." |
-| Detail right rail | "Why it surfaced" (counts only: criteria look fine / not in your information / need clinical judgment / second automated check found no conflict) and "Official study page" with "Open on ClinicalTrials.gov" |
+| Detail right rail, second-comparison line (approved by Kumar 2026-10-07; replaces "A second automated check found no conflict") | "A second automated comparison found no conflict in the criteria it checked. The prepared fictional profile was not independently verified." (saved examples: "The fictional profile was …"). Neutral icon, not the green check. Visitor-specific wording is reserved for the visitor-UI review. |
+| Detail right rail | "Why it surfaced" (counts only: criteria look fine / not in your information / need clinical judgment / second automated comparison found no conflict) and "Official study page" with "Open on ClinicalTrials.gov" |
 
 ## Decisions I need from Kumar
 1. **Stage list copy and counts above**, including removing the "Skip to results" button and the duration estimate.

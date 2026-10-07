@@ -27,6 +27,7 @@
 /* Glyphs */
 .tl-glyph{width:20px;height:20px;flex:none;display:inline-block;vertical-align:middle}
 .tl-glyph--meets{color:var(--status-meets-fg)}.tl-glyph--meets .on{stroke:var(--status-meets-bg)}
+.tl-glyph--neutral{color:var(--muted-foreground)}
 .tl-glyph--unknown{color:var(--status-unknown-fg)}
 .tl-glyph--judgment{color:var(--status-judgment-fg)}
 .tl-glyph--conflict{color:var(--status-conflict-fg)}
