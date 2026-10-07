@@ -8,7 +8,7 @@ Tick boxes as you go. Order matters in Phase 0.
 - `[x]` = done **and verified**, with the evidence cited under the item. `[ ]` = not done, or not verifiable by the agent. An item with any unmet clause is not ticked.
 - Tags on unchecked items: **PARTIAL** (what is done and what remains), **BLOCKED** (needs a decision), **DEFERRED** (explicitly paused or cut), **KUMAR-OWNED** (the agent cannot verify it).
 - The original wording of every line, the phase order, the deadline, the cut order and the Stretch list are unchanged. Where an item's wording conflicts with the currently approved scope it is not edited; a `Scope note` sits under it and it is listed in **Wording conflicts**.
-- Status snapshot: **2026-10-07**, branch `phase1/spike`, annotated against commit `60fda87` (Policy R2). At that commit: `pnpm lint`, `pnpm typecheck`, `pnpm test` (524 tests, 33 files) and `pnpm build` pass. Production (`main`) is untouched. No merge, no Production deploy.
+- Status snapshot: **2026-10-07**, branch `phase1/spike`, updated at commit `d088af2` (code: Policy R2 `60fda87`, copy `c3afcbb`, measurement harness `929f559`). On the working tree at that commit `pnpm lint`, `pnpm typecheck` and `pnpm test` (544 tests, 34 files) pass; `pnpm build` passed at `c3afcbb`. Production (`main`) is untouched. No merge, no Production deploy.
 - Work that is paused: **Stage 3 UI** (editable Describe/Confirm, location, Results question) and **`VISITOR_INPUT_MODE=open`**. They stay paused until Kumar says otherwise.
 
 ## Phase 0 — Prerequisites (Oct 6, do before any code) 
@@ -51,7 +51,7 @@ Write throwaway scripts in `/eval/spike`. Record results in `/docs/spike-results
 - [x] **Tool calling** support per model (only needed if used; note result)
   - Result noted: not tested and not used by the design (`docs/spike-results.md`).
 - [ ] **Latency/cost:** per call p50/p95 per tier; estimate cost per full run (30 trials) → set `MAX_LLM_CALLS_PER_RUN` and `DAILY_RUN_BUDGET` from real numbers
-  - **PARTIAL.** p50/p95 recorded for single-criterion calls; end-to-end Preview run 93.2 s / 41 calls. **Cost per run not computed.** The FAST price seen so far ($0.06 / $0.24 per 1M input / output tokens, third-party sources, unverified against Nebius) feeds the pending hardened-1 measurement proposal. `MAX_LLM_CALLS_PER_RUN`=80 and `DAILY_RUN_BUDGET`=150 were NOT derived from real prices.
+  - **PARTIAL.** p50/p95 recorded for single-criterion calls; end-to-end Preview run 93.2 s / 41 calls. **FAST price now confirmed from the Token Factory account API** (2026-10-07): `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, $0.06 / $0.24 per 1M input / output tokens. Measured in the hardened-1 development check (`docs/hardened-1-dev-check.md`): 33 calls, 100,183 tokens, actual spend about $0.021 (roughly $0.0006 per extraction call, 2.5-3k completion tokens each); extraction latency p50 8.8 s (spike-0) / 10.0 s (hardened-1), p95 14.6 / 16.9 s. **Cost per full run (MID and DEEP prices, ~41 calls) is still not computed**, and `MAX_LLM_CALLS_PER_RUN`=80 and `DAILY_RUN_BUDGET`=150 were NOT derived from real prices.
 - [x] **Rate limits / 429 behavior** at `LLM_CONCURRENCY=6`
   - Evidence: 0 HTTP 429 in ~220 calls at concurrency 6 (`docs/spike-results.md`). Limits above 6 not discovered.
 - [ ] **Data retention / logging terms** for Token Factory read and summarized in `/docs/spike-results.md` (governs README privacy wording)
@@ -71,7 +71,7 @@ Write throwaway scripts in `/eval/spike`. Record results in `/docs/spike-results
 - [x] CT.gov client + mappers + Zod validation + deterministic filters
   - Evidence: `src/lib/ctgov/client.ts`, `split.ts` and tests.
 - [x] Profile extraction (FAST) + Known/Unknown/Uncertain handling
-  - Evidence: `src/lib/pipeline/extract.ts`, tests. Extraction prompt `hardened-1` is offline-tested only; its accuracy and latency are NOT measured (see Open decisions).
+  - Evidence: `src/lib/pipeline/extract.ts`, tests. Extraction prompt `hardened-1`: development check on 12 author-written fictional cases (`docs/hardened-1-dev-check.md`, `eval/reports/hardened-1-dev-check.json`): instruction-style injections obeyed 0 (spike-0: 7), false-known 11 (17), recall 43/49 (44/52), p95 16.9 s; **criteria not all met**: one prepared text ended invalid after the retry (both attempts hit the 4,096-token cap), hedged facts still returned as known, facts asserted inside the text still accepted. Development results, not measured clinical accuracy. The Preview check of `/api/extract` was NOT completed: 503 before any model call because `PROFILE_SIGNING_SECRET` is not set on the Preview deployment.
 - [x] Criteria parser (MID) + `trial_criteria_cache`
   - Evidence: `src/prompts/clause-parse.ts` (`spike-4`), `src/lib/cache/criteria-cache.ts` (memory + Supabase), `run.test.ts` cache reuse.
 - [x] Unit normalisation (+ Vitest)
@@ -117,6 +117,7 @@ Figma first for hero screens (Oct 6–10), then build.
   - **PARTIAL.** Eligibility matrix, original wording and official NCT link done. Coordinator questions, site and contact are not built (`sites`/`coordinator_questions` are empty).
 - [x] Persistent safety banner; copy audit against CLAUDE.md safety rules (no "eligible"/"qualify")
   - Evidence: `SafetyBanner`, `src/lib/ui/copy-audit.test.ts` (banned words, reported-facts-not-verified guard). Scope note: the safety rules now live in `docs/copy-rules.md` (CLAUDE.md is local-only).
+  - Copy change `c3afcbb` (approved by Kumar 2026-10-07, fictional-profile variant): "A second automated comparison found no conflict in the criteria it checked. The prepared fictional profile was not independently verified." (saved examples: "The fictional profile ..."), neutral icon instead of the green check (`LiveDetail.tsx`, `copy.ts`, `StatusGlyph.tsx`). **Pending Kumar's review of the delivered screenshots; not closed.** Visitor-specific wording is reserved for the visitor-UI review.
 - [ ] Accessibility pass (contrast, keyboard, reduced motion); mobile layout
   - Not done. A mobile `FitBar` exists below 1024 px; no accessibility audit and no mobile design review yet.
 - [ ] Empty/error/`analysis_failed` states designed, not default
@@ -189,19 +190,22 @@ Figma first for hero screens (Oct 6–10), then build.
 - **Policy R2 (approved):** every fact is the visitor's own statement and none is verified. Final tier = engine tier through the ceiling STRONG→POSSIBLE (`reported_only`) and LIKELY_MISMATCH→UNCERTAIN (`reported_conflict`), applied after every re-tier, in a final pass, to stored replays at read time and at the SSE boundary. Rule D, the 80-call cap and overflow-as-UNCERTAIN are unchanged. `reported_conflict` is internal, `verified` is false for it, and no screen may present reported facts as verified (`SPEC.md` §4, `docs/copy-rules.md`).
 - **Visitor input:** server side built (`/api/extract`, signed extraction token, samples mode refuses any edit, profile runs require a valid token). `VISITOR_INPUT_MODE=samples`. **`open` and the Stage 3 UI are paused.**
 - **ZDR gate:** no real visitor text goes to the model provider until zero data retention (or equivalent) is verified first-party in writing for our organisation and key, and the privacy copy is approved. Tests and measurements use fictional text only.
-- **hardened-1** (extraction prompt with delimited data and no-echo validation retry) has offline tests only. The earlier Preview SSE result does not validate its accuracy or latency. A core-only fictional-input measurement (cap 70 FAST calls) is proposed and awaits Kumar's approval; the 12 author-written cases are a development check, not measured clinical accuracy. The optional end-to-end test is not scheduled.
-- **Copy:** the "second automated check found no conflict" string is to be reworded after Kumar reviews where it appears; UI copy changes need Kumar's approval.
+- **hardened-1** (extraction prompt with delimited data and no-echo validation retry): core fictional-input comparison run on 2026-10-07 under Kumar's approval (cap 70 FAST calls; model id and prices confirmed from the account first; 33 calls used, about $0.021 against a $0.081 maximum). Result: mixed, criteria not all met (see `docs/hardened-1-dev-check.md`). The 12 author-written cases are a development check, not measured clinical accuracy. The earlier Preview SSE result does not validate hardened-1. The optional end-to-end test was not run and is not scheduled.
+- **Preview `PROFILE_SIGNING_SECRET`:** required for the Preview extraction checks; it must be set for Preview only, Sensitive, followed by a Preview redeploy. The Vercel API returns 403 for listing environment variables, so the variable cannot be confirmed by name from a session; the Preview returns 503 before any model call, which shows it is not set (or predates the deployment). `VISITOR_INPUT_MODE` stays `samples`.
+- **Copy:** the second-comparison line uses the approved fictional-profile variant with a neutral icon (`c3afcbb`), pending Kumar's review of the screenshots. UI copy changes need Kumar's approval.
 - **Design assets:** the Claude Design export, `guidelines/handoff.md` and the design screenshots are not in the repo (screenshots are not to be committed to the public repo without Kumar's approval).
 
 ## Approved scope changes since this file was written (records, not new tasks)
 Policy R2 (above); server side of visitor input (Stages 1-2: extract split, signed token, samples mode, abuse and privacy controls); extraction prompt hardening; Fit Line equal-size fix; self-hosted fonts and `vercel.json` framework setting for Preview; `AGENTS.md` committed. Stage 3 and everything after it in that plan are paused.
 
 ## Open decisions (for Kumar)
-1. **Coverage-gate scope decision** (Phase 1, Vocabulary coverage): record explicitly whether the adaptive demo proceeds under the soundness-first design despite the unmet ≥60% gate.
-2. **ZDR verification** and which privacy wording applies (blocks `open`).
-3. **Reword** "A second automated check found no conflict" to "A second automated comparison found no conflict in the criteria it checked. Your reported details were not independently verified." The only rendered location is `src/components/live/LiveDetail.tsx:109`; decide how it reads in the fictional-profile flow (live copy rules refer to "the prepared fictional profile", not the visitor) and whether the green check glyph next to it should be neutral.
-4. **hardened-1 measurement** approval and whether `PROFILE_SIGNING_SECRET` is set on Preview for its Preview part.
-5. Stage 3 go/no-go, plus scope wording, spend limits, missing design assets and the judging-deployment access model.
+1. **Coverage-gate scope decision** (Phase 1, Vocabulary coverage). The gate is NOT passed and Stage 3 has not started. Two options were presented, to be chosen and recorded here:
+   - **Option 1 (recommended): typed re-tier demo on the keys that reach trials.** Question limited to ecog, measurable_disease, pregnant/lactating, anc/platelets, lvef; the answer re-tiers instantly in code (no model call, cached parses), Policy R2 (an answer can only lift UNCERTAIN to POSSIBLE), honest empty state. At current coverage (strict typed 5.7% at the gate; reviewed-full-logic 6.5% / 8.7%; 22 of 30 trials with a typed atom on an askable fact, 12 of 30 with a reviewed-full one) a question usually exists but few trials can move (estimate 0-3 of 30, not measured; to be measured offline at no model cost on the 3 prepared profiles). Schedule about 2.5-3 days in the Oct 13-16 window; Phase 5 start (Oct 22) unchanged. Fallback to Option 2 if all three prepared profiles show zero lift.
+   - **Option 2: non-evaluative "what to ask next" panel.** Ranks the unknown facts that block the most trials as questions for the study team; answers do not re-tier. Always has content, no lift claim; changes SPEC §8 #4 from "tiers visibly update" to "the panel names the most decisive unknown" and weakens the "never cut: adaptive questioning" item. Schedule about 1 day; removes the answer-handling path from Phase 3.
+2. **ZDR verification** and which privacy wording applies (blocks `open`; no real visitor text before it).
+3. **Second-comparison copy** (Phase 4 copy item): review the delivered screenshots (live and saved example, desktop and mobile) and close or change it. Visitor-specific wording ("Your reported details ...") is reserved for the visitor-UI review.
+4. **hardened-1 follow-up:** (a) accept as shipped and note the truncation risk on one prepared text, (b) allow a small follow-up on that case within the remaining budget (about 31 offline calls left under the 70-call cap), or (c) change the prompt or output cap. Also set `PROFILE_SIGNING_SECRET` for Preview (Sensitive, then redeploy) to complete the three Preview extraction checks.
+5. Stage 3 go/no-go (paused), plus scope wording, spend limits, missing design assets and the judging-deployment access model.
 
 ## Wording conflicts (original wording vs currently approved scope)
 | Item (phase) | Original wording | Current approved scope |
@@ -225,4 +229,4 @@ Policy R2 (above); server side of visitor input (Stages 1-2: extract split, sign
 
 ## Next unchecked task
 - **File order:** Phase 0, "Join **Nebius Builder Program**" (**KUMAR-OWNED**).
-- **Next task the agent can act on:** Phase 1, "**Latency/cost**" (cost per run and caps from real numbers), supported by the pending hardened-1 measurement proposal. It starts only after Kumar approves spend.
+- **Next task the agent can act on:** Phase 1, "**Latency/cost**" (remainder: cost per full run from the account's MID/DEEP prices and the measured call counts; arithmetic only, no model call). After that, Phase 3 work starts only once Kumar has chosen a coverage-gate option (Open decision 1).
