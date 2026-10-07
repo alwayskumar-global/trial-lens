@@ -15,12 +15,35 @@ if (!BASE) { console.error("PREVIEW_URL is required"); process.exit(2); }
 const results: Array<[boolean, string]> = [];
 const check = (ok: boolean, name: string) => { results.push([ok, name]); console.warn(`${ok ? "PASS" : "FAIL"} ${name}`); };
 
+// Completes the protected-preview sign-in: follows the share link's redirects manually (max 8 hops, only to the preview host or *.vercel.com,
+// https only), keeping a per-run cookie jar. Returns the Cookie header for the preview host; "" when no share link is set.
+// Never logs URLs, cookie names/values or response bodies; failures are reported as fixed codes.
 async function cookieFromShare(): Promise<string> {
   const share = process.env.PREVIEW_SHARE_URL;
   if (!share) return "";
-  const r = await fetch(share, { redirect: "manual" });
-  const raw = r.headers.getSetCookie?.() ?? [];
-  return raw.map((c) => c.split(";")[0]).join("; ");
+  const previewHost = new URL(BASE).host;
+  const jar = new Map<string, Map<string, string>>(); // host -> name -> value
+  let url = share;
+  for (let hop = 0; hop < 8; hop++) {
+    const u = new URL(url);
+    if (u.protocol !== "https:" || !(u.host === previewHost || u.host === "vercel.com" || u.host.endsWith(".vercel.com"))) throw new Error("share_redirect_host_refused");
+    const cookie = [...(jar.get(u.host) ?? [])].map(([k, v]) => `${k}=${v}`).join("; ");
+    const r = await fetch(url, { redirect: "manual", headers: cookie ? { cookie } : {} });
+    for (const c of r.headers.getSetCookie?.() ?? []) {
+      const [pair] = c.split(";"); const i = pair!.indexOf("=");
+      if (i > 0) { const m = jar.get(u.host) ?? new Map(); m.set(pair!.slice(0, i).trim(), pair!.slice(i + 1)); jar.set(u.host, m); }
+    }
+    const loc = r.headers.get("location");
+    await r.arrayBuffer().catch(() => undefined);
+    if (r.status >= 300 && r.status < 400 && loc) { url = new URL(loc, url).toString(); continue; }
+    if (r.status === 410 || r.status === 404) throw new Error("share_link_expired_or_invalid");
+    break;
+  }
+  // A valid share link ends with the preview host's _vercel_jwt cookie. A chain that lands on the vercel.com login instead means the link
+  // was not accepted (expired or revoked): stop, never fall back to public access.
+  const mine = jar.get(previewHost);
+  if (!mine?.has("_vercel_jwt")) throw new Error("share_link_not_accepted_expired_or_revoked");
+  return [...mine].map(([k, v]) => `${k}=${v}`).join("; ");
 }
 
 interface Timed { e: SseEvent; t: number }
@@ -58,13 +81,37 @@ async function main() {
   const bad = await fetch(`${BASE}/api/run`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: "not json" });
   check(bad.status === 400, `malformed body is 400 [got ${bad.status}]`);
 
-  // explicit replay: proves Supabase + env on the deployment, and that replay is labelled and has no live-style stages
-  const rp = await post({ replay_id: "her2pos-stage3" }, cookie);
-  const first = rp.events[0]?.e;
-  console.warn(`replay: status ${rp.status}, ttfb ${sec(rp.ttfb)}, total ${sec(rp.total)}, events ${JSON.stringify(types(rp.events))}`);
-  check(rp.status === 200 && rp.ct.includes("text/event-stream"), "replay is text/event-stream 200");
-  check(first?.type === "mode" && first.mode === "replay" && first.reason === "requested", "replay starts with a labelled mode:replay (requested)");
-  check(rp.events.at(-1)?.e.type === "done", "replay ends with done");
+  // Explicit replays (no model call, no cache write: handler.ts streams replay_id from the Supabase read-only store before the guard/pipeline).
+  for (const id of ["her2pos-stage3", "hrpos-stage2", "tnbc-caregiver"]) {
+    const rp = await post({ replay_id: id }, cookie);
+    const ev = rp.events.map((x) => x.e);
+    const first = ev[0];
+    const results_ = ev.flatMap((e) => (e.type === "trial_result" ? [e.assessment] : []));
+    const tally = (xs: string[]) => xs.reduce<Record<string, number>>((a, k) => ((a[k] = (a[k] ?? 0) + 1), a), {});
+    const findings = results_.flatMap((a) => a.findings);
+    const legacyKey = (k: string) => /^(question|stage)$/.test(k);
+    console.warn(`replay ${id}: status ${rp.status}, label ${first?.type === "mode" ? JSON.stringify(first.label ?? null) : "n/a"}, ttfb ${sec(rp.ttfb)}, total ${sec(rp.total)}`);
+    console.warn(`  events ${JSON.stringify(types(rp.events))}`);
+    console.warn(`  tiers ${JSON.stringify(tally(results_.map((a) => a.tier)))}`);
+    console.warn(`  finding source ${JSON.stringify(tally(findings.map((f) => f.source)))}; status ${JSON.stringify(tally(findings.map((f) => f.status)))}`);
+    console.warn(`  verified ${JSON.stringify(tally(results_.map((a) => String(a.verified))))}; verifier_flags ${JSON.stringify(tally(results_.flatMap((a) => a.verifier_flags)))}`);
+    check(rp.status === 200 && rp.ct.includes("text/event-stream"), `${id}: text/event-stream 200`);
+    if (rp.events.length === 0) { check(false, `${id}: no events streamed (content checks skipped, nothing to verify)`); continue; }
+    check(first?.type === "mode" && first.mode === "replay" && first.reason === "requested" && first.replay_id === id, `${id}: starts with labelled mode:replay (requested, id matches)`);
+    const last = ev.at(-1);
+    check(last?.type === "done" && last.replay === true, `${id}: ends with done(replay:true)`);
+    check(rp.events.length > 0 && results_.length > 0, `${id}: streamed trial_result events (${results_.length})`);
+    check(!ev.some((e) => legacyKey(e.type)), `${id}: no legacy question or stage events`);
+    check(!ev.some((e) => e.type === "error"), `${id}: no error event`);
+    const badEvidence = findings.filter((f) => (f.status === "PASS" || f.status === "FAIL") && f.evidence.length === 0);
+    check(badEvidence.length === 0, `${id}: every PASS/FAIL finding has evidence (${badEvidence.length} without)`);
+    const modelDecided = findings.filter((f) => (f.status === "PASS" || f.status === "FAIL") && f.source !== "code");
+    check(modelDecided.length === 0, `${id}: no model-source PASS/FAIL survived (${modelDecided.length})`);
+    check(results_.every((a) => a.tier !== "STRONG" && a.tier !== "LIKELY_MISMATCH"), `${id}: no STRONG/LIKELY_MISMATCH tier (Policy R2)`);
+    check(results_.every((a) => !a.verifier_flags.includes("reported_conflict") || !a.verified), `${id}: reported_conflict never verified`);
+    check(results_.every((a) => a.fact_basis === "visitor_reported"), `${id}: fact_basis visitor_reported on every result`);
+    check(!ev.some((e) => e.type === "stage" || e.type === "question"), `${id}: no live-style stage/question events`);
+  }
 
   if (process.env.RUN_LIVE === "1") {
     const lv = await post({ text: SAMPLE_TEXT }, cookie);
@@ -114,4 +161,4 @@ async function main() {
   console.warn(`TOTAL ${results.length} checks, ${fail} failed`);
   process.exit(fail ? 1 : 0);
 }
-main().catch((e: unknown) => { console.error("check failed:", (e as Error)?.message?.slice(0, 160)); process.exit(1); });
+main().catch((e: unknown) => { console.error("check failed:", (e as Error)?.message?.slice(0, 160)); process.exit(2); });
