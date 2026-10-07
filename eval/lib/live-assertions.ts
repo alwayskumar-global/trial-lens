@@ -8,7 +8,7 @@ const sec = (ms: number) => (ms / 1000).toFixed(1) + "s";
 const PRICE = { FAST: { in: 0.00000006, out: 0.00000024 }, MID: { in: 0.0000003, out: 0.0000009 } } as const; // Token Factory, docs/cost-per-run.md
 const tally = (xs: string[]) => xs.reduce<Record<string, number>>((a, k) => ((a[k] = (a[k] ?? 0) + 1), a), {});
 
-export function liveAssertions(lv: { status: number; ttfb: number; total: number; events: Timed[]; chunks: number; ct: string }, check: (ok: boolean, name: string) => void, log: (m: string) => void = (m) => log(m)) {
+export function liveAssertions(lv: { status: number; ttfb: number; total: number; events: Timed[]; chunks: number; ct: string }, check: (ok: boolean, name: string) => void, log: (m: string) => void = (m) => console.warn(m)) {
   const ev = lv.events.map((x) => x.e);
   const first = ev[0];
   const done = ev.find((e) => e.type === "done");
@@ -36,17 +36,20 @@ export function liveAssertions(lv: { status: number; ttfb: number; total: number
   const noEvidence = findings.filter((x) => (x.f.status === "PASS" || x.f.status === "FAIL") && x.f.evidence.length === 0);
   check(noEvidence.length === 0, `live: every PASS/FAIL finding has evidence (${noEvidence.length} without)`);
   const modelDecided = findings.filter((x) => (x.f.status === "PASS" || x.f.status === "FAIL") && x.f.source !== "code");
-  log(`  REVIEW (informational, not a pass/fail): model-source PASS/FAIL surviving the fail-closed guard = ${modelDecided.length} (${JSON.stringify(tally(modelDecided.map((x) => x.f.status)))})`);
-  const unreasoned = findings.filter((x) => x.f.source !== "code" && x.f.status !== "UNKNOWN" && x.f.status !== "AMBIGUOUS" && !x.f.guard_downgraded && x.f.evidence.length === 0);
-  check(unreasoned.length === 0, `live: no unevidenced model decision (${unreasoned.length})`);
+  check(modelDecided.length === 0, `live: zero surviving model-source PASS/FAIL findings (${modelDecided.length}: ${JSON.stringify(tally(modelDecided.map((x) => x.f.status)))})`);
 
   // 3. Rule D: a FAIL needs an independent check; only a verified code FAIL could ever lower a tier, and R2 caps it to UNCERTAIN anyway
   const fails = findings.filter((x) => x.f.status === "FAIL");
   log(`  Rule D: FAIL findings ${fails.length}; fail_check ${JSON.stringify(tally(fails.map((x) => x.f.fail_check ?? "absent")))}; FAIL by source ${JSON.stringify(tally(fails.map((x) => x.f.source)))}`);
-  check(findings.every((x) => x.f.status === "FAIL" || x.f.fail_check === undefined || x.f.fail_check === "not_run"), "live: fail_check is meaningful only on FAIL findings");
+  check(fails.every((x) => x.f.source === "code"), `live: every FAIL is code-derived (${fails.filter((x) => x.f.source !== "code").length} not)`);
+  check(findings.every((x) => x.f.status === "FAIL" || x.f.fail_check === undefined), "live: fail_check is absent on every non-FAIL finding");
   check(!trials.some((a) => a.tier === "LIKELY_MISMATCH"), "live: Rule D never produced a LIKELY_MISMATCH tier");
+  const conflicted = trials.filter((a) => a.verifier_flags.includes("reported_conflict"));
+  const unbacked = conflicted.filter((a) => a.verified !== false || !a.findings.some((f) => f.status === "FAIL" && f.source === "code" && f.fail_check === "verified"));
+  check(unbacked.length === 0, `live: every reported_conflict is backed by a verified code FAIL and verified=false (${conflicted.length} flagged, ${unbacked.length} unbacked)`);
 
-  // 4. study-team panel
+  // 4. study-team panel. These are STREAM-CONSISTENCY checks only (the panel agrees with the streamed trials and criteria).
+  // They do not prove that a panel item comes from an executable atom: that provenance is covered by the offline engine tests, not by this stream.
   check(sq.length <= 1, `live: at most one study_questions event (${sq.length})`);
   const panel = sq[0];
   if (panel && panel.type === "study_questions") {
@@ -73,8 +76,13 @@ export function liveAssertions(lv: { status: number; ttfb: number; total: number
   check(lv.total < 300_000, `live: completed within the 300 s function limit (${sec(lv.total)})`);
   log(`  >60 s? ${lv.total > 60_000 ? "YES: beyond the default 60 s limit, so the longer maxDuration is active" : "no (completed under 60 s: this run does not prove the 300 s setting)"}`);
 
-  // 6. counts: cold-cache pending trials are reported on their own
-  if (counts && counts.type === "counts") log(`  counts (final): ${JSON.stringify({ ...counts, type: undefined })}`);
+  // 6. counts: assessed + pending + failed = selected = number of streamed trial_results; cold-cache pending trials are reported on their own
+  if (counts && counts.type === "counts") {
+    log(`  counts (final): ${JSON.stringify({ ...counts, type: undefined })}`);
+    const { selected, assessed, pending, failed } = counts;
+    check(selected !== undefined && assessed !== undefined && pending !== undefined && failed !== undefined && assessed + pending + failed === selected && selected === trials.length, `live: assessed + pending + failed = selected = trial_result count (${assessed ?? "?"}+${pending ?? "?"}+${failed ?? "?"} = ${selected ?? "?"}; ${trials.length} results)`);
+  } else check(false, "live: a counts event was streamed");
+  check(ev.at(-1)?.type === "done" && ev.filter((e) => e.type === "done").length === 1, "live: done is the single, last event");
   const pendingFlag = trials.filter((a) => a.verifier_flags.includes("analysis_pending")).length;
   const failedFlag = trials.filter((a) => a.analysis_failed).length;
   log(`  COLD-CACHE / capacity (report separately, not failures): analysis_pending trials ${pendingFlag}; analysis_failed ${failedFlag}; counts.pending ${counts && counts.type === "counts" ? (counts.pending ?? 0) : "n/a"}`);
@@ -89,6 +97,8 @@ export function liveAssertions(lv: { status: number; ttfb: number; total: number
       for (const r of u.stages) log(`  usage ${r.stage}/${r.tier}: calls ${r.calls}, with_usage ${r.calls_with_usage}, without ${r.calls_without_usage}, tokens in ${r.prompt_tokens ?? "unavailable"} out ${r.completion_tokens ?? "unavailable"}`);
       log(`  usage total: calls ${u.total.calls}, without_usage ${u.total.calls_without_usage}, tokens in ${u.total.prompt_tokens ?? "unavailable"} out ${u.total.completion_tokens ?? "unavailable"}${u.total.calls_without_usage > 0 ? " (LOWER BOUND)" : ""}`);
       check(u.total.calls === st.llm_calls, "live: usage.total.calls equals llm_calls");
+      const sum = (f: (r: { calls: number; calls_with_usage: number; calls_without_usage: number; prompt_tokens: number | null; completion_tokens: number | null }) => number | null) => (u.stages.some((r) => f(r) !== null) ? u.stages.reduce((a, r) => a + (f(r) ?? 0), 0) : null);
+      check(sum((r) => r.calls) === u.total.calls && sum((r) => r.calls_with_usage) === u.total.calls_with_usage && sum((r) => r.calls_without_usage) === u.total.calls_without_usage && sum((r) => r.prompt_tokens) === u.total.prompt_tokens && sum((r) => r.completion_tokens) === u.total.completion_tokens, "live: stage usage totals equal the reported total (calls, with/without usage, prompt and completion tokens)");
       check(u.stages.every((r) => r.calls_with_usage + r.calls_without_usage === r.calls), "live: per-stage usage calls add up");
       check(u.stages.every((r) => (r.calls_with_usage === 0 ? r.prompt_tokens === null && r.completion_tokens === null : r.prompt_tokens !== null && r.completion_tokens !== null)), "live: tokens are null exactly when no call reported usage (never a fabricated 0)");
       const cost = u.stages.reduce((a, r) => a + (r.prompt_tokens ?? 0) * PRICE[r.tier].in + (r.completion_tokens ?? 0) * PRICE[r.tier].out, 0);
