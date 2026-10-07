@@ -9,6 +9,7 @@ Anything marked `VERIFY:` must be confirmed in the Phase 1 spike before dependin
 Differentiators vs prior art (state in README, never claim "first"):
 1. Patient-side **gap analysis**: unknown → what record/test would settle it → question for the coordinator.
 2. **Adaptive questioning** computed deterministically (instant re-ranking, no extra LLM calls for typed facts).
+   > **APPROVED DEVIATION (Kumar, 2026-10-10, submission demo; recorded in TASKS.md "Approved deviation: adaptive questioning").** For the submission demo the answer step and tier updates are REMOVED. This item becomes a **study-team question panel**: "Questions worth asking the study team", with no answer buttons, no re-ranking and no tier change. The original text above is kept for the record.
 3. **Open-model** evaluation with published numbers, including failure modes.
 
 Non-goals: EHR/FHIR, real patient records, diagnosis, treatment advice, enrollment, other diseases (stretch only), document OCR, accounts.
@@ -18,6 +19,7 @@ Non-goals: EHR/FHIR, real patient records, diagnosis, treatment advice, enrollme
 2. **Confirm** — shows extracted profile as Known / Unknown / Uncertain chips; user can edit before search.
 3. **Processing** — live stage stream: `Searching recruiting studies ✓ N` → `Basic eligibility ✓ M remain` → `Reading criteria` → `Comparing history` → `Verifying`.
 4. **Results** — counts per tier; cards show trial title, site + distance, phase, tier, top 3 reasons, top unknown. Adaptive panel: "Answering these 3 questions could sharpen your matches".
+   > **APPROVED DEVIATION (Kumar, 2026-10-10, submission demo; recorded in TASKS.md "Approved deviation: adaptive questioning").** Replaced by the panel "Questions worth asking the study team" (up to 3 topics; each lists the distinct studies with a traceable unresolved scoring criterion, with a link to the study and the original criterion wording; no answer buttons; says the study team can confirm the detail). The sentence above must not be shown.
 5. **Trial detail (hero)** — left: plain-language overview; center: **eligibility matrix** (criterion original text | plain language | patient fact | status | what to ask); right: why it surfaced, coordinator questions, site/contact, source NCT link.
 
 Design principles: calm, dense-but-readable, no chat-first UI, never alarming colors for UNKNOWN, always original text visible.
@@ -84,6 +86,7 @@ Any verified FAIL dominates; otherwise any unverified FAIL gives UNCERTAIN. `fai
 **Run budget.** 80 calls = 40 slots (call + its single retry). Reserved: extraction 1, STRONG/POSSIBLE verification 8, FAIL checks 3 (reassigned from the unbuilt escalation stage); parse ≤ 14; unused verification reserve flows to FAIL checks. See `docs/run-plan.md`.
 
 ## 5. Adaptive question engine (pure function, no LLM)
+> **APPROVED DEVIATION (Kumar, 2026-10-10, submission demo; recorded in TASKS.md "Approved deviation: adaptive questioning").** **The answer step and tier updates described in this section are removed for the demo.** Steps 3, 4, 5 and 7 (counterfactual re-evaluation, gain, score, answer update) are NOT used by the panel. The panel is `studyTeamQuestions` (`src/lib/engine/study-questions.ts`): rank = number of DISTINCT STUDIES that have at least one traceable unresolved scoring criterion depending on the topic (several criteria in one study count once); every study entry carries its NCT id and the original criterion wording; a dependency that cannot be supported (no cue in the original wording, fact already known, pregnancy-related, not askable) is omitted. No score, no lift, no tier prediction. The text below is the original design, kept for the record and for a possible later restoration.
 Input: candidate trials (tier ≠ LIKELY_MISMATCH), current profile.
 
 1. `U` = fact_keys that are `UNKNOWN` in the profile AND referenced by at least one **typed** `UNKNOWN` criterion in a candidate trial AND flagged `askable` in the vocabulary.
@@ -122,6 +125,7 @@ Goal: honest numbers, failure modes included, no claim of beating published syst
 2. Live stream shows counts narrowing (e.g. 100+ → ~30 → tiered).
 3. Open a top trial → eligibility matrix with ✓, ? and ⚠ rows, original text visible.
 4. Adaptive panel asks one question; user answers; **tiers visibly update instantly**.
+   > **APPROVED DEVIATION (Kumar, 2026-10-10, submission demo; recorded in TASKS.md "Approved deviation: adaptive questioning").** Replaced for the demo by: "Questions worth asking the study team" panel lists up to 3 topics with the studies and original criterion wording; **there is no answer step and no tier update**. Original line kept above for the record.
 5. Coordinator question list generated; site + NCT source link shown.
 6. Closing shot: eval table (accuracy, unsupported-assumption rate) + architecture strip (CT.gov → Token Factory → Nemotron tiers).
 Replay mode works end-to-end with all external services disabled.

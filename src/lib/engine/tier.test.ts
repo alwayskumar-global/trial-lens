@@ -112,14 +112,20 @@ describe("Policy R2: no visitor fact is verified, so STRONG and LIKELY_MISMATCH 
 
   it("exhaustive over every one- and two-criterion combination: only POSSIBLE or UNCERTAIN, never above the engine tier, idempotent", () => {
     const strength = { STRONG: 3, LIKELY_MISMATCH: 3, POSSIBLE: 2, UNCERTAIN: 1 } as const;
+    // Millions of combinations: collect violations with plain comparisons and assert once (per-combination expect() calls made this
+    // test take about 4 s and time out under load).
+    const bad: string[] = [];
     const check = (cs: TierCriterion[], o: Parameters<typeof tierTrial>[1]) => {
       const engine = tierTrial(cs, o), r = tierTrialCeiled(cs, o);
-      expect(["POSSIBLE", "UNCERTAIN"]).toContain(r.tier);
-      expect(strength[r.tier]).toBeLessThanOrEqual(strength[engine]);
-      if (engine === "POSSIBLE" || engine === "UNCERTAIN") expect(r).toEqual({ tier: engine });
-      expect(ceilingTier(r.tier)).toEqual({ tier: r.tier }); // idempotent: applying it again changes nothing
-      // the flags say exactly what happened
-      expect(r.flag).toBe(engine === "STRONG" ? "reported_only" : engine === "LIKELY_MISMATCH" ? "reported_conflict" : undefined);
+      const again = ceilingTier(r.tier);
+      const flag = engine === "STRONG" ? "reported_only" : engine === "LIKELY_MISMATCH" ? "reported_conflict" : undefined;
+      const ok =
+        (r.tier === "POSSIBLE" || r.tier === "UNCERTAIN") &&
+        strength[r.tier] <= strength[engine] &&
+        (engine === "POSSIBLE" || engine === "UNCERTAIN" ? r.tier === engine && r.flag === undefined : true) &&
+        again.tier === r.tier && again.flag === undefined && // idempotent: applying it again changes nothing
+        r.flag === flag; // the flags say exactly what happened
+      if (!ok && bad.length < 5) bad.push(JSON.stringify({ cs, o, engine, r }));
     };
     for (const a of one) {
       check([a], N);
@@ -127,6 +133,7 @@ describe("Policy R2: no visitor fact is verified, so STRONG and LIKELY_MISMATCH 
       check([a], { ...N, analysisFailed: true });
     }
     for (const a of one) for (const b of one) check([a, b], N);
+    expect(bad).toEqual([]);
   });
 
   it("a would-be mismatch needs a verified FAIL; without one the engine itself never reaches it (Rule D unchanged)", () => {
