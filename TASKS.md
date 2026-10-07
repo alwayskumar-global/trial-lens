@@ -197,6 +197,9 @@ Figma first for hero screens (Oct 6–10), then build.
 - **Copy:** the second-comparison line uses the approved fictional-profile variant with a neutral icon (`c3afcbb`), pending Kumar's review of the screenshots. UI copy changes need Kumar's approval.
 - **Design assets:** the Claude Design export, `guidelines/handoff.md` and the design screenshots are not in the repo (screenshots are not to be committed to the public repo without Kumar's approval).
 
+## Demo window (checked 2026-10-07; details in `docs/cost-per-run.md`)
+Deadline Oct 30, 2026 10:00 PDT and Judging Period Dec 1 9:00 am PT to Dec 15 12:00 pm PT are consistent with the official Devpost rules page as seen in web-search excerpts (the page itself could not be opened from this environment; Kumar to confirm on the page). The "free and unrestricted" availability duty runs from submission **until the Judging Period ends**, so the budget window is about Oct 29 to Dec 15 12:00 pm PT, not only Dec 1-15. "Winners ~Jan 11, 2027" is **unverified** (only in this file). The cost item stays open; `MAX_LLM_CALLS_PER_RUN`=80 and `DAILY_RUN_BUDGET`=150 are unchanged; the projected worst case ($100.90/day at the current limits) is a forecast, not a spending cap; actual usage is collected on a live run Kumar separately authorizes (no paid measurement call).
+
 ## Approved deviation: adaptive questioning (Kumar, 2026-10-10; Option B for the submission demo)
 Kumar chose Option B in `docs/adaptive-scope-decision.md` and approved recording it as an explicit deviation in SPEC.md and TASKS.md.
 - **Removed for this demo: the answer step and tier updates.** There are no answer buttons, no re-evaluation after an answer and no suggestion that answering will change a tier.
