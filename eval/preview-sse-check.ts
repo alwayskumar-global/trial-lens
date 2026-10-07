@@ -130,11 +130,17 @@ async function main() {
     // Paid, one-shot. Needs an explicit second switch so RUN_LIVE alone (e.g. left in a shell) cannot spend credits.
     if (process.env.CONFIRM_LIVE_RUN !== "one-run-nocache") { console.error("live run refused: CONFIRM_LIVE_RUN=one-run-nocache is required"); process.exit(2); }
     if (process.env.FILL_BUCKET === "1") { console.error("live run refused: do not combine with FILL_BUCKET"); process.exit(2); }
-    const counters = await readCounters(); // diagnostic only: other traffic can move these
+    const before = await readCounters(); // runs_today / rl_keys are diagnostic only (other traffic can move them)
+    // The in-flight counter must start clean, otherwise "returned to its start value" proves nothing (a leaked value only clears with its 600 s TTL).
+    if (before.inflight !== 0) { console.error(`live run refused: tl:inflight is ${String(before.inflight)} before the run (must be 0; wait for the TTL)`); process.exit(2); }
     const lv = await post({ text: SAMPLE_TEXT }, cookie);
-    const after = await readCounters();
+    const afterClose = await readCounters(); // read right after the stream closed: the gate is released BEFORE close, so this must already be back to 0
+    await new Promise((r) => setTimeout(r, 10_000));
+    const settled = await readCounters();
     liveAssertions(lv, check);
-    console.warn(`  upstash (diagnostic, GET-only; other traffic can interfere): ${JSON.stringify({ before: counters, after })}`);
+    check(afterClose.inflight === 0, `live: tl:inflight is 0 immediately after the stream closed (release ran before close; got ${String(afterClose.inflight)})`);
+    check(settled.inflight === 0, `live: tl:inflight is still 0 ten seconds later (no leak; got ${String(settled.inflight)})`);
+    console.warn(`  upstash (runs_today and rl_keys diagnostic; other traffic can interfere): ${JSON.stringify({ before, afterClose, settled })}`);
   }
 
   if (process.env.FILL_BUCKET === "1") {
