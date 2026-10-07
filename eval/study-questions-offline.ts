@@ -44,7 +44,7 @@ async function main(): Promise<void> {
 
     const results = c!.events.flatMap((e) => (e.type === "trial_result" ? [e.assessment] : []));
     const trials: QuestionTrial[] = [];
-    let noParse = 0, mismatch = 0;
+    let noParse = 0, mismatch = 0; // counted for the log line below
     for (const r of results) {
       const outcomes = latest.get(r.nct_id);
       const crit = r.criteria ?? [];
@@ -58,7 +58,7 @@ async function main(): Promise<void> {
       trials.push({ sources: crit.map((cv) => ({ id: cv.id, nct_id: r.nct_id, type: cv.type, text: cv.text })), outcomes, assess, tier: applyCeilingToAssessment(r).tier });
     }
     const panel = studyTeamQuestions(trials, profile, 3);
-    say(`\n== ${id}: ${results.length} stored results; usable ${trials.length}`);
+    say(`\n== ${id}: ${results.length} stored results; usable ${trials.length}; no cached parse ${noParse}; criteria-count mismatch ${mismatch}`);
     for (const q of panel) {
       say(`   ${q.topic}: ${q.study_count} distinct studies (${q.studies.map((x) => `${x.nct_id}×${x.criteria.length}`).join(", ")})`);
       for (const st of q.studies.slice(0, 2)) say(`      ${st.nct_id} [${st.criteria[0]!.type}] ${st.criteria[0]!.text.replace(/\s+/g, " ").slice(0, 150)}`);
