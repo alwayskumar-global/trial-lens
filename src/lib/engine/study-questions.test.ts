@@ -15,7 +15,7 @@ function study(nct: string, items: Array<{ leaf: LlmLeaf; wording: string; categ
   const outcomes: ParseOutcome[] = items.map((it): ParseOutcome => ({ state: "parsed", category: it.category ?? "performance", scoring: true, clause: leafToNode(it.leaf), completeness: it.leaf.kind === "atom" ? "full" : "partial", vet: "ok" }));
   return { sources, outcomes, assess: sources.map((s, i) => assessCriterion(s, outcomes[i]!, p)), tier: "UNCERTAIN" };
 }
-const ecog = (w = "ECOG performance status 0-1") => ({ leaf: atom(w, "ecog", "lte", 1), wording: w });
+const ecog = (w = "ECOG performance status 0-1") => ({ leaf: atom(w, "ecog", "in", ["0", "1"]), wording: w });
 const p0 = profile({});
 
 describe("studyTeamQuestions", () => {
@@ -30,7 +30,7 @@ describe("studyTeamQuestions", () => {
 
   it("each study entry carries its NCT id and the original criterion wording, verbatim", () => {
     const wording = "Patients must have an ECOG performance scale of ≤2.";
-    const [q] = studyTeamQuestions([study("NCT00000003", [{ leaf: atom("ECOG ≤2", "ecog", "lte", 2), wording }], p0)], p0);
+    const [q] = studyTeamQuestions([study("NCT00000003", [{ leaf: atom("ECOG ≤2", "ecog", "in", ["0", "1", "2"]), wording }], p0)], p0);
     expect(q!.studies[0]).toEqual({ nct_id: "NCT00000003", criteria: [{ criterion_id: "NCT00000003:inclusion:0", type: "inclusion", text: wording }] });
   });
 
@@ -66,7 +66,8 @@ describe("studyTeamQuestions", () => {
   });
 
   it("is deterministic: study_count desc then key asc, at most 3, no dependence on input order", () => {
-    const mk = (n: string, keys: Array<[FactKey, string]>) => study(n, keys.map(([k, w]) => ({ leaf: atom(w, k, "eq", true), wording: w, category: "biomarker" as Category })), p0);
+    const val = (k: FactKey) => (k === "pik3ca_mutation" ? true : "positive"); // executable atoms: enum keys take an enum value
+    const mk = (n: string, keys: Array<[FactKey, string]>) => study(n, keys.map(([k, w]) => ({ leaf: atom(w, k, "eq", val(k)), wording: w, category: "biomarker" as Category })), p0);
     const ts = [
       mk("NCT00000011", [["her2_status", "HER2 positive"], ["er_status", "ER positive"]]),
       mk("NCT00000012", [["her2_status", "HER2 positive"], ["pr_status", "PR positive"]]),
@@ -80,5 +81,16 @@ describe("studyTeamQuestions", () => {
   it("makes no promise: the result has no tier, score or lift field", () => {
     const [q] = studyTeamQuestions([study("NCT00000014", [ecog()], p0)], p0);
     expect(Object.keys(q!).sort()).toEqual(["fact_key", "studies", "study_count", "topic"]);
+  });
+
+  it("a REJECTED atom's retained key never becomes a question (atom that fails its guards; atom downgraded to text by vetting)", () => {
+    // semantic rejection: the atom stays an atom but is not executable
+    const sem = study("NCT00000021", [{ leaf: atom("Pregnancy-test", "pregnant", "eq", true), wording: "Pregnancy-test" }, { leaf: atom("Treated stable", "cns_mets", "eq", "treated_stable"), wording: "Treated stable brain metastases", category: "comorbidity" }], p0);
+    expect(studyTeamQuestions([sem], p0)).toEqual([]);
+    // vetting rejection: a text leaf that retained the key, in a criterion whose vet status is atoms_downgraded
+    const t = study("NCT00000022", [{ leaf: text("ECOG performance status 0-1 or better", ["ecog"]), wording: "ECOG performance status 0-1 or better" }], p0);
+    expect(studyTeamQuestions([t], p0)[0]?.fact_key).toBe("ecog"); // vet "ok": a parser text leaf still counts (unchanged)
+    const downgraded: QuestionTrial = { ...t, outcomes: t.outcomes.map((o) => (o.state === "parsed" ? { ...o, vet: "atoms_downgraded" as const } : o)) };
+    expect(studyTeamQuestions([downgraded], p0)).toEqual([]); // same leaf, vetting downgraded an atom: no authority
   });
 });

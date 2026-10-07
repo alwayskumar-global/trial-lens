@@ -16,7 +16,7 @@ import type { LlmClauseCriterion } from "@/schema/clause";
 import type { Category, Status } from "@/schema/criteria";
 import type { Tier } from "@/schema/assessment";
 import type { FactKey } from "@/schema/vocabulary";
-import { atom, crit } from "@/lib/engine/test-helpers";
+import { atom, crit, text } from "@/lib/engine/test-helpers";
 
 type FactVal = string | number | boolean;
 export interface GuardIsolationCase {
@@ -58,18 +58,26 @@ export interface RelevanceCase {
   text: string;
   category: Category;
   known: Partial<Record<FactKey, FactVal>>;
+  /** the parser output the finding belongs to (added 2026-10-07 for the fail-closed path, which needs the clause; the EXPECTED values below are unchanged) */
+  parse: LlmClauseCriterion;
   finding: { status: "PASS" | "FAIL"; evidence: string[] };
   expected: { status: Status; tier: Tier };
   rationale: string;
 }
 export const RELEVANCE_CASES: RelevanceCase[] = [
-  { id: "rel-01", type: "inclusion", category: "lab", text: "Hemoglobin of at least 9 g/dL", known: { age: 47 }, finding: { status: "PASS", evidence: ["age"] },
+  { id: "rel-01", type: "inclusion", category: "lab", text: "Hemoglobin of at least 9 g/dL", known: { age: 47 }, parse: crit([text("Hemoglobin of at least 9 g/dL", ["age"])], { category: "lab" }), finding: { status: "PASS", evidence: ["age"] },
     expected: { status: "UNKNOWN", tier: "POSSIBLE" },
     rationale: "NEGATIVE CONTROL: the model cites a known but irrelevant fact (age) for a hemoglobin criterion while hemoglobin is not in the profile. A PASS must rest on facts the criterion is about, so it must be UNKNOWN. Non-core, free text, 1 open: POSSIBLE." },
-  { id: "rel-02", type: "exclusion", category: "comorbidity", text: "Active cardiac disease", known: { sex: "female", ecog: "1" }, finding: { status: "FAIL", evidence: ["sex", "ecog"] },
+  { id: "rel-02", type: "exclusion", category: "comorbidity", text: "Active cardiac disease", known: { sex: "female", ecog: "1" }, parse: crit([text("Active cardiac disease", [])], { category: "comorbidity" }), finding: { status: "FAIL", evidence: ["sex", "ecog"] },
     expected: { status: "UNKNOWN", tier: "POSSIBLE" },
     rationale: "NEGATIVE CONTROL (FAIL variant): known but irrelevant facts cannot support a FAIL on a cardiac exclusion. Expected UNKNOWN; non-core, free text: POSSIBLE." },
-  { id: "rel-03", type: "inclusion", category: "lab", text: "Hemoglobin of at least 9 g/dL", known: { hemoglobin: 11.2 }, finding: { status: "PASS", evidence: ["hemoglobin"] },
+  { id: "rel-03", type: "inclusion", category: "lab", text: "Hemoglobin of at least 9 g/dL", known: { hemoglobin: 11.2 }, parse: crit([atom("Hemoglobin of at least 9 g/dL", "hemoglobin", "gte", 9, "g/dL")], { category: "lab" }), finding: { status: "PASS", evidence: ["hemoglobin"] },
     expected: { status: "PASS", tier: "POSSIBLE" },
     rationale: "POSITIVE CONTROL: a PASS citing the criterion's own known fact must survive, so any future relevance check is shown not to over-block. Non-core, free text, nothing open but not fully parsed: POSSIBLE." },
+  // ADDED after the fail-closed direction was approved: the FREE-TEXT shape of rel-03. A model PASS citing the criterion's own known fact has no independent proof when the
+  // criterion is only a text leaf, so it is UNKNOWN by design (the model's claim is not proof). rel-03 above keeps its pre-written expectation because its criterion is typed,
+  // so the code derives the same PASS.
+  { id: "rel-04", type: "inclusion", category: "lab", text: "Hemoglobin of at least 9 g/dL", known: { hemoglobin: 11.2 }, parse: crit([text("Hemoglobin of at least 9 g/dL", ["hemoglobin"])], { category: "lab" }), finding: { status: "PASS", evidence: ["hemoglobin"] },
+    expected: { status: "UNKNOWN", tier: "POSSIBLE" },
+    rationale: "DESIGN CONSEQUENCE (not a failure): the same finding as rel-03 on a criterion that is only a text leaf. Code cannot establish a text leaf, so even a PASS citing its own known fact has no independent proof: UNKNOWN. Non-core, not fully parsed, 1 open: POSSIBLE." },
 ];

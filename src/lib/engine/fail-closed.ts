@@ -11,6 +11,7 @@ import type { PatientProfile } from "@/schema/profile";
 import type { FactKey } from "@/schema/vocabulary";
 import { atomProblems, evaluateClause, leafToNode, statusFromTruth } from "./clause";
 import { vetCriterion, type VetStatus } from "./coverage";
+import { CUES } from "./atom-checks";
 
 /** Where a leaf of the vetted criterion came from. Only an executable atom carries authority over a fact key. */
 export type LeafOrigin =
@@ -78,4 +79,31 @@ export function acceptFreeTextFinding(finding: Pick<CriterionFinding, "status" |
   return supported
     ? { status: finding.status, evidence: [...finding.evidence], accepted: true, reason: "code_derived_same_status" }
     : { status: "UNKNOWN", evidence: [], accepted: false, reason: "no_independent_proof" };
+}
+
+/** Same wording as the abstention guard's downgrade, so a card reads the same whichever guard produced the UNKNOWN. */
+export const NOT_ENOUGH_INFO = "Not enough confirmed information to decide.";
+
+/**
+ * The pipeline entry point (stage `evaluate`, after the abstention guard): returns the finding unchanged when accepted, else the same finding as UNKNOWN with no
+ * evidence, `guard_downgraded`, and no Rule D state (a downgraded FAIL has nothing to confirm). `source` is kept, as the existing guard keeps it.
+ */
+export function failClosedFinding(finding: CriterionFinding, clause: ClauseNode, type: "inclusion" | "exclusion", profile: PatientProfile): CriterionFinding {
+  const r = acceptFreeTextFinding(finding, clause, type, profile);
+  if (r.accepted) return finding;
+  const { fail_check: _fc, applicability: _ap, ...rest } = finding;
+  void _fc; void _ap;
+  return { ...rest, status: "UNKNOWN", evidence: [], rationale: NOT_ENOUGH_INFO, guard_downgraded: true };
+}
+
+/**
+ * RULE FOR TEXT-LEAF KEYS (shown for review; NOT USED by any behavior yet). A text leaf's declared key may be used as a study-team topic only if
+ *  (1) the leaf's provenance is `parser_text` (derivable only where the RAW parse is available; a cached outcome cannot tell a rejected atom's text leaf from a
+ *      parser text leaf, so cached outcomes never qualify), and
+ *  (2) the leaf's OWN source matches a cue for the key (the cue is injected; the shared table is loose, a strict table is needed before use).
+ */
+export function independentlySupportedTextKeys(leaves: readonly LeafProvenance[], cueFor: (k: FactKey) => RegExp = (k) => CUES[k]): FactKey[] {
+  const out = new Set<FactKey>();
+  for (const l of leaves) if (l.origin === "parser_text") for (const k of l.keys) if (cueFor(k).test(l.source)) out.add(k);
+  return [...out].sort();
 }

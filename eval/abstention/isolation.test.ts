@@ -13,16 +13,12 @@ describe("guard isolation: the atom survives vetting, then the named guard (and 
   });
 });
 
-describe("relevance: a PASS/FAIL citing known but irrelevant facts", () => {
-  // KNOWN FAILURES, kept visible: the guard checks that cited keys are known, not that they are relevant. `it.fails` passes while the expectation is still unmet and
-  // starts failing the moment a relevance check is added, which is the signal to remove it. The expectation is NOT weakened.
-  it.fails("KNOWN FAILURE rel-01: PASS citing known age for a hemoglobin criterion must be UNKNOWN", () => {
-    expect(runRelevanceCase(RELEVANCE_CASES[0]!)).toEqual(RELEVANCE_CASES[0]!.expected);
+describe("relevance (production path: abstention guard, then the fail-closed rule)", () => {
+  // rel-01 and rel-02 were `it.fails` (KNOWN FAILURE) until the fail-closed rule was wired; they now pass normally with their ORIGINAL expectations.
+  it.each(RELEVANCE_CASES.map((c) => [c.id, c] as const))("%s", (_id, c) => {
+    expect(runRelevanceCase(c)).toEqual(c.expected);
   });
-  it.fails("KNOWN FAILURE rel-02: FAIL citing known sex/ecog for a cardiac exclusion must be UNKNOWN", () => {
-    expect(runRelevanceCase(RELEVANCE_CASES[1]!)).toEqual(RELEVANCE_CASES[1]!.expected);
-  });
-  it("positive control rel-03: a PASS citing the criterion's own known fact survives", () => {
-    expect(runRelevanceCase(RELEVANCE_CASES[2]!)).toEqual(RELEVANCE_CASES[2]!.expected);
+  it("rel-01 and rel-02 keep their pre-written expectation of UNKNOWN", () => {
+    expect(RELEVANCE_CASES.slice(0, 2).map((c) => c.expected.status)).toEqual(["UNKNOWN", "UNKNOWN"]);
   });
 });

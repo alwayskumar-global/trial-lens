@@ -7,7 +7,7 @@ import type { ReplayCase } from "./replay";
 import { insertStudyQuestions, planReplayStudyQuestions } from "./replay-study-questions";
 
 const WORDING = "ECOG performance status 0 or 1";
-const outcome = (): ParseOutcome => ({ state: "parsed", category: "performance", scoring: true, clause: leafToNode(atom(WORDING, "ecog", "lte", 1)), completeness: "full", vet: "ok" });
+const outcome = (): ParseOutcome => ({ state: "parsed", category: "performance", scoring: true, clause: leafToNode(atom(WORDING, "ecog", "in", ["0", "1"])), completeness: "full", vet: "ok" });
 const result = (nct: string, over: Partial<TrialResult> = {}): TrialResult => ({
   nct_id: nct, title: "Fictional " + nct, tier: "UNCERTAIN", verified: false, verifier_flags: [], sites: [], coordinator_questions: [],
   findings: [{ criterion_id: `${nct}:inclusion:0`, status: "UNKNOWN", evidence: [], rationale: "", source: "code" }],

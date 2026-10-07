@@ -7,7 +7,7 @@ import { fakeDeps, PROFILE_TEXT, trial } from "./test-fakes";
 
 const ECOG = "ECOG performance status 0 or 1";
 const parseEcog = (t: string): LlmClauseCriterion | null =>
-  t === ECOG ? { category: "performance", blocks: [{ when: [], combine: "all", items: [atom(t, "ecog", "lte", 1)], except: [] }] } : null;
+  t === ECOG ? { category: "performance", blocks: [{ when: [], combine: "all", items: [atom(t, "ecog", "in", ["0", "1"])], except: [] }] } : null;
 
 const run = async (trials: ReturnType<typeof trial>[], parse?: typeof parseEcog) => {
   const es: SseEvent[] = [];

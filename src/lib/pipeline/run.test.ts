@@ -44,6 +44,21 @@ describe("runPipeline", () => {
     expect(r!.findings.some((f) => f.status === "UNKNOWN")).toBe(true);
   });
 
+  it("FAIL-CLOSED: a model FAIL on a free-text criterion (cited key known, as the guard requires) is downgraded to UNKNOWN: no independent proof, no Rule D state", async () => {
+    const t = [trial("NCT00000001", ["Age 18 years or older.", "Able to understand and sign consent."])];
+    const r = results(await collect(fakeDeps(t, { evaluate: "fail", failCheck: "confirm" })))[0]!;
+    const free = r.findings.filter((f) => f.source === "llm_mid");
+    expect(free.length).toBeGreaterThan(0);
+    for (const f of free) {
+      expect(f.status).toBe("UNKNOWN");
+      expect(f.evidence).toEqual([]);
+      expect(f.guard_downgraded).toBe(true);
+      expect(f.fail_check).toBeUndefined();
+    }
+    expect(r.findings.some((f) => f.status === "FAIL")).toBe(false);
+    expect(r.verifier_flags).not.toContain("reported_conflict");
+  });
+
   it("RULE D + R2: only a cited, verified FAIL is a conflict, and even that is UNCERTAIN (never LIKELY_MISMATCH)", async () => {
     const t = [trial("NCT00000001", ["Age 65 years or older."])];
     const unverified = results(await collect(fakeDeps(t, { failCheck: "fail" })))[0]!;

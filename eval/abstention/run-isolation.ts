@@ -2,6 +2,7 @@
 import { atomProblems, leaves } from "@/lib/engine/clause";
 import { assessCriterion, reconcileBatch } from "@/lib/engine/reconcile";
 import { applyAbstentionGuard } from "@/lib/engine/guard";
+import { failClosedFinding } from "@/lib/engine/fail-closed";
 import { tierTrialCeiled } from "@/lib/engine/tier";
 import type { CriterionFinding } from "@/schema/criteria";
 import { GUARD_CASES, RELEVANCE_CASES, type GuardIsolationCase, type RelevanceCase } from "./isolation";
@@ -23,8 +24,13 @@ export function runGuardCase(c: GuardIsolationCase) {
 
 export function runRelevanceCase(c: RelevanceCase) {
   const profile = profileFor(asCase(c));
-  const f = applyAbstentionGuard({ criterion_id: `SYN-${c.id}`, status: c.finding.status, evidence: c.finding.evidence, rationale: "fixture", source: "llm_mid" } as CriterionFinding, profile).finding;
-  const t = tierTrialCeiled([{ scoring: true, category: c.category, status: f.status, completeness: "partial", failCheck: undefined }], { unknownThreshold: TIER_UNKNOWN_THRESHOLD, expectedCriteria: 1 });
+  const src = { id: `SYN-${c.id}:${c.type}:0`, nct_id: `SYN-${c.id}`, type: c.type, text: c.text };
+  const o = reconcileBatch([src], { criteria: [{ index: 0, ...c.parse }] } as never)[0]!;
+  if (o.state !== "parsed") throw new Error("fixture must parse");
+  // the PRODUCTION path for a free-text finding: abstention guard, then the fail-closed rule
+  const guarded = applyAbstentionGuard({ criterion_id: `SYN-${c.id}`, status: c.finding.status, evidence: c.finding.evidence, rationale: "fixture", source: "llm_mid" } as CriterionFinding, profile).finding;
+  const f = failClosedFinding(guarded, o.clause, c.type, profile);
+  const t = tierTrialCeiled([{ scoring: true, category: c.category, status: f.status, completeness: o.completeness, failCheck: undefined }], { unknownThreshold: TIER_UNKNOWN_THRESHOLD, expectedCriteria: 1 });
   return { status: f.status, tier: t.tier };
 }
 

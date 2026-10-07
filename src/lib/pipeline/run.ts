@@ -9,6 +9,7 @@ import { z } from "zod";
 import { cacheKeyFor, isCacheable, type CriteriaCache } from "@/lib/cache/criteria-cache";
 import { prefilterTrials, nctUrl, type Trial } from "@/lib/ctgov/client";
 import { splitTrialCriteria } from "@/lib/ctgov/split";
+import { failClosedFinding } from "@/lib/engine/fail-closed";
 import { applyAbstentionGuard } from "@/lib/engine/guard";
 import { assessCriterion, reconcileBatch, type CriterionAssessment, type ParseOutcome, type SourceCriterion } from "@/lib/engine/reconcile";
 import { resolveFailCheck, withFailCheck } from "@/lib/engine/fail-check";
@@ -219,7 +220,10 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
       const { data } = await llm.call({ stage: "evaluate", tier: "MID", system: EVAL_SYSTEM, user, schema: makeEvalSchema(items.length), schemaName: "findings", maxTokens: 8192 });
       data?.findings.forEach((f) => {
         const target = items[f.index]!;
-        target.a.finding = applyAbstentionGuard({ criterion_id: target.a.criterion_id, status: f.status, evidence: f.evidence, rationale: f.rationale, source: "llm_mid" }, profile).finding;
+        const guarded = applyAbstentionGuard({ criterion_id: target.a.criterion_id, status: f.status, evidence: f.evidence, rationale: f.rationale, source: "llm_mid" }, profile).finding;
+        // Fail-closed (approved 2026-10-07): a free-text PASS/FAIL stands only if the code evaluation of the whole clause reaches the same status.
+        const o = s.outcomes[target.i]!;
+        target.a.finding = o.state === "parsed" ? failClosedFinding(guarded, o.clause, s.sources[target.i]!.type, profile) : guarded;
       });
       retier(s);
     })));

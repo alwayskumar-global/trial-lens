@@ -8,9 +8,9 @@
 //   - its parsed clause references the fact (atom fact_key or text-leaf depends_on),
 //   - the ORIGINAL wording contains a cue for that fact (strict cues for the noisy keys), and
 //   - the visitor's profile does not already hold the fact as known.
-// Pregnancy-related and non-askable facts (age, sex) are never offered.
+// Pregnancy-related and non-askable facts (age, sex) are never offered. Keys that come only from a rejected atom are never offered (see the leaf loop below).
 import { CUES } from "@/lib/engine/atom-checks";
-import { leaves } from "@/lib/engine/clause";
+import { atomProblems, leaves } from "@/lib/engine/clause";
 import type { QuestionTrial } from "@/lib/engine/questions";
 import { EXCLUDED_QUESTION_KEYS } from "@/lib/engine/questions";
 import { STUDY_QUESTIONS_VERSION } from "@/schema/assessment";
@@ -65,9 +65,13 @@ export function studyTeamQuestions(trials: readonly QuestionTrial[], profile: Pa
       if (!a || !o || o.state !== "parsed" || !a.scoring) return;
       if (a.finding.status !== "UNKNOWN" && a.finding.status !== "AMBIGUOUS") return;
       const keys = new Set<FactKey>();
+      // A key is a candidate only from an EXECUTABLE atom, or from a text leaf of a criterion in which vetting downgraded no atom (`vet: "ok"`). A rejected atom's
+      // retained depends_on must not become a question by accident: an atom that fails its guards, and every text leaf of a criterion whose vetting downgraded an
+      // atom (a cached outcome cannot say which text leaf was the rejected atom), contribute nothing. Independently supported text leaves: see fail-closed.ts.
       for (const l of leaves(o.clause)) {
-        if (l.kind === "atom") keys.add(l.fact_key);
-        else if (l.kind === "text") l.depends_on.forEach((k) => keys.add(k));
+        if (l.kind === "atom") {
+          if (atomProblems(l).length === 0) keys.add(l.fact_key);
+        } else if (l.kind === "text" && o.vet === "ok") l.depends_on.forEach((k) => keys.add(k));
       }
       for (const k of keys) {
         if (NOT_OFFERED.has(k) || profile.facts[k]?.state === "known" || !TOPIC[k] || !cueFor(k).test(src.text)) continue;
