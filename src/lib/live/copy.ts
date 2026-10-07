@@ -27,7 +27,7 @@ export const STAGE_LABELS: Record<string, string> = {
   free_text_evaluation: "Comparing wording that needs a closer read",
   verification: "Double-checking possible matches",
   fail_checks: "Double-checking possible mismatches",
-  questions: "Choosing a helpful question",
+  questions: "Listing questions worth asking the study team",
 };
 
 export const REPLAY_NOTICE_LEAD = "Saved fictional example.";

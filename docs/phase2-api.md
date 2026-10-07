@@ -8,7 +8,7 @@ Status: implemented, unit-tested offline, and live-verified against Nebius Token
 - `{ "replay_id": string }` stored replay of a fictional profile (`/^[a-z0-9][a-z0-9-]{0,63}$/`). Does not consume rate-limit or daily budget.
 
 Response: `text/event-stream`, `cache-control: no-store`. Events (`src/schema/sse.ts`, every event Zod-validated before it is sent):
-`mode` (live | replay + reason) → `stage` start/done (extraction, discovery, parse, typed_evaluation, free_text_evaluation, verification, fail_checks, questions) → `profile` (facts extracted from the visitor's own text, returned only to them) → `counts{discovered, filtered, selected}` → `question` → `trial_result` × N (tier order; official `https://clinicaltrials.gov/study/<NCT>` link, original criterion text, per-criterion findings with `fail_check`) → `counts{assessed, pending, failed}` → `done` (`replay`, `stats{llm_calls, worst_case_calls, wall_ms}`). An `error` event carries a fixed code only.
+`mode` (live | replay + reason) → `stage` start/done (extraction, discovery, parse, typed_evaluation, free_text_evaluation, verification, fail_checks, questions) → `profile` (facts extracted from the visitor's own text, returned only to them) → `counts{discovered, filtered, selected}` → `study_questions` → `trial_result` × N (tier order; official `https://clinicaltrials.gov/study/<NCT>` link, original criterion text, per-criterion findings with `fail_check`) → `counts{assessed, pending, failed}` → `done` (`replay`, `stats{llm_calls, worst_case_calls, wall_ms}`). An `error` event carries a fixed code only.
 
 Replay never carries `stage` events (they are stripped from the stored run), so no consumer can render a saved run as live progress. Replay is always labelled: a `mode:"replay"` event with `reason` ∈ requested | rate_limited | budget_exhausted | guard_unavailable | model_unavailable | ctgov_unavailable. With `REPLAY_FALLBACK_ENABLED=false` a refusal is HTTP 429/503 instead.
 
@@ -37,8 +37,8 @@ Prompts `spike-4` (parse) / `fail-verify-0`, coverage checks `cov-1`, abstention
 ## Guards (`src/lib/guards/run-guard.ts`)
 Per-IP sliding window (`RATE_LIMIT_RUNS_PER_IP_PER_HOUR`, hashed IP bucket, prefix `tl:rl`) checked first, then the global per-UTC-day counter `tl:runs:<date>` (`DAILY_RUN_BUDGET`). Any Redis error ⇒ `guard_unavailable` ⇒ replay. Redis holds no patient text and no raw IPs.
 
-## Adaptive questions
-`src/lib/engine/questions.ts` (SPEC §5, pure, no LLM). "Decisive" means STRONG only: a counterfactual FAIL has no independent check, so it stays UNCERTAIN. Patient-facing prompt wording is a code map (`LABELS`): VERIFY copy with Kumar before any UI uses it. LLM re-evaluation of free-text criteria on an answer is not built.
+## Study-team questions (Option B; replaces "Adaptive questions", Kumar 2026-10-10)
+`src/lib/engine/study-questions.ts` (pure, no LLM, no answer step, no tier prediction). Stage name `questions` is unchanged; its label is now "Listing questions worth asking the study team". Emits one event `{type:"study_questions", version:"sq-1", questions:[...]}` (up to 3 topics). Each topic: `fact_key`, `topic`, `study_count` = number of DISTINCT studies with a traceable unresolved scoring criterion, and `studies[{nct_id, criteria[{criterion_id, type, text}]}]` with the original wording verbatim. `questions: []` means the computation ran and found no supported item; the event is NOT emitted if the computation fails (a failure never produces a "no questions" claim). The legacy `question` event (answer-oriented) is no longer emitted; the schema still parses it for older stored replays and clients ignore it. Rules and copy: `docs/study-team-panel.md`.
 
 ## Not built
 Stage 10 (plain-language rewrite and coordinator questions: `coordinator_questions` and `sites` are empty arrays), escalation (DEEP), distance filtering (no location input), re-run on answer.

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AdaptiveQuestionSchema, TrialResultSchema } from "./assessment";
+import { AdaptiveQuestionSchema, STUDY_QUESTIONS_VERSION, StudyQuestionSchema, TrialResultSchema } from "./assessment";
 import { FactKeySchema } from "./vocabulary";
 
 export const SseEventSchema = z.discriminatedUnion("type", [
@@ -24,7 +24,10 @@ export const SseEventSchema = z.discriminatedUnion("type", [
     facts: z.array(z.object({ key: FactKeySchema, state: z.enum(["known", "uncertain"]), value: z.union([z.string(), z.number(), z.boolean()]).optional() })),
   }),
   z.object({ type: z.literal("trial_result"), assessment: TrialResultSchema }),
+  /** Legacy answer-oriented question event: no longer emitted (the answer step is removed for the demo); kept so older stored replays still validate. Clients ignore it. */
   z.object({ type: z.literal("question"), questions: z.array(AdaptiveQuestionSchema) }),
+  /** Study-team question panel. `questions: []` means the computation ran and found no supported item; it is not emitted when the computation did not run. */
+  z.object({ type: z.literal("study_questions"), version: z.literal(STUDY_QUESTIONS_VERSION), questions: z.array(StudyQuestionSchema).max(3) }),
   z.object({
     type: z.literal("done"),
     replay: z.boolean(),

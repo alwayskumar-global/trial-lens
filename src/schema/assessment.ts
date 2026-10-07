@@ -58,3 +58,21 @@ export const AdaptiveQuestionSchema = z.object({
   score: z.number(),
 });
 export type AdaptiveQuestion = z.infer<typeof AdaptiveQuestionSchema>;
+
+/**
+ * "Questions worth asking the study team" (Option B). Items are topics; each lists the DISTINCT studies that have a traceable unresolved
+ * scoring criterion for the topic, with the study id and the original criterion wording (verbatim). No score, no lift, no tier field.
+ */
+export const StudyQuestionSchema = z.object({
+  fact_key: FactKeySchema,
+  topic: z.string().min(1),
+  study_count: z.number().int().positive(),
+  studies: z.array(
+    z.object({
+      nct_id: z.string().min(1),
+      criteria: z.array(z.object({ criterion_id: z.string().min(1), type: z.enum(["inclusion", "exclusion"]), text: z.string() })).min(1),
+    }),
+  ).min(1),
+});
+export type StudyQuestionItem = z.infer<typeof StudyQuestionSchema>;
+export const STUDY_QUESTIONS_VERSION = "sq-1";

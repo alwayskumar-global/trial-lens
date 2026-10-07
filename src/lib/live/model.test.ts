@@ -57,6 +57,23 @@ describe("reduceRun", () => {
   });
 });
 
+describe("study_questions state", () => {
+  const item = { fact_key: "ecog" as const, topic: "Daily activity level (ECOG performance status)", study_count: 1, studies: [{ nct_id: "NCT00000001", criteria: [{ criterion_id: "NCT00000001:inclusion:0", type: "inclusion" as const, text: "ECOG 0-1" }] }] };
+  it("null until the event arrives; [] is a real 'ran, found none' result; a replay start clears it", () => {
+    let s = run({ type: "mode", mode: "live" });
+    expect(s.studyQuestions).toBeNull();
+    s = reduceRun(s, { type: "study_questions", version: "sq-1", questions: [] });
+    expect(s.studyQuestions).toEqual([]);
+    s = reduceRun(s, { type: "study_questions", version: "sq-1", questions: [item] });
+    expect(s.studyQuestions).toEqual([item]);
+    expect(reduceRun(s, { type: "mode", mode: "replay" }).studyQuestions).toBeNull();
+  });
+  it("the legacy answer-oriented `question` event is ignored", () => {
+    const s = run({ type: "mode", mode: "replay" }, { type: "question", questions: [{ fact_key: "ecog", prompt: "x", answers: [], affects_trials: 1, score: 1 }] });
+    expect(s.studyQuestions).toBeNull();
+  });
+});
+
 describe("coverage / classification", () => {
   it("derives assessed/pending/failed from received trials when the counts event is incomplete, and keeps them separate", () => {
     const trials = [assessedPossible, noMet, pending, failed, mismatch];

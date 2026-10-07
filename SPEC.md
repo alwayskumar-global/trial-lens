@@ -37,7 +37,7 @@ Each stage emits SSE events (`stage`, `counts`, `trial_result`, `question`, `don
 | 6 | Tier | code | rules in §4 |
 | 7 | Verify | MID or DEEP | independent pass on STRONG/POSSIBLE trials only; sees criteria + profile, NOT the first evaluator's reasoning; tries to produce a FAIL. Disagreement → downgrade tier + flag |
 | 8 | Escalate | DEEP | only for core-category AMBIGUOUS findings, capped per run |
-| 9 | Adaptive questions | code | §5 |
+| 9 | Study-team questions (was: adaptive questions; deviation approved 2026-10-10) | code | §5 |
 | 10 | Plain-language + coordinator prep | FAST/MID | per shortlisted trial, preserves original criterion text |
 
 Model routing table is provisional; finalize from spike results (accuracy/latency/cost per tier). Model IDs from env only.

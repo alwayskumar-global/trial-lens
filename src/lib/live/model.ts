@@ -3,7 +3,7 @@
 // live state; pending/failed trials stay UNCERTAIN with their own status; criterion text is verbatim.
 import type { CriterionStatus } from "@/components/status/StatusGlyph";
 import type { Tier } from "@/components/status/TierBadge";
-import type { AdaptiveQuestion, CriterionView, TrialResult } from "@/schema/assessment";
+import type { CriterionView, StudyQuestionItem, TrialResult } from "@/schema/assessment";
 import type { SseEvent } from "@/schema/sse";
 import type { ReplayReason } from "@/lib/live/copy";
 
@@ -32,10 +32,11 @@ export interface RunState {
   profile: ProfileFact[] | null;
   counts: Counts;
   trials: TrialResult[];
-  questions: AdaptiveQuestion[] | null;
+  /** Study-team question panel. null = the computation did not run or did not report (nothing is shown, nothing is claimed); [] = it ran and found no supported item. */
+  studyQuestions: StudyQuestionItem[] | null;
   errorCode: string | null;
 }
-export const initialRun: RunState = { status: "idle", mode: null, stages: [], profile: null, counts: {}, trials: [], questions: null, errorCode: null };
+export const initialRun: RunState = { status: "idle", mode: null, stages: [], profile: null, counts: {}, trials: [], studyQuestions: null, errorCode: null };
 
 export type RunAction = SseEvent | { type: "start" } | { type: "http_error"; code: string } | { type: "closed" };
 
@@ -66,7 +67,9 @@ export function reduceRun(s: RunState, a: RunAction): RunState {
     case "trial_result":
       return { ...s, trials: [...s.trials.filter((t) => t.nct_id !== a.assessment.nct_id), a.assessment] };
     case "question":
-      return { ...s, questions: a.questions };
+      return s; // legacy answer-oriented event (older stored replays): ignored, the answer step is removed for the demo
+    case "study_questions":
+      return { ...s, studyQuestions: a.questions };
     case "done":
       return { ...s, status: "done" };
     case "error":

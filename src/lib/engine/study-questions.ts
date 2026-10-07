@@ -13,6 +13,7 @@ import { CUES } from "@/lib/engine/atom-checks";
 import { leaves } from "@/lib/engine/clause";
 import type { QuestionTrial } from "@/lib/engine/questions";
 import { EXCLUDED_QUESTION_KEYS } from "@/lib/engine/questions";
+import { STUDY_QUESTIONS_VERSION } from "@/schema/assessment";
 import type { PatientProfile } from "@/schema/profile";
 import { VOCABULARY, type FactKey } from "@/schema/vocabulary";
 
@@ -83,4 +84,9 @@ export function studyTeamQuestions(trials: readonly QuestionTrial[], profile: Pa
     studies: [...studies].sort(([x], [y]) => x.localeCompare(y)).map(([nct_id, criteria]) => ({ nct_id, criteria })),
   }));
   return items.sort((a, b) => b.study_count - a.study_count || a.fact_key.localeCompare(b.fact_key)).slice(0, max);
+}
+
+/** The `study_questions` SSE event (versioned). Shared by the pipeline and the replay-update script so both build it identically. */
+export function buildStudyQuestionsEvent(trials: readonly QuestionTrial[], profile: PatientProfile): { type: "study_questions"; version: typeof STUDY_QUESTIONS_VERSION; questions: StudyTeamQuestion[] } {
+  return { type: "study_questions", version: STUDY_QUESTIONS_VERSION, questions: studyTeamQuestions(trials, profile, 3) };
 }

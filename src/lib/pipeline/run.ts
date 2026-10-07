@@ -12,7 +12,7 @@ import { splitTrialCriteria } from "@/lib/ctgov/split";
 import { applyAbstentionGuard } from "@/lib/engine/guard";
 import { assessCriterion, reconcileBatch, type CriterionAssessment, type ParseOutcome, type SourceCriterion } from "@/lib/engine/reconcile";
 import { resolveFailCheck, withFailCheck } from "@/lib/engine/fail-check";
-import { computeQuestions } from "@/lib/engine/questions";
+import { buildStudyQuestionsEvent } from "@/lib/engine/study-questions";
 import { RunBudget, type Stage } from "@/lib/engine/run-plan";
 import { ceilingTier, tierTrialCeiled } from "@/lib/engine/tier";
 import { extractProfile } from "@/lib/pipeline/extract";
@@ -271,9 +271,16 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
     })));
   });
 
-  // 8. adaptive questions (pure code; SPEC §5)
-  const questions = await stage("questions", async () => computeQuestions(states.map((s) => ({ sources: s.sources, outcomes: s.outcomes, assess: s.assess, tier: s.tier })), profile, deps.unknownThreshold));
-  emit({ type: "question", questions });
+  // 8. study-team questions (pure code; Option B, docs/study-team-panel.md). No answer step and no prediction of any tier change. The panel is
+  // auxiliary: if its computation fails nothing is emitted (the client then shows nothing and claims nothing); the run itself continues.
+  const studyQuestions = await stage("questions", async () => {
+    try {
+      return buildStudyQuestionsEvent(states.map((s) => ({ sources: s.sources, outcomes: s.outcomes, assess: s.assess, tier: s.tier })), profile);
+    } catch {
+      return null;
+    }
+  });
+  if (studyQuestions) emit(studyQuestions);
 
   // Final pass, idempotent: whatever any stage did, no trial leaves the pipeline above the R2 ceiling.
   for (const s of states) s.tier = ceilingTier(s.tier).tier;
