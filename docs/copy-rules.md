@@ -21,3 +21,6 @@ Live mode sends a prepared fictional profile to `/api/run`; visitors provide no 
 The previous rule was: "Final CTA is Contact study team, never Enroll."
 
 **Until the product has study contact data, the final CTA is "Open on ClinicalTrials.gov"** (the official study page lists locations and contacts). It never says "Enroll". When contact data exists (fetched and verified), return to "Contact study team" and update this file.
+
+## Adaptive questions: a counterfactual lift is a prediction, not a promise (Kumar, 2026-10-09)
+A question exists only if at least one answer has a measured counterfactual lift (zero-gain questions are filtered, `computeQuestions`). That lift is computed on stored findings and is a PREDICTION until the full answer re-evaluation has run. Copy for any question card must say an answer **may clarify results** (for example "Answering may clarify some of these results"). It must not say or imply that a tier will change, that a trial will move to Possible, or how many trials will move. After a re-evaluation the screen shows what actually changed. The "no question" state keeps the approved wording that no single answer would change these results right now. Add the matching phrases to `copy-audit.test.ts` when the question card is built (Stage 3, paused).
