@@ -45,8 +45,8 @@ class Assess(unittest.TestCase):
         a = civ.assess(self.rows())
         self.assertEqual(a["population_rows"], 4)  # 1,2,3,6: inclusion row 5 and not-applicable row 4 are outside
         self.assertEqual((a["valid_rows"], a["invalid_rows"]), (2, 2))
-        self.assertEqual(a["invalid_by_reason"]["MISSING_TEXT"], 1)
-        self.assertEqual(a["invalid_by_reason"]["MISSING_NOTE"], 1)
+        self.assertEqual(a["by_reason"]["MISSING_TEXT"], 1)
+        self.assertEqual(a["by_reason"]["MISSING_NOTE"], 1)
         self.assertEqual(a["candidates"], 1)
         self.assertEqual(a["verdict"], "PROCEED_TO_RECOMPUTE_STRATA")
         self.assertEqual(a["valid_ids"], [1, 2])
@@ -56,6 +56,12 @@ class Assess(unittest.TestCase):
         self.assertEqual(a["verdict"], "STOP_CANDIDATE_INVALID")
         self.assertEqual(a["invalid_candidate_ids"], [1])
         self.assertEqual(a["candidates"], 1)  # still counted as a candidate, not presumed an adjudicated FAIL
+
+    def test_warnings_do_not_invalidate(self):
+        a = civ.assess([row(1, label="excluded", text="short"), row(2, text="Synthetic list:")])
+        self.assertEqual((a["valid_rows"], a["invalid_rows"]), (2, 0))
+        self.assertEqual(a["warning_ids"], [1, 2])
+        self.assertEqual(a["verdict"], "PROCEED_TO_RECOMPUTE_STRATA")
 
     def test_output_never_contains_row_text(self):
         out = json.dumps(civ.assess(self.rows()))

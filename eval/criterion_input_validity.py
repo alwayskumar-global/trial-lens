@@ -10,7 +10,9 @@ EITHER_LABELS = frozenset({"not enough information"})
 NOT_APPLICABLE = "not applicable"
 TYPES = ("inclusion", "exclusion")
 MIN_TEXT, MAX_TEXT, HEADER_MAX = 12, 2000, 60  # proposed thresholds (characters after strip); Kumar may change them before any run
-REASONS = ("MISSING_TEXT", "TEXT_TOO_SHORT", "TEXT_TOO_LONG", "HEADER_ONLY", "BAD_TYPE", "LABEL_TYPE_MISMATCH", "MISSING_NOTE", "UNKNOWN_LABEL")
+STRUCTURAL = ("MISSING_TEXT", "BAD_TYPE", "LABEL_TYPE_MISMATCH", "MISSING_NOTE", "UNKNOWN_LABEL")  # a row with any of these is invalid (approved 2026-10-07)
+WARNINGS = ("TEXT_TOO_SHORT", "TEXT_TOO_LONG", "HEADER_ONLY")  # reported, never an automatic exclusion
+REASONS = STRUCTURAL + WARNINGS
 
 
 def check_row(row):
@@ -46,16 +48,19 @@ def assess(rows, population_type="exclusion", candidate_label="excluded"):
     Candidates are labelled candidates, not adjudicated FAILs."""
     pop = [x for x in rows if x.get("criterion_type") == population_type and x.get("expert_eligibility") != NOT_APPLICABLE]
     by_reason = {k: 0 for k in REASONS}
-    valid, invalid = [], []
+    valid, invalid, warned = [], [], []
     for x in pop:
         rs = check_row(x)
         for k in rs:
             by_reason[k] += 1
-        (invalid if rs else valid).append(x["annotation_id"])
+        st = [k for k in rs if k in STRUCTURAL]
+        (invalid if st else valid).append(x["annotation_id"])
+        if any(k in WARNINGS for k in rs):
+            warned.append(x["annotation_id"])
     cand = [x for x in pop if x.get("expert_eligibility") == candidate_label]
-    bad_cand = sorted(x["annotation_id"] for x in cand if check_row(x))
+    bad_cand = sorted(x["annotation_id"] for x in cand if any(k in STRUCTURAL for k in check_row(x)))
     return {
-        "population_rows": len(pop), "valid_rows": len(valid), "invalid_rows": len(invalid), "invalid_by_reason": by_reason,
+        "population_rows": len(pop), "valid_rows": len(valid), "invalid_rows": len(invalid), "by_reason": by_reason, "invalid_ids": sorted(invalid), "warning_ids": sorted(warned),
         "candidates": len(cand), "invalid_candidate_ids": bad_cand,
         "verdict": "STOP_CANDIDATE_INVALID" if bad_cand else "PROCEED_TO_RECOMPUTE_STRATA",
         "valid_ids": sorted(valid),
