@@ -99,7 +99,8 @@ Write throwaway scripts in `/eval/spike`. Record results in `/docs/spike-results
 - [ ] First full eval run; commit `eval/reports/`
   - Not done: `eval/reports/` is empty. No evaluation is run, paid or free, until the annotation mapping (`docs/eval-annotation-mapping.md`) is approved and frozen; no headline accuracy is published from author-created cases.
 - [ ] Hand-built abstention test set (~30 cases, labeled author-created)
-  - Not done. Unit tests and adversarial regression cases exist (`coverage.test.ts`, `blocks.test.ts`) but are not the ~30-case labelled set.
+  - **AUTHORED AND RUN OFFLINE (2026-10-07); awaiting Kumar's review of the cases and results, so the item stays OPEN.** 30 cases in `eval/abstention/cases.ts` (expected status, tier and pregnancy-panel outcomes with rule-based rationales committed in `84cef6b` before any run); engine run: 30 of 30 match, 35 offline tests; details and limits (author knew the rules, hand-written parser output, ab-28/ab-30 stopped at vetting rather than the semantic guards, one criterion per trial) in `docs/eval-abstention-set.md`. Development check only; not product validation; no model call.
+  - Earlier note: not done. Unit tests and adversarial regression cases exist (`coverage.test.ts`, `blocks.test.ts`) but are not the ~30-case labelled set.
 - [ ] Tune `TIER_UNKNOWN_THRESHOLD` and routing from results
   - Not done (default 3 in use).
 
