@@ -69,39 +69,66 @@ function answerSet(entry: VocabularyEntry, thresholds: readonly number[]): Answe
   return a.length === 0 ? [] : [...a, { label: "I don't know", value: null }];
 }
 
-export function computeQuestions(allTrials: readonly QuestionTrial[], profile: PatientProfile, unknownThreshold: number, max = 3): AdaptiveQuestion[] {
+/**
+ * Never asked until the exact test, timing, contraception and applicability rules are demonstrated by regression cases
+ * (Kumar, 2026-10-08). A pregnancy criterion is not a plain yes/no fact: it depends on which test, when, and which contraception rules apply.
+ */
+export const EXCLUDED_QUESTION_KEYS: readonly string[] = ["pregnant", "lactating"];
+
+export interface KeyLifts {
+  entry: VocabularyEntry;
+  affecting: QuestionTrial[];
+  answers: Array<Answer & { lifted: QuestionTrial[] }>;
+}
+
+/**
+ * For every askable, unknown fact that blocks a typed criterion: the answer set and, per answer, the UNCERTAIN trials that would rise to
+ * POSSIBLE. This is the TYPED-ONLY counterfactual: criteria not decided by the answered fact keep their stored findings, including
+ * free-text ones. It is an estimate for ranking and measurement, never the answer path itself: the approved answer path is a full
+ * re-evaluation, so a displayed result must never come from this function.
+ */
+export function answerLifts(allTrials: readonly QuestionTrial[], profile: PatientProfile, unknownThreshold: number): KeyLifts[] {
   const trials = allTrials.filter((t) => t.tier !== "LIKELY_MISMATCH");
   // criteria (per trial) that a typed answer on `key` could decide
   const blocking = (t: QuestionTrial, key: string): number[] =>
     t.outcomes.flatMap((o, i) => (o.state === "parsed" && t.assess[i]?.finding.status === "UNKNOWN" && leaves(o.clause).some((l) => l.kind === "atom" && l.fact_key === key) ? [i] : []));
 
-  const keys = VOCABULARY.filter((v) => v.askable && profile.facts[v.key as FactKey]?.state === "unknown" && trials.some((t) => blocking(t, v.key).length > 0));
+  const keys = VOCABULARY.filter((v) => v.askable && !EXCLUDED_QUESTION_KEYS.includes(v.key) && profile.facts[v.key as FactKey]?.state === "unknown" && trials.some((t) => blocking(t, v.key).length > 0));
 
-  const scored = keys.flatMap((entry) => {
+  return keys.flatMap((entry) => {
     const answers = answerSet(entry, numericThresholds(trials, entry.key));
     if (answers.length === 0) return [];
     const affecting = trials.filter((t) => blocking(t, entry.key).length > 0);
-    const decided = answers.map((ans) => {
-      if (ans.value === null) return 0; // "I don't know" changes nothing
-      const cf: PatientProfile = { facts: { ...profile.facts, [entry.key]: { key: entry.key, state: "known", value: ans.value } } as PatientProfile["facts"] };
-      return trials.filter((t) => {
-        const idx = new Set(blocking(t, entry.key));
-        if (idx.size === 0 || t.tier !== "UNCERTAIN") return false;
-        const crit = t.assess.map((a, i) => {
-          if (!idx.has(i)) return a;
-          const re = assessCriterion(t.sources[i]!, t.outcomes[i]!, cf);
-          return { ...re, finding: applyAbstentionGuard(re.finding, cf).finding };
+    return [{
+      entry,
+      affecting,
+      answers: answers.map((ans) => {
+        if (ans.value === null) return { ...ans, lifted: [] }; // "I don't know" changes nothing
+        const cf: PatientProfile = { facts: { ...profile.facts, [entry.key]: { key: entry.key, state: "known", value: ans.value } } as PatientProfile["facts"] };
+        const lifted = trials.filter((t) => {
+          const idx = new Set(blocking(t, entry.key));
+          if (idx.size === 0 || t.tier !== "UNCERTAIN") return false;
+          const crit = t.assess.map((a, i) => {
+            if (!idx.has(i)) return a;
+            const re = assessCriterion(t.sources[i]!, t.outcomes[i]!, cf);
+            return { ...re, finding: applyAbstentionGuard(re.finding, cf).finding };
+          });
+          // counterfactual FAILs have no independent check ⇒ UNCERTAIN (rule D); a would-be STRONG is POSSIBLE and a would-be mismatch UNCERTAIN (R2)
+          const { tier } = tierTrialCeiled(crit.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check })), { unknownThreshold, expectedCriteria: t.sources.length });
+          return tier === "POSSIBLE";
         });
-        // counterfactual FAILs have no independent check ⇒ UNCERTAIN (rule D); a would-be STRONG is POSSIBLE and a would-be mismatch UNCERTAIN (R2)
-        const { tier } = tierTrialCeiled(crit.map((a) => ({ scoring: a.scoring, category: a.category, status: a.finding.status, completeness: a.completeness, failCheck: a.finding.fail_check })), { unknownThreshold, expectedCriteria: t.sources.length });
-        return tier === "POSSIBLE";
-      }).length;
-    });
-    const gain = decided.reduce((s, n) => s + n, 0) / decided.length;
+        return { ...ans, lifted };
+      }),
+    }];
+  });
+}
+
+export function computeQuestions(allTrials: readonly QuestionTrial[], profile: PatientProfile, unknownThreshold: number, max = 3): AdaptiveQuestion[] {
+  const scored = answerLifts(allTrials, profile, unknownThreshold).map(({ entry, affecting, answers }): AdaptiveQuestion => {
+    const gain = answers.reduce((s, a) => s + a.lifted.length, 0) / answers.length;
     const cost = entry.ask_cost ?? 3;
     const label = LABELS[entry.key as FactKey] ?? entry.key.replace(/_/g, " ");
-    const q: AdaptiveQuestion = { fact_key: entry.key as FactKey, prompt: `Do you know your ${label}?`, answers, affects_trials: affecting.length, score: gain / cost };
-    return [q];
+    return { fact_key: entry.key as FactKey, prompt: `Do you know your ${label}?`, answers: answers.map(({ label: l, value }) => ({ label: l, value })), affects_trials: affecting.length, score: gain / cost };
   });
   // deterministic order: score desc, affected trials desc, key asc
   return scored.sort((a, b) => b.score - a.score || b.affects_trials - a.affects_trials || a.fact_key.localeCompare(b.fact_key)).slice(0, max);

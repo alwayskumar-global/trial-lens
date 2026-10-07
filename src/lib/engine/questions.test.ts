@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { assessCriterion, type CriterionAssessment, type ParseOutcome, type SourceCriterion } from "./reconcile";
 import { leafToNode } from "./clause";
 import { tierTrial } from "./tier";
-import { computeQuestions, type QuestionTrial } from "./questions";
+import { answerLifts, computeQuestions, EXCLUDED_QUESTION_KEYS, type QuestionTrial } from "./questions";
 import { atom, profile } from "./test-helpers";
 import type { Category } from "@/schema/criteria";
 import type { LlmLeaf } from "@/schema/clause";
@@ -92,5 +92,27 @@ describe("computeQuestions", () => {
     const t = trial(atom("Prior trastuzumab treatment", "prior_trastuzumab", "eq", true), "prior_therapy", p, "exclusion");
     const [q] = computeQuestions([t], p, 3);
     expect(q!.score).toBeCloseTo(1 / 3); // only "No" lifts it; "Yes" would be a conflict, which is not a lift
+  });
+
+  it("pregnancy-related facts are never asked (exact test, timing, contraception and applicability rules are not demonstrated)", () => {
+    expect(EXCLUDED_QUESTION_KEYS).toEqual(["pregnant", "lactating"]);
+    const p = profile({});
+    const ts = [trial(atom("Not pregnant", "pregnant", "eq", false), "stage", p, "inclusion", "NCT00000001"), trial(atom("Not breastfeeding", "lactating", "eq", false), "stage", p, "inclusion", "NCT00000002")];
+    expect(ts.every((t) => t.tier === "UNCERTAIN")).toBe(true);
+    expect(computeQuestions(ts, p, 3)).toEqual([]);
+    expect(answerLifts(ts, p, 3)).toEqual([]);
+    // a non-pregnancy key beside them is still asked
+    const q = computeQuestions([...ts, trial(atom("Stage III disease", "stage", "eq", "III"), "stage", p, "inclusion", "NCT00000003")], p, 3);
+    expect(q.map((x) => x.fact_key)).toEqual(["stage"]);
+  });
+
+  it("answerLifts reports the lifted trials per answer, and computeQuestions scores from exactly those numbers", () => {
+    const p = profile({});
+    const t = trial(atom("Stage III disease", "stage", "eq", "III"), "stage", p);
+    const [k] = answerLifts([t], p, 3);
+    expect(k!.entry.key).toBe("stage");
+    expect(k!.affecting).toHaveLength(1);
+    expect(k!.answers.filter((a) => a.lifted.length > 0).map((a) => a.label)).toEqual(["III"]);
+    expect(k!.answers.find((a) => a.label === "I don't know")!.lifted).toEqual([]);
   });
 });

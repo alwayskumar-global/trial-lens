@@ -1,0 +1,307 @@
+{
+  "note": "Typed-only counterfactual on the three prepared FICTIONAL profiles; read-only, no model calls; not the answer path (a full re-evaluation is). Counts, keys and NCT ids only.",
+  "parserVersion": "spike-4+cov-1",
+  "excludedKeys": [
+    "pregnant",
+    "lactating"
+  ],
+  "totalDistinctLifts": 0,
+  "profiles": [
+    {
+      "profile": "her2pos-stage3",
+      "storedResults": 30,
+      "tiers": {
+        "POSSIBLE": 7,
+        "UNCERTAIN": 23
+      },
+      "usableTrials": 29,
+      "noCachedParse": 1,
+      "criteriaCountMismatch": 0,
+      "questions": [
+        {
+          "key": "disease_setting",
+          "affectingTrials": 1,
+          "askCost": 1,
+          "residualOpenCriteria": [
+            {
+              "open": 9,
+              "coreOpen": 1
+            }
+          ],
+          "answers": [
+            {
+              "answer": "early",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "locally_advanced",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "metastatic",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "I don't know",
+              "lifted": 0,
+              "nct": []
+            }
+          ],
+          "maxLift": 0
+        },
+        {
+          "key": "ecog",
+          "affectingTrials": 3,
+          "askCost": 2,
+          "residualOpenCriteria": [
+            {
+              "open": 16,
+              "coreOpen": 4
+            },
+            {
+              "open": 21,
+              "coreOpen": 2
+            },
+            {
+              "open": 40,
+              "coreOpen": 12
+            }
+          ],
+          "answers": [
+            {
+              "answer": "0",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "1",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "2",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "3",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "4",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "I don't know",
+              "lifted": 0,
+              "nct": []
+            }
+          ],
+          "maxLift": 0
+        }
+      ],
+      "distinctLifted": 0
+    },
+    {
+      "profile": "hrpos-stage2",
+      "storedResults": 30,
+      "tiers": {
+        "POSSIBLE": 6,
+        "UNCERTAIN": 24
+      },
+      "usableTrials": 29,
+      "noCachedParse": 1,
+      "criteriaCountMismatch": 0,
+      "questions": [
+        {
+          "key": "disease_setting",
+          "affectingTrials": 1,
+          "askCost": 1,
+          "residualOpenCriteria": [
+            {
+              "open": 9,
+              "coreOpen": 1
+            }
+          ],
+          "answers": [
+            {
+              "answer": "early",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "locally_advanced",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "metastatic",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "I don't know",
+              "lifted": 0,
+              "nct": []
+            }
+          ],
+          "maxLift": 0
+        },
+        {
+          "key": "ecog",
+          "affectingTrials": 3,
+          "askCost": 2,
+          "residualOpenCriteria": [
+            {
+              "open": 21,
+              "coreOpen": 2
+            },
+            {
+              "open": 40,
+              "coreOpen": 12
+            },
+            {
+              "open": 16,
+              "coreOpen": 4
+            }
+          ],
+          "answers": [
+            {
+              "answer": "0",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "1",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "2",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "3",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "4",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "I don't know",
+              "lifted": 0,
+              "nct": []
+            }
+          ],
+          "maxLift": 0
+        }
+      ],
+      "distinctLifted": 0
+    },
+    {
+      "profile": "tnbc-caregiver",
+      "storedResults": 30,
+      "tiers": {
+        "POSSIBLE": 6,
+        "UNCERTAIN": 24
+      },
+      "usableTrials": 30,
+      "noCachedParse": 0,
+      "criteriaCountMismatch": 0,
+      "questions": [
+        {
+          "key": "disease_setting",
+          "affectingTrials": 1,
+          "askCost": 1,
+          "residualOpenCriteria": [
+            {
+              "open": 8,
+              "coreOpen": 1
+            }
+          ],
+          "answers": [
+            {
+              "answer": "early",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "locally_advanced",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "metastatic",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "I don't know",
+              "lifted": 0,
+              "nct": []
+            }
+          ],
+          "maxLift": 0
+        },
+        {
+          "key": "ecog",
+          "affectingTrials": 2,
+          "askCost": 2,
+          "residualOpenCriteria": [
+            {
+              "open": 40,
+              "coreOpen": 12
+            },
+            {
+              "open": 16,
+              "coreOpen": 4
+            }
+          ],
+          "answers": [
+            {
+              "answer": "0",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "1",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "2",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "3",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "4",
+              "lifted": 0,
+              "nct": []
+            },
+            {
+              "answer": "I don't know",
+              "lifted": 0,
+              "nct": []
+            }
+          ],
+          "maxLift": 0
+        }
+      ],
+      "distinctLifted": 0
+    }
+  ]
+}
