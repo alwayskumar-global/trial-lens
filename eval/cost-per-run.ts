@@ -1,5 +1,5 @@
 // ARITHMETIC ONLY: no network, no model call. Cost of one run of the pipeline from the account's per-token prices (confirmed from the Token Factory
-// account API on 2026-10-10) and measured/bounded token counts. Run: pnpm exec tsx eval/cost-per-run.ts
+// account API on 2026-10-07) and measured/bounded token counts. Run: pnpm exec tsx eval/cost-per-run.ts
 // Measured (docs/spike-results.md, docs/hardened-1-dev-check.md): parse calls ≈ 2.8k prompt / 2.2k completion with parser thinking OFF
 // (128,314 / 102,381 over 46 calls) and ≈ 2.3k / 6.6k with thinking ON (103,907 / 305,346 over the 46 parse calls). Free-text evaluation, verify and
 // fail-check token counts were NOT recorded before run stats gained `usage` (u-1): they use the parse call as a proxy until a separately approved live

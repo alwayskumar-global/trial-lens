@@ -26,7 +26,7 @@ function FixedDemo() {
     return () => clearTimeout(h);
   }, [toast]);
 
-  // Option B (2026-10-10): the fixed demo has no answer step and no tier updates; the sample trials are shown as they are.
+  // Option B (undated; recorded 2026-10-07): the fixed demo has no answer step and no tier updates; the sample trials are shown as they are.
   const trials = TRIALS;
   const toProcessing = useCallback(() => setScreen("processing"), []);
   const toResults = useCallback(() => setScreen("results"), []);

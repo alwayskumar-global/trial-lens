@@ -71,7 +71,7 @@ function answerSet(entry: VocabularyEntry, thresholds: readonly number[]): Answe
 
 /**
  * Never asked until the exact test, timing, contraception and applicability rules are demonstrated by regression cases
- * (Kumar, 2026-10-08). A pregnancy criterion is not a plain yes/no fact: it depends on which test, when, and which contraception rules apply.
+ * (Kumar, undated; recorded 2026-10-07). A pregnancy criterion is not a plain yes/no fact: it depends on which test, when, and which contraception rules apply.
  */
 export const EXCLUDED_QUESTION_KEYS: readonly string[] = ["pregnant", "lactating"];
 

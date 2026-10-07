@@ -1,4 +1,4 @@
-# Adaptive-demo scope decision against the original TASKS.md stop gate (for Kumar, 2026-10-10)
+# Adaptive-demo scope decision against the original TASKS.md stop gate (for Kumar, undated; recorded 2026-10-07)
 
 TASKS.md gate (Phase 1 "Vocabulary coverage"): ≥ 60% of scoring criteria typed; 40-60% expand vocabulary; **< 40% STOP and reassess the adaptive demo scope with Kumar.** Measured strict typed coverage: 5.7% at the gate, 3.3% (16/488) on the 34 prepared-profile trials (`docs/coverage-audit.md`). This note is that reassessment. The gate is **not met and stays not met under either option**; neither option marks it passed. Estimates below are estimates, not measurements.
 

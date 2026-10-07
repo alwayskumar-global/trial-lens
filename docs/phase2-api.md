@@ -37,7 +37,7 @@ Prompts `spike-4` (parse) / `fail-verify-0`, coverage checks `cov-1`, abstention
 ## Guards (`src/lib/guards/run-guard.ts`)
 Per-IP sliding window (`RATE_LIMIT_RUNS_PER_IP_PER_HOUR`, hashed IP bucket, prefix `tl:rl`) checked first, then the global per-UTC-day counter `tl:runs:<date>` (`DAILY_RUN_BUDGET`). Any Redis error ⇒ `guard_unavailable` ⇒ replay. Redis holds no patient text and no raw IPs.
 
-## Study-team questions (Option B; replaces "Adaptive questions", Kumar 2026-10-10)
+## Study-team questions (Option B; replaces "Adaptive questions", Kumar undated; recorded 2026-10-07)
 `src/lib/engine/study-questions.ts` (pure, no LLM, no answer step, no tier prediction). Stage name `questions` is unchanged; its label is now "Listing questions worth asking the study team". Emits one event `{type:"study_questions", version:"sq-1", questions:[...]}` (up to 3 topics). Each topic: `fact_key`, `topic`, `study_count` = number of DISTINCT studies with a traceable unresolved scoring criterion, and `studies[{nct_id, criteria[{criterion_id, type, text}]}]` with the original wording verbatim. `questions: []` means the computation ran and found no supported item; the event is NOT emitted if the computation fails (a failure never produces a "no questions" claim). The legacy `question` event (answer-oriented) is no longer emitted; the schema still parses it for older stored replays and clients ignore it. Rules and copy: `docs/study-team-panel.md`.
 
 ## Not built

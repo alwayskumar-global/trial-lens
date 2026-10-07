@@ -1,10 +1,10 @@
-# hardened-1 extraction prompt: development check (2026-10-07, corrected 2026-10-08)
+# hardened-1 extraction prompt: development check (2026-10-07, corrected 2026-10-07)
 
 **What this is.** A development check of the extraction prompt `hardened-1` (arm B) against the measured spike prompt `spike-0` (arm A), on **12 author-written fictional descriptions with author-written gold labels** (`eval/extract-dev-cases.ts`). n = 12, one run per case and arm (plus 4 latency repeats per arm). It is **not measured clinical accuracy**: no real patient text, no clinician labels, no variance estimate. It does not validate the earlier Preview SSE result, which ran before `hardened-1` existed.
 
 TASKS.md items advanced: Phase 1 "Latency/cost"; Phase 2 "Profile extraction".
 
-**Corrections (2026-10-08).** The first write-up (a) scored `hardened-1` on 49 required facts because it left out the case that produced no usable output; every figure below uses all 52 required facts for both arms and counts an invalid extraction as a failure, and (b) said 5 of 7 hedged facts came back as known: the recorded counts show **3 of 7** (the other 2 were not returned in an accepted `uncertain` form). It also said hardened-1 used 28% more tokens; on valid calls it is +13% (2,577 vs 2,280 mean completion tokens).
+**Corrections (2026-10-07).** The first write-up (a) scored `hardened-1` on 49 required facts because it left out the case that produced no usable output; every figure below uses all 52 required facts for both arms and counts an invalid extraction as a failure, and (b) said 5 of 7 hedged facts came back as known: the recorded counts show **3 of 7** (the other 2 were not returned in an accepted `uncertain` form). It also said hardened-1 used 28% more tokens; on valid calls it is +13% (2,577 vs 2,280 mean completion tokens).
 
 ## Setup (as approved)
 - Model: `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` (FAST). Confirmed from the Token Factory account API before the first paid call: prompt $0.00000006 and completion $0.00000024 per token ($0.06 / $0.24 per 1M). The harness re-verifies model id and both prices against the account and aborts on a difference or an estimated maximum above $0.10 (maximum for 70 calls: $0.0814).
@@ -89,7 +89,7 @@ Deliberately not included (not requested): mapping "triple-negative" to ER/PR/HE
 ## Preview check (3 prepared texts through `/api/extract`)
 Not completed. Two attempts (the deployments of `929f559` and of `6bacea8`, the latest at the time) both returned **HTTP 503 `unavailable` on the first request, before any model call**. The handler returns that only when `PROFILE_SIGNING_SECRET` is missing, so the variable is not present in those deployments. The Vercel API returns 403 when asked to list environment variables and the project record does not expose them, so its Sensitive type and Preview-only target cannot be verified from a session. No model call, no spend; nothing was changed in Vercel. Needed from Kumar: set it for Preview only, marked Sensitive, then redeploy; then the three samples can be retried (≤ 6 calls).
 
-## hardened-2 result (2026-10-08; development check, 12 author-written fictional cases, not measured clinical accuracy)
+## hardened-2 result (2026-10-07; development check, 12 author-written fictional cases, not measured clinical accuracy)
 Run as approved: ceiling 32 offline FAST calls and $0.065, fictional text only. Model id and both prices re-confirmed against the Token Factory account immediately before the first call (`nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B`, $0.00000006 / $0.00000024 per token; preflight worst case $0.0647). **17 of 32 HTTP calls** (16 planned + 1 retry), 65,373 tokens, **actual spend ≈ $0.0137**. No provider error, no early stop, no Preview call. Report: `eval/reports/hardened-2-dev-check.json` (counts and key names only).
 
 Arm C = `hardened-2` (hedging sentence, `max_tokens` 8192), on all 12 cases, **same 52-fact gold denominator, invalid counted as failure**. Arms A and B are the earlier run.

@@ -25,7 +25,7 @@ Status: **approved by Kumar (revision 2, mockups at 5caf7a6) and implemented** b
 | Stage: free_text_evaluation | "Comparing wording that needs a closer read" |
 | Stage: verification | "Double-checking possible matches" |
 | Stage: fail_checks | "Double-checking possible mismatches" |
-| Stage: questions | ~~"Choosing a helpful question"~~ → "Listing questions worth asking the study team" (Option B, 2026-10-10; pending Kumar's review of the live Processing screen) |
+| Stage: questions | ~~"Choosing a helpful question"~~ → "Listing questions worth asking the study team" (Option B, undated; recorded 2026-10-07; pending Kumar's review of the live Processing screen) |
 | Results title | "{selected} studies selected for review" |
 | Coverage row | `{n} assessed` · `{n} not analyzed this run` · `{n} couldn't be read` (all three always shown, zero included) |
 | Coverage footnote | "From ClinicalTrials.gov: {discovered} recruiting studies found, {filtered} fit your age and sex, {selected} selected for review." (replay: "this profile's age and sex") |

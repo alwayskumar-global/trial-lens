@@ -82,7 +82,7 @@ describe("no visitor-facing string presents the reported facts as verified", () 
   });
 });
 
-// Study-team panel (Option B, Kumar 2026-10-10): a counterfactual lift is a prediction; the panel never promises a tier change, has no answer step and
+// Study-team panel (Option B, Kumar undated; recorded 2026-10-07): a counterfactual lift is a prediction; the panel never promises a tier change, has no answer step and
 // no "decisiveness" claim. Applies to the panel component and the live copy.
 describe("study-team panel copy", () => {
   const BAD = [/most decisive/i, /blocks the most/i, /sharpen/i, /\bwill (?:change|move|update)\b/i, /move to Possible/i, /answering (?:this|these|a)\b/i];
