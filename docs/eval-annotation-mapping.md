@@ -84,6 +84,7 @@ Everything stays in gitignored `eval/data/`. Reviews, reports, logs and docs hol
 ## 9. Placing the file and aggregate-only inspection
 - **File:** `data/train-00000-of-00001.parquet` (1,015 rows) from https://huggingface.co/datasets/ncbi/TrialGPT-Criterion-Annotations
 - **Destination:** `eval/data/trialgpt-criterion-annotations/data/train-00000-of-00001.parquet` (inside the checkout; `eval/data/` is gitignored). **As of this revision the file is not there.**
+- **Fetch script (for a session whose network policy allows `huggingface.co`):** `python3 eval/fetch-annotations.py` downloads ONLY `data/train-00000-of-00001.parquet` and `README.md` into the destination, follows redirects by hand only to `huggingface.co`, `*.huggingface.co` and `*.hf.co`, **stops and prints the exact host** if a redirect or host is not allowed or not reachable (no mirror, no network change), pins the second file to the revision the host reported for the first, and records revision and SHA-256 in gitignored `download-manifest.json`. It reads no file content. Offline tests: `eval/test_fetch_annotations.py`.
 - **Command (a machine with access; a public dataset needs no token):**
   `huggingface-cli download ncbi/TrialGPT-Criterion-Annotations data/train-00000-of-00001.parquet README.md --repo-type dataset --local-dir eval/data/trialgpt-criterion-annotations`
   (`README.md` is wanted for the license text and the `training` wording; it holds no patient text).
