@@ -3,8 +3,8 @@
 //
 // Every HTTP attempt (first try, 429 backoff retry, validation retry) first RESERVES its worst case in the SpendGuard:
 //     worst = (UTF-8 bytes of the exact request body + 64) x input price + max_tokens x output price
-// and is sent only if actual_spent + in-flight worst cases + this worst case <= budget and the attempt ceiling is not reached. After the reply the
-// reservation is replaced by the REPORTED usage. Any failed assumption (usage missing, prompt tokens above the byte bound, completion tokens above
+// and is sent only if actual_spent + in-flight worst cases + this worst case <= budget and the attempt ceiling is not reached. After a reply the
+// reservation is replaced by the REPORTED usage; an attempt that returns no reply (429, timeout, network/HTTP error) is charged its worst case. Any failed assumption (usage missing, prompt tokens above the byte bound, completion tokens above
 // max_tokens) halts all further dispatch.
 import { SpendGuard, promptTokensUpperBoundFromBytes, worstAttemptUsd } from "./warm-guard";
 
@@ -53,7 +53,9 @@ export async function dispatchJob<T>(deps: DispatchDeps, job: Job<T>): Promise<J
       } catch (e) {
         const kind: FailKind = e instanceof PortError ? e.kind : "network";
         if (kind === "rate_limited") {
-          guard.settle(r, 0); // a 429 carries no tokens
+          // Nebius documents neither that a 429 is free nor that it is billed (rate-limits and billing pages, checked 2026-10-08), so without
+          // billing evidence a 429 is charged its WORST case like any other failed attempt.
+          guard.settle(r, null);
           if (backoff >= 3) return { id: job.id, status: "unparsed", reason: "rate_limited", attempts };
           await deps.sleep(1000 * 2 ** backoff);
           continue;

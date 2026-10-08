@@ -53,16 +53,25 @@ describe("dispatchJob: every HTTP attempt is reserved, then reconciled with repo
     expect(await dispatchJob({ port: p, guard, price, sleep }, job("a"))).toMatchObject({ status: "unparsed", reason: "invalid_after_retry", attempts: 2 });
   });
 
-  it("a 429 backs off (1 s, 2 s, 4 s), carries no tokens, and still consumes an attempt slot", async () => {
+  it("a 429 backs off (1 s, 2 s), is charged its WORST case (no billing evidence that it is free) and consumes an attempt slot", async () => {
     sleeps.length = 0;
-    const guard = new SpendGuard(1, 10); const { p } = port((_, n) => (n < 2 ? new PortError("rate_limited") : good(500, 100)), guard);
+    const guard = new SpendGuard(1, 10); const { p, seen } = port((_, n) => (n < 2 ? new PortError("rate_limited") : good(500, 100)), guard);
     const r = await dispatchJob({ port: p, guard, price, sleep }, job("a"));
     expect(r).toMatchObject({ status: "parsed", attempts: 3 });
     expect(sleeps).toEqual([1000, 2000]);
     expect(guard.attempts).toBe(3);
-    expect(guard.spentUsd).toBeCloseTo(cost(500, 100), 12); // only the successful reply cost anything
+    const worst = (bytes: number) => (bytes + 64) * price.p + MAXTOK * price.c;
+    expect(guard.spentUsd).toBeCloseTo(worst(seen.bodies[0]!) + worst(seen.bodies[1]!) + cost(500, 100), 12); // two 429s at worst case + the real reply
     const tight = new SpendGuard(1, 1); const q = port(() => new PortError("rate_limited"), tight);
     expect(await dispatchJob({ port: q.p, guard: tight, price, sleep }, job("b"))).toMatchObject({ status: "unparsed", reason: "refused_attempts" }); // ceiling counts 429 attempts
+  });
+
+  it("repeated 429s cannot run away: each is reserved and charged, so the budget stops them", async () => {
+    const guard = new SpendGuard(0.03, 1000); const { p, seen } = port(() => new PortError("rate_limited"), guard);
+    const s = await runJobs({ port: p, guard, price, sleep }, Array.from({ length: 10 }, (_, i) => job(`j${i}`)), { calibration: 1, concurrency: 4 });
+    expect(s.parsed).toBe(0);
+    expect(guard.spentUsd).toBeLessThanOrEqual(0.03 + 1e-9);
+    expect(seen.calls).toBeLessThanOrEqual(Math.floor(0.03 / ((Math.min(...seen.bodies) + 64) * price.p + MAXTOK * price.c)) + 1);
   });
 
   it("a timeout, network or HTTP error is charged at the WORST case (generation may have happened)", async () => {
