@@ -35,7 +35,7 @@ It reports, for the current 80-call cap and 150 runs/day: projected worst-case d
 Example with a PLACEHOLDER of $200/day (not a decision): worst case $100.90/day fits (up to 297 worst-case runs/day); typical $17-$40/day fits.
 A pass is a projection: it does not cap spending, it only shows the cap and the budget agree.
 
-## Recording actual usage (built, offline-tested; not yet collected)
+## Recording actual usage (built, offline-tested; collected on two approved live runs, see "Measured usage" below)
 Run stats now carry per-stage, per-model token counts: `done.stats.usage` (version `u-1`): rows of `stage` (extraction, parse, evaluate, verify, mismatch), `tier`, `model`, `calls`, `calls_with_usage`, `calls_without_usage`, `prompt_tokens`, `completion_tokens`, plus a `total`. Rules: counts and labels only (no prompts, profile text, responses, criterion text or secrets, in events or in the server log line); **a missing provider `usage` is unavailable, never zero**: token fields are `null` when no call in the group reported complete usage, and a group with `calls_without_usage > 0` is a **lower bound**; a call that sent no request is not counted. The server log line for a live run carries the totals as integers and omits the token fields when unavailable. `/api/extract` has its own handler and is not included. Actual numbers will be collected on the next live run Kumar approves separately; replace the proxy figures above with them then.
 
 ## Demo window to budget for
@@ -48,3 +48,22 @@ Run stats now carry per-stage, per-model token counts: `done.stats.usage` (versi
 **Planning window.** From our actual submission date through the end of judging (Dec 15). The target submission is the evening of Oct 29 IST (TASKS.md); the actual submission date is **undated until it happens**, and the window starts then, not before. Judging (Dec 1-15) is treated as the likely higher-use period inside that window; the earlier part (submission to Dec 1) also needs the demo live, free and open. The budget decision therefore needs both a daily figure for the pre-judging stretch and one for judging, or one figure that covers the heavier period. Winners-announcement day is outside the window.
 
 **Open question for the organizers (not assumed, not resolved here).** The rules require testing access "free of charge and without any restriction". We do not assume that falling back to the saved fictional replay when a limit is hit (per-IP rate limit, `DAILY_RUN_BUDGET`, model or guard unavailable) satisfies that language for live testing. Question to send (wording for Kumar to approve): "Our demo analyzes a fictional profile live on Nebius Token Factory. To protect the credits and the service we use a per-IP rate limit and a daily cap on live runs; when a limit is reached the demo shows a clearly labelled saved result of a fictional profile instead. Does that satisfy the requirement that the project be available free of charge and without restriction to Judges and Sponsor for testing during the Judging Period, or must live runs stay available to judges beyond those limits (for example via an exemption or separate judge instructions)?" Until answered, rate limiting and the security controls stay exactly as they are; nothing is relaxed.
+
+
+## Measured usage (two approved live Preview runs, fictional sample, cache writes OFF; 2026-10-07 and 2026-10-08)
+Source: `done.stats.usage` (`u-1`). Counts only. Cost is ESTIMATED from reported tokens x the account prices above; it is not an invoice. Both runs used the same prepared sample against a cache of 33 then 39 stored parses; only parse slots (14) were spent on cold trials, so 21-23 of 30 trials stayed `analysis_pending` (cold-cache capacity, not failures).
+
+| Stage / tier | Run 1 calls | tokens in / out | Run 2 calls | tokens in / out |
+|---|---|---|---|---|
+| extraction / FAST | 1 | 639 / 4,660 | 1 | 647 / 2,210 |
+| parse / MID | 14 | 28,456 / 23,112 | 14 | 26,406 / 22,822 |
+| evaluate / MID | 7 | 10,389 / 7,305 | 9 | 6,763 / 6,000 |
+| verify / MID | 2 | 1,937 / 431 | 1 | 439 / 197 |
+| fail checks | 0 | | 0 | |
+| **Total** | **24 logical, 25 HTTP attempts** | **41,421 / 35,508** | **25 logical, 25 HTTP attempts** | **34,255 / 31,229** |
+| Estimated cost | | **about $0.041** | | **about $0.037** |
+
+- `llm_calls` (what the 80 cap counts) is HTTP request ATTEMPTS including 429 and validation retries; usage `calls` counts LOGICAL model calls. Run 1 had one extra attempt (a retry), run 2 none. All logical calls reported complete usage in both runs; attempts that return no response (429, errors) carry no tokens.
+- `worst_case_calls` reported 48 (run 1) and 50 (run 2): the run plan's structural bound for those runs, below the 80 cap. Not proven as a general bound.
+- These two runs are far below the earlier $0.09-$0.27 proxy range because only 7-9 trials got an evaluate slot and fail checks never ran (no FAIL finding). A run with more trials assessed (warmer cache) would cost more; the proxy range and the $0.67 forecast stand until such a run is measured. Still no dollar-denominated limit in code.
+- Duration: 58.2 s and 58.3 s at the client (server `ms` 57.5 s and 41.1 s; the 17 s gap on run 2 is unexplained and sits between server and client, not in the pipeline). All `trial_result` events are emitted after the final stage, so the client sees results at the end.
