@@ -1,27 +1,31 @@
 // DRY-RUN ONLY cache-warming planner. It makes NO model call and NO Supabase write; it does not import the model client, and `--execute` is refused.
 // Reads: public ClinicalTrials.gov GETs, Supabase SELECTs (cache keys, replay profile events). Prints counts, public NCT ids, versions and dollars only.
-//   node --env-file=.env --import tsx eval/warm-cache.ts [--policy=api-default|relevance|hash-ranked-v1] [--budget=0.50] [--bound=bytes|estimate]
-// Policies: api-default = today's production query order; relevance = same query with sort=@relevance and a breast-signal guard (PROPOSED, under review);
-// hash-ranked-v1 = salted-hash order (REJECTED by Kumar, kept only for comparison).
+//   node --env-file=.env --import tsx eval/warm-cache.ts [--policy=api-default|relevance] [--scope=interventional|all] [--budget=0.75] [--bound=bytes|estimate] [--check-price]
+// Policies: api-default = today's production query order; relevance = same query with sort=@relevance and a breast-signal guard (PROPOSED, under review).
+// Scope (--scope=interventional|all, default interventional = Kumar's preference): the official API filter filter.advanced=AREA[StudyType]INTERVENTIONAL.
+// FAIL CLOSED: if the chosen policy's CT.gov request fails or returns an out-of-scope study, the script stops (exit 3); it never substitutes another ordering.
+// --check-price additionally reads the provider's model metadata (a GET, NOT an inference call) and stops if the MID price differs from the constants.
 // What it plans (see docs/cache-warming-proposal.md): which trials the chosen selection policy would warm, how many parse chunks that is, the
 // worst-case dollars of every attempt BEFORE dispatch, and how much the enforceable SpendGuard bound would let through.
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { PARSER_VERSION, cacheKeyFor } from "../src/lib/cache/criteria-cache";
-import { discoverRecruitingBreastTrials, mapStudy, prefilterTrials, type Trial } from "../src/lib/ctgov/client";
+import { prefilterTrials, type Trial } from "../src/lib/ctgov/client";
 import { splitTrialCriteria } from "../src/lib/ctgov/split";
 import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt } from "../src/prompts/clause-parse";
 import { makeClauseBatchSchema } from "../src/schema/clause";
 import { getSupabase } from "../src/lib/supabase";
 import { PRICE } from "./cost-per-run";
-import { fetchWindow } from "./lib/ctgov-window";
-import { POLICY_ID, chooseInRankOrder, rankPool } from "./lib/selection-policy";
+import { fetchWindow, WindowError } from "./lib/ctgov-window";
 import { SpendGuard, estTokens, planFingerprint, promptTokensUpperBoundFromBytes, worstAttemptUsd, type PlannedTrial } from "./lib/warm-guard";
 
 if (process.argv.includes("--execute")) { console.error("--execute is not implemented: the warm-up is NOT approved. This script is dry-run only."); process.exit(2); }
 const arg = (k: string, d: string) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split("=")[1] ?? d;
-const POLICY = arg("policy", "api-default");
-const BUDGET = Number(arg("budget", "0.50"));
+const POLICY = arg("policy", "relevance");
+const BUDGET = Number(arg("budget", "0.75"));
+const SCOPE = arg("scope", "interventional");
+const INT = SCOPE === "interventional";
+if (!["interventional", "all"].includes(SCOPE) || !["api-default", "relevance"].includes(arg("policy", "api-default"))) { console.error("bad --scope or --policy"); process.exit(2); }
 const BOUND = arg("bound", "bytes"); // which worst-case figure drives the SpendGuard simulation
 const BASE = process.env.CTGOV_API_BASE ?? "https://clinicaltrials.gov/api/v2";
 const CHUNK = 15, MAX_CANDIDATES = 30, MAX_TOKENS = 8192, CONCURRENCY = 6, RETRY_ECHO_CHARS = 4000 + 300;
@@ -29,26 +33,14 @@ const MEASURED_PARSE_CALL_USD = 0.0021; // two live runs: 1.9-2.0k tokens in, 1.
 const IDS = ["her2pos-stage3", "hrpos-stage2", "tnbc-caregiver"];
 const sha = (xs: readonly string[]) => createHash("sha256").update(xs.join("\n")).digest("hex").slice(0, 16);
 
-async function poolIds(): Promise<string[]> {
-  const out: string[] = []; let tok: string | undefined;
-  do {
-    const q = new URLSearchParams({ "query.cond": "breast cancer", "filter.overallStatus": "RECRUITING", pageSize: "1000", fields: "NCTId", format: "json" });
-    if (tok) q.set("pageToken", tok);
-    const j = (await (await fetch(`${BASE}/studies?${q}`)).json()) as { studies: Array<{ protocolSection: { identificationModule: { nctId: string } } }>; nextPageToken?: string };
-    out.push(...j.studies.map((s) => s.protocolSection.identificationModule.nctId));
-    tok = j.nextPageToken;
-  } while (tok);
-  return out;
-}
-async function detailsByIds(ids: readonly string[]): Promise<Map<string, Trial>> {
-  const fields = "NCTId|BriefTitle|OverallStatus|EligibilityCriteria|MinimumAge|MaximumAge|Sex|LastUpdatePostDate|LocationStatus|LocationGeoPoint";
-  const got = new Map<string, Trial>();
-  for (let i = 0; i < ids.length; i += 30) {
-    const q = new URLSearchParams({ "filter.ids": ids.slice(i, i + 30).join("|"), "filter.overallStatus": "RECRUITING", fields, format: "json", pageSize: "100" });
-    const j = (await (await fetch(`${BASE}/studies?${q}`)).json()) as { studies: Parameters<typeof mapStudy>[0][] };
-    for (const s of j.studies) { const t = mapStudy(s); if (t) got.set(t.nct_id, t); }
-  }
-  return got;
+async function checkMidPrice(): Promise<{ ok: boolean; prompt: string; completion: string }> {
+  const base = (process.env.NEBIUS_BASE_URL ?? "").replace(/\/$/, "");
+  const r = await fetch(`${base}/models?verbose=true`, { headers: { authorization: `Bearer ${process.env.NEBIUS_API_KEY ?? ""}` } });
+  if (!r.ok) throw new Error("price_check_http");
+  const j = (await r.json()) as { data?: Array<{ id: string; pricing?: { prompt?: string; completion?: string } }> };
+  const m = (j.data ?? []).find((x) => x.id === process.env.NEMOTRON_MODEL_MID);
+  const prompt = m?.pricing?.prompt ?? "missing", completion = m?.pricing?.completion ?? "missing";
+  return { ok: Math.abs(Number(prompt) - PRICE.MID.p) < 1e-15 && Math.abs(Number(completion) - PRICE.MID.c) < 1e-15, prompt, completion };
 }
 
 async function main() {
@@ -66,17 +58,15 @@ async function main() {
   });
 
   // ---- selection under each policy (the chosen one drives the cost plan) ----
-  const apiOrder = await discoverRecruitingBreastTrials({ base: BASE, maxPages: 2 });
-  const pool = await poolIds();
-  const ranked = rankPool(pool);
-  const rankedDetails = await detailsByIds(ranked.slice(0, 90)); // buffer well beyond 30 for the prefilter
-  const rankedList = ranked.slice(0, 90).flatMap((id) => (rankedDetails.has(id) ? [rankedDetails.get(id)!] : []));
-  const relWin = await fetchWindow(BASE, "@relevance");
+  // FAIL CLOSED selection: any CT.gov failure for a policy stops the script; no policy is ever substituted for another.
+  const win = async (sort: string | null) => { try { return await fetchWindow(BASE, sort, { interventionalOnly: INT }); } catch (e) { console.error(`selection_unavailable ${e instanceof WindowError ? e.code : "UNKNOWN"}: stopping (no fallback ordering)`); process.exit(3); } };
+  const apiWin = await win(null), relWin = await win("@relevance");
+  const apiOrder = apiWin.map((w) => w.trial);
   const relList = relWin.filter((w) => w.scope !== "no_breast_signal").map((w) => w.trial);
   const select = (policy: string): Map<string, Trial> => {
     const u = new Map<string, Trial>();
     for (const p of profiles) {
-      const sel = policy === POLICY_ID ? chooseInRankOrder(rankedList, (t) => prefilterTrials([t], p.filter).length === 1, MAX_CANDIDATES) : policy === "relevance" ? prefilterTrials(relList, p.filter).slice(0, MAX_CANDIDATES) : prefilterTrials(apiOrder, p.filter).slice(0, MAX_CANDIDATES);
+      const sel = prefilterTrials(policy === "relevance" ? relList : apiOrder, p.filter).slice(0, MAX_CANDIDATES);
       for (const t of sel) u.set(t.nct_id, t);
     }
     return u;
@@ -87,8 +77,8 @@ async function main() {
     const exact = have.find((h) => h.sv === k.source_version && h.pv === k.parser_version);
     return exact ? (exact.n === n ? "hit" : "length_mismatch") : have.some((h) => h.pv === k.parser_version) ? "stale_source" : have.length ? "stale_parser" : "missing";
   };
-  console.log(JSON.stringify({ at: new Date().toISOString(), parser_version: PARSER_VERSION, pool_recruiting_breast: pool.length, api_order_first30_sha: sha(apiOrder.slice(0, 30).map((t) => t.nct_id)), api_order_first120_sha: sha(apiOrder.map((t) => t.nct_id)), hash_rank_top30_sha: sha(ranked.slice(0, 30)), profiles: profiles.map((p) => ({ id: p.id, ...p.filter })) }));
-  for (const pol of ["api-default", "relevance", POLICY_ID]) {
+  console.log(JSON.stringify({ at: new Date().toISOString(), scope: SCOPE, parser_version: PARSER_VERSION, api_order_first30_sha: sha(apiOrder.slice(0, 30).map((t) => t.nct_id)), api_order_first120_sha: sha(apiOrder.map((t) => t.nct_id)), relevance_first30_sha: sha(relList.slice(0, 30).map((t) => t.nct_id)), profiles: profiles.map((p) => ({ id: p.id, ...p.filter })) }));
+  for (const pol of ["api-default", "relevance"]) {
     const u = select(pol), st = [...u.values()].map(status);
     console.log(JSON.stringify({ policy: pol, union: u.size, hit: st.filter((s) => s === "hit").length, uncached: st.filter((s) => s !== "hit").length, ids_sha: sha([...u.keys()].sort()) }));
   }
@@ -116,9 +106,10 @@ async function main() {
   }
   const sum = (f: (c: (typeof chunks)[number]) => number) => chunks.reduce((x, c) => x + f(c), 0);
   const A = 2 * chunks.length;
-  const fp = planFingerprint(PARSER_VERSION, POLICY, planned);
+  const policyLabel = `${POLICY === "relevance" ? "relevance-v1" : "api-default"}:${SCOPE}`;
+  const fp = planFingerprint(PARSER_VERSION, policyLabel, planned);
   const smallest14 = [...chunks].sort((a, b) => a.estIn - b.estIn).slice(0, 14);
-  console.log(JSON.stringify({ plan: { policy: POLICY, trials_to_warm: todo.length, chunks: chunks.length, attempt_ceiling: A, fingerprint: fp, request_body_bytes: { min: Math.min(...chunks.map((c) => c.bytes)), max: Math.max(...chunks.map((c) => c.bytes)) }, est_input_tokens_chars_div_2_5: { min: Math.min(...chunks.map((c) => c.estIn)), max: Math.max(...chunks.map((c) => c.estIn)), mean: Math.round(sum((c) => c.estIn) / Math.max(1, chunks.length)) }, calibration_14_smallest_chunks_mean_est_in: Math.round(smallest14.reduce((a, c) => a + c.estIn, 0) / Math.max(1, smallest14.length)), measured_live_mean_in_per_parse_call: "1886-2033" } }));
+  console.log(JSON.stringify({ plan: { policy: policyLabel, trials_to_warm: todo.length, max_cache_writes: todo.length, chunks: chunks.length, attempt_ceiling: A, fingerprint: fp, request_body_bytes: { min: Math.min(...chunks.map((c) => c.bytes)), max: Math.max(...chunks.map((c) => c.bytes)) }, est_input_tokens_chars_div_2_5: { min: Math.min(...chunks.map((c) => c.estIn)), max: Math.max(...chunks.map((c) => c.estIn)), mean: Math.round(sum((c) => c.estIn) / Math.max(1, chunks.length)) }, calibration_14_smallest_chunks_mean_est_in: Math.round(smallest14.reduce((a, c) => a + c.estIn, 0) / Math.max(1, smallest14.length)), measured_live_mean_in_per_parse_call: "1886-2033" } }));
   const usd = (n: number) => Number(n.toFixed(4));
   const exposure = (first: (c: (typeof chunks)[number]) => number, retry: (c: (typeof chunks)[number]) => number) => ({ first_attempts: usd(sum(first)), retries: usd(sum(retry)), all_attempts_at_ceiling: usd(sum(first) + sum(retry)), max_single_attempt: usd(Math.max(0, ...chunks.map(retry))) });
   console.log(JSON.stringify({ max_forecast_exposure_usd_at_attempt_ceiling: { attempts: A, assumption_chars_div_2_5_estimate: exposure((c) => c.first, (c) => c.retry), assumption_bytes_bound_no_tokenizer_ratio: exposure((c) => c.firstB, (c) => c.retryB), "if_actual_prompt_were_2x_the_byte_bound": usd(sum((c) => c.firstB + c.retryB) + sum((c) => promptTokensUpperBoundFromBytes(c.bytes) * PRICE.MID.p + promptTokensUpperBoundFromBytes(c.bytes + 16_000) * PRICE.MID.p)), expected_at_measured_average: usd(chunks.length * MEASURED_PARSE_CALL_USD) } }));
@@ -138,5 +129,6 @@ async function main() {
   };
   console.log(JSON.stringify({ bound_mode: BOUND, rule: "dispatch only if actual_spent + in_flight_worst_case + this_worst_case <= budget", budgets: [0.5, 0.75, 1, 1.5].map((b) => ({ budget_usd: b, if_every_attempt_hits_its_worst_case: sim(b, firstOf), at_measured_average: sim(b, (c) => Math.min(firstOf(c), MEASURED_PARSE_CALL_USD)) })), note: "first attempts only; a validation retry is a second reservation against the same bound" }));
   void BUDGET;
+  if (process.argv.includes("--check-price")) console.log(JSON.stringify({ price_check: await checkMidPrice(), constants: PRICE.MID }));
 }
 main().catch((e: unknown) => { console.error("warm-cache dry-run failed:", (e as Error)?.message?.slice(0, 80)); process.exit(1); });

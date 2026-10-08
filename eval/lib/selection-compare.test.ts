@@ -32,4 +32,10 @@ describe("snapshot comparison", () => {
     expect(comparePolicy(snap("T0", ["a"], ["a"]), snap("T0", ["a"], ["a"]), "p").refresh_changed).toBe(false);
     expect(() => comparePolicy(snap("T0", [], []), snap("T1", [], []), "missing")).toThrow();
   });
+
+  it("refuses to compare snapshots taken with different scopes", () => {
+    const a = snap("T0", ["a"], ["a"]), b = { ...snap("T1", ["a"], ["a"]), scope_filter: "interventional" };
+    expect(() => comparePolicy(a, b, "p")).toThrow("scope_mismatch");
+    expect(() => comparePolicy({ ...a, scope_filter: "all" }, snap("T1", ["a"], ["a"]), "p")).not.toThrow();
+  });
 });

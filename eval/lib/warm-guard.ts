@@ -6,7 +6,7 @@
 // An attempt whose usage is unavailable is charged at its worst case, never at zero.
 import { createHash } from "node:crypto";
 
-export type HaltReason = "estimate_violated";
+export type HaltReason = "estimate_violated" | "prompt_tokens_exceed_bound" | "completion_exceeds_max_tokens" | "usage_unavailable";
 export type Refusal = "budget" | "attempts" | "halted";
 
 export interface Reservation { id: number; worst: number }
@@ -18,12 +18,18 @@ export class SpendGuard {
   private dispatched = 0;
   halted: HaltReason | null = null;
   violations = 0;
+  private waiters: Array<() => void> = [];
 
   constructor(readonly budget: number, readonly maxAttempts: number) {
     if (!(budget > 0) || !Number.isInteger(maxAttempts) || maxAttempts < 1) throw new Error("bad_guard_config");
   }
 
   get attempts(): number { return this.dispatched; }
+  get inflightCount(): number { return this.inflight.size; }
+  /** Resolves at the next settlement (or immediately if nothing is in flight), so a caller refused only because other reservations hold the budget can wait and retry. */
+  nextSettle(): Promise<void> { return this.inflight.size === 0 ? Promise.resolve() : new Promise((r) => this.waiters.push(r)); }
+  /** An assumption behind the bound failed: stop all further dispatch (fail closed). Attempts already in flight still settle. */
+  violate(reason: HaltReason): void { this.halted ??= reason; this.violations++; }
   get spentUsd(): number { return this.spent; }
   get inflightWorstUsd(): number { let s = 0; for (const w of this.inflight.values()) s += w; return s; }
   /** The most the run can have cost if every in-flight attempt takes its worst case. Never above `budget` while nothing has been violated. */
@@ -44,8 +50,10 @@ export class SpendGuard {
   settle(r: Reservation, actualUsd: number | null): void {
     if (!this.inflight.delete(r.id)) throw new Error("unknown_reservation");
     const charge = actualUsd === null ? r.worst : actualUsd;
-    if (charge > r.worst + 1e-12) { this.halted = "estimate_violated"; this.violations++; }
+    if (charge > r.worst + 1e-12) this.violate("estimate_violated");
     this.spent += charge;
+    const w = this.waiters; this.waiters = [];
+    for (const f of w) f();
   }
 }
 
