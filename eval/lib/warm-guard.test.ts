@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffPlans, estTokens, planFingerprint, SpendGuard, worstAttemptUsd, type PlannedTrial } from "./warm-guard";
+import { diffPlans, estTokens, planFingerprint, promptTokensUpperBoundFromBytes, SpendGuard, worstAttemptUsd, type PlannedTrial } from "./warm-guard";
 
 describe("SpendGuard: the dollar bound holds BEFORE dispatch", () => {
   it("refuses an attempt that could push actual + in-flight worst case over the budget", () => {
@@ -68,6 +68,12 @@ describe("estimates and plan fingerprint", () => {
   it("token estimate is conservative (>= chars/4) and worst-case dollars use the output cap", () => {
     expect(estTokens(10_000)).toBeGreaterThan(10_000 / 4);
     expect(worstAttemptUsd(2000, 8192, { p: 3e-7, c: 9e-7 })).toBeCloseTo(2000 * 3e-7 + 8192 * 9e-7);
+  });
+  it("the byte bound never undercuts the character estimate for ASCII, and counts multibyte text by bytes", () => {
+    const ascii = "a".repeat(10_000);
+    expect(promptTokensUpperBoundFromBytes(Buffer.byteLength(ascii))).toBeGreaterThan(estTokens(ascii.length));
+    const multi = "≥".repeat(1000); // 3 bytes per character
+    expect(promptTokensUpperBoundFromBytes(Buffer.byteLength(multi))).toBe(3000 + 64);
   });
   const T = (id: string, sv = "2026-01-01", n = 5): PlannedTrial => ({ nct_id: id, source_version: sv, criteria: n, chunks: Math.ceil(n / 15) });
   it("fingerprint is stable, and changes with membership, order, version, parser version or policy", () => {

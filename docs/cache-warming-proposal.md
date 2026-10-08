@@ -1,51 +1,67 @@
-# Cache warming: selection-stability evidence and REVISED PROPOSAL (2026-10-08; NOT approved, NOT run)
+# Selection stability, selection-rule proposal and warm-up plan (2026-10-08; UNDER REVIEW; NOT approved, NOT run)
 
-Status: nothing here has been run beyond read-only checks. **No model call and no Supabase write until Kumar approves.** Not approved: option A (warm now), daily re-warming (B), the earlier 120-attempt ceiling and the earlier $0.50 "soft" guard. Kumar's instruction: understand selection stability before paying to parse. Static ID pinning is NOT proposed yet. Rule D is still **not exercised live** (offline integration test only); the vocabulary coverage gate stays open; progressive result streaming stays deferred.
+Status: read-only checks only. **No model call and no Supabase write.** `eval/warm-cache.ts` is dry-run only (`--execute` refused). Kumar has NOT approved warming, daily re-warming, hash-ranked-v1 (rejected: stable but arbitrary), a guard value, or any change to the live route. Approved as design constraints: **insert-only writes to `trial_criteria_cache`** and the **plan-fingerprint gate**. Rule D is still **not exercised live** (offline integration test only). Vocabulary coverage gate open. `VISITOR_INPUT_MODE=samples`. Production untouched.
 
-## 1. Why were 36 of 39 cached trials missing from today's discovery?
-Read-only evidence (`eval/selection-stability.ts`, `eval/cache-inventory.ts`, `eval/warm-cache.ts`; public CT.gov GETs + Supabase SELECTs; counts and public ids only).
+## 1. What the evidence establishes about the current selection (API order, no `sort`)
+- The query has not changed since 2026-10-06 (one commit). The recruiting breast-cancer pool is 2,443 studies; the route reads the first 120 (4.9%).
+- All 39 cached trials are still RECRUITING with unchanged `LastUpdatePostDate`; they simply fell out of the first 120. The default order is not `@relevance`, `LastUpdatePostDate` or `StudyFirstPostDate` order (0 shared positions with each).
+- **Across the 2026-10-07 09:00 -> 2026-10-08 09:00 CT.gov data refresh, the API-order selection kept 2 of its 30 trials** (Jaccard 0.033). The "before" list was reconstructed from the printed inventory and verified by hash against the 08:47 dry run; it is one pair of observations around one refresh, not a time series. The replay trials computed on 2026-10-06 retain 2 of 34 today.
+- Why the default order changes is not established (undocumented).
 
-**Established**
-- **The query did not change.** `src/lib/ctgov/client.ts` has one commit (516d137, 2026-10-06); the parameters (`query.cond=breast cancer`, `filter.overallStatus=RECRUITING`, `pageSize=60`, 2 pages, no `sort`) are the same for the 2026-10-06 precompute, the 2026-10-07 live run and today.
-- **The cached trials did not go away or change.** All 39 are still RECRUITING at CT.gov today, 38 of 39 list a breast condition, and **all 39 have the same `LastUpdatePostDate` as their cached `source_version`** (no cache key is stale).
-- **They fell out of the first 120 of the API's order.** The recruiting breast-cancer pool is **2,443** studies (`totalCount`); the live route reads only the first 120 (4.9%). Of the 34 trials in the three stored replays (computed 2026-10-06 07:00 UTC), **2** are in today's 120; of the 6 rows written on 2026-10-07, **1** is. All 33 rows from 2026-10-06 are replay trials (33 of the 34).
-- **The default order is not one of the documented sorts.** Compared with `sort=@relevance`, `LastUpdatePostDate:desc/asc` and `StudyFirstPostDate:desc`, the default order shares 0 positions with each and only 6-11 of its 120 members. It is not sorted by last update or first-post date. `NCTId` is not an accepted sort field (HTTP 400).
-- **Within seconds the order is identical** (two calls 5 s apart, and three repeats in other checks). CT.gov reports `apiVersion 2.0.5`, `dataTimestamp 2026-10-07T09:00:06`.
+## 2. Policy comparison at one data version (dataTimestamp 2026-10-08T09:00:05; `eval/selection-snapshot.ts`)
+Three prepared profiles (ages 52 / 61 / 68, one female-only), first 30 after the age/sex prefilter, union across profiles. Scope: *breast signal* = breast MeSH term/ancestor **or** a breast term in the free-text conditions (new studies often have no MeSH yet).
 
-**Not established**
-- *Why* the default order changes between days (it is undocumented; it may follow index/rank changes after each data refresh), and *how fast* it changes: we have two points (10/06, 10/07) inferred from stored data, not a time series, and the 10/07 live run's own selected list was not recorded.
-- Whether the order is stable within a day beyond seconds. `eval/warm-cache.ts` now prints order fingerprints so this can be measured for free. Baseline (2026-10-08 08:47 UTC): API-order first 30 `29db94b6cf253471`, first 120 `ad51cf5a3f3f9b8c`, hash-ranked top 30 `7c0c30efe432f311`.
+| | API order (today) | `sort=@relevance` |
+|---|---|---|
+| Window (first 120): breast-specific / breast + other MeSH / no breast signal | 62 / 51 / 7 | 99 / 21 / 0 |
+| Filtered by age/sex (her2pos / hrpos / tnbc) | 115 / 114 / 109 | 113 / 109 / 109 |
+| Selected union | 33 | 32 |
+| Selected: breast-specific / with other / no signal | 13 / 19 / 1 | 26 / 6 / 0 |
+| Study type of selected (interventional / observational) | 27 / 6 | 25 / 7 |
+| Cache hit potential (exact key) | 1 of 33 | 1 of 32 |
+| Parse chunks needed | 69 | 48 |
 
-**Consequence.** Warming "today's first 30" would pay to parse trials that may leave the window within a day or two, while the trials the cache already holds stay valid but are unreachable. The selection, not the cache, is the unstable part.
+- Window overlap between the two policies: 9 of 120. **Selected-set overlap: 0.** They show different studies.
+- "Breast + other" includes studies whose other MeSH term is e.g. Neoplasm Metastasis or Obesity, so it is not all out of scope; the one API-order study without any breast signal lists menopause/obesity conditions only. Observational studies (6-7 of ~32 under either policy) are not trials in the interventional sense; this is flagged for decision, not changed.
+- **Not yet measured: how stable `@relevance` is across a data refresh.** That needs two snapshots on either side of the next refresh (see 4).
 
-## 2. Proposed stable selection policy: `hash-ranked-v1` (a rule, not a pinned list)
-- **Pool:** every study that is RECRUITING for `query.cond=breast cancer` *at fetch time* (ids only; measured: 2,443 ids in 3 requests, 2.3 s).
-- **Order:** ascending `SHA-256("triallens-demo-candidates-v1|" + NCT id)`. This does not depend on the API's default order and does not rotate when new studies register; membership changes only when a trial enters or leaves the recruiting pool.
-- **Candidates:** fetch details for the first 90 ranked ids (`filter.ids`, verified to work; status re-filtered to RECRUITING), run the existing age/sex prefilter in rank order, take the first 30 (the same `MAX_CANDIDATE_TRIALS`). The existing "cheapest first" ordering inside the run is unchanged.
-- **Currently recruiting:** guaranteed by `filter.overallStatus=RECRUITING` on both the id pool and the detail fetch. A closed trial drops out and the next ranked trial takes its place.
-- **Dry-run result today:** the three prepared profiles select 32 distinct trials (51 chunks) under this policy versus 30 (54 chunks) under the API order; 0 of either are cached. Offline tests show the top 30 survives pool churn (survivors always stay selected).
-- **Cost to the live route:** about 3 extra id-only requests and 1-2 detail requests per run (~2-3 s, no model call). The production route does not use this yet; adopting it is a code change that needs Kumar's approval (the discovery function is shared by the live route and any warm-up).
-- **Limits and open questions:** a hash sample is arbitrary, not "most relevant"; one of the 39 cached trials lacks a breast condition, so a breast-condition check may be wanted; a trial edit changes `last_update` and invalidates its cache key (an eligibility-text hash as the key would survive unrelated edits: not proposed now, because all 39 cached keys are still unchanged, which suggests edits are not frequent over 1-2 days, but that is also not a measured rate). The cheaper alternative `sort=StudyFirstPostDate:asc` (stable, oldest registrations first) skews to very old studies and is not recommended.
+## 3. Proposed selection rule for review: `relevance-v1` (live route NOT changed)
+1. Same query (`query.cond=breast cancer`, `filter.overallStatus=RECRUITING`) with an **explicit `sort=@relevance`**, same two pages of 60: no extra requests, no extra latency, a documented parameter instead of the undocumented default order.
+2. Drop studies with **no breast signal** (0 of 120 today, so it is a guard, not a filter).
+3. Same age/sex prefilter and `MAX_CANDIDATE_TRIALS` = 30 as today. Cheapest-first ordering inside the run unchanged. Observational studies kept (open decision).
+4. If the `sort` request fails, fall back to the current order and log it.
+- Adoption condition (proposed, for Kumar to set): after the next refresh, `relevance-v1` should retain a clear majority of its selected union (proposal: >= 60%, about 19 of 32), far above the API order's 2 of 30. If it does not, no ordering of this query is stable enough to warm, and the alternatives are re-warming per refresh (about $0.10 expected, each needing approval) or a carried-over selection (previous approved selection that is still recruiting and unchanged, topped up in relevance order; needs stored state, not recommended yet). Hash ranking stays rejected.
 
-## 3. Revised warm-up plan (applies only AFTER Kumar chooses a selection policy)
-**Scope:** parse the uncached chunks of the selected trials with the production parse path (same prompt, schema, `reconcileBatch`, MID model, `reasoning_effort: low`, `max_tokens` 8192). No extraction/evaluate/verify/fail-check, no FAST call. Script: `eval/warm-cache.ts` (today **dry-run only**; `--execute` is refused and not implemented).
+## 4. How the refresh test runs (free, read-only)
+`dataTimestamp` today is 2026-10-08T09:00:05. A snapshot taken after the next change of `dataTimestamp` is compared with the 2026-10-08T13:17Z snapshot:
+`node --env-file=.env --import tsx eval/selection-snapshot.ts` (takes a snapshot into gitignored `eval/data/selection-snapshots/`), then `... eval/selection-snapshot.ts --compare <older.json> <newer.json>`. It reports, per policy: selected kept/before/after, Jaccard, window kept and same-position counts. Result to be recorded in TASKS.md before any decision.
 
-**Enforceable cost bound (before dispatch).** `SpendGuard` (`eval/lib/warm-guard.ts`, property-tested) sends an attempt only if
-`actual_spent + worst_case(in-flight attempts) + worst_case(this attempt) <= budget`.
-Worst case per attempt = estimated prompt tokens x MID input price + 8,192 x MID output price. The estimate is deliberately conservative (characters / 2.5 + 200, from the real system prompt, user prompt and response-schema JSON): **5.2k-7.1k tokens per chunk, about 2.8x the measured live average (1.9-2.0k)**. If any attempt ever reports more than its worst case, all further dispatch halts ("estimate_violated"). An attempt with unavailable usage is charged at its worst case. Therefore final spend cannot exceed the budget unless a single attempt breaks its own worst case, and then only by that attempt's excess.
-- **Worst-case dollars today (api-default plan, 54 chunks):** first attempts $0.4945; retries $0.5224; all 108 attempts $1.017; largest single attempt $0.01. (hash-ranked-v1, 51 chunks: $0.4654 / $0.4917 / $0.957.)
-- **Proposed budget: $0.50 as a hard pre-dispatch bound** (not a soft stop). Simulation: at the measured average ($0.0021/call, total about $0.11) all chunks dispatch with room for retries; if every attempt hit its worst case, all first attempts still fit ($0.49) but no retry would be admitted, so those chunks are reported unparsed instead of overspending.
-- **Attempt ceiling consistent with the bound:** 108 attempts = one validation retry per chunk (2 x 54), enforced by the guard and a `CallCap`; 429 backoff attempts count against it. The dollar bound, not the ceiling, is what limits spend (108 worst-case attempts would be $1.02); the ceiling stops loops. If the plan has a different chunk count the ceiling is 2 x chunks.
+## 5. Spending claim, corrected
+- `chars / 2.5` is a **prompt-token estimate**, not a bound. A guard built on it is **conditional**: one attempt can exceed its reservation (if the real tokenizer is denser than assumed, or the provider bills tokens we did not model). `SpendGuard` halts dispatch after the first attempt whose reported cost exceeds its reservation, but up to 7 attempts (6 in flight + the detector) can already be over; the excess is not bounded a priori. The earlier "hard $0.50 cap" wording is withdrawn.
+- **Maximum forecast exposure under the attempt ceiling (2 x chunks; `relevance-v1` plan: 31 trials, 48 chunks, ceiling 96 attempts):**
 
-**Supabase writes: `trial_criteria_cache` only, insert-only.** `ON CONFLICT DO NOTHING` (`ignoreDuplicates`), plus a re-check of the exact key just before writing; at most one row per planned trial (<= 32); only fully parsed trials (`isCacheable`). No updates, no deletes (the service role has none), no other table, no Upstash. The 39 existing rows (including the six kept from the failed first live run) are never touched. A test with a fake client will assert that only insert-ignore calls on planned keys occur.
+| Assumption | First attempts | Retries | All 96 attempts |
+|---|---|---|---|
+| prompt tokens = chars / 2.5 + 200 (estimate) | $0.436 | $0.461 | **$0.897** |
+| prompt tokens <= request-body bytes + 64 (no tokenizer ratio) | $0.562 | $0.809 | **$1.371** |
+| same, if real prompts were 2x that bound | | | $2.017 |
+| expected, measured $0.0021 per parse call | | | $0.101 |
 
-**Response when selection changes.** The approval records the plan fingerprint (`SHA-256` of parser version, policy id and the ordered list of trial, source version, criteria count, chunks). `--execute` must be given that fingerprint (`WARM_PLAN=...`); the script recomputes the plan from live CT.gov first and, if it differs in any way (trials added/removed, a `last_update` changed, a criteria count changed, policy or parser version changed), **exits before any model call or write**, printing only counts and ids of added / removed / version-changed trials. A changed plan needs a new dry run and a new approval. No automatic re-plan.
+  (API-order plan: 69 chunks, ceiling 138 attempts: $1.30 / **$1.99** / $2.95 / $0.145.) All use MID prices read 2026-10-07 ($0.30 / $0.90 per 1M) and `max_tokens` 8,192 per attempt; the largest single attempt is $0.018.
+- **Defensible pre-dispatch bound (proposed):** reserve, per attempt, `(UTF-8 bytes of the serialized request body + 64) x input price + 8,192 x output price`. A token covers at least one byte of the body (true for byte-level BPE tokenizers), so this needs no assumption about the tokenizer ratio; it is about 7x the measured input average (13-17 KB bodies against ~2k billed tokens), so it is loose and safe. Remaining assumptions, stated: (A1) billed prompt tokens <= body bytes + 64; (A2) billed completion tokens <= `max_tokens` including any reasoning tokens (supported by earlier extraction runs that stopped exactly at their 4,096-token cap, `docs/hardened-1-dev-check.md`, but not proven for this model's reasoning billing); (A3) prices unchanged; (A4) no hidden retries (`maxRetries: 0` in the client; a timed-out request is charged at its worst case).
+- **Calibration gate (proposed):** the first 3 chunks run one at a time; if any reported prompt tokens exceed the byte bound or completion tokens exceed 8,192, the run stops before concurrency opens. This limits exposure from a wrong assumption to about 3 attempts (<= ~$0.05).
+- **Budget choice under the byte bound** (guard simulation, 48 chunks): $0.50 admits only 42 of 48 first attempts if every attempt hit its worst case (it would stop early, spending $0.49); **$0.75 admits all 48 first attempts even at worst case ($0.56) and admits retries only when actual costs fall below worst case**; $1.371 would admit every attempt at worst case. Proposed: **$0.75, byte-based**. At the measured average the whole warm-up costs about $0.10 either way.
+- **Residual risk Kumar is asked to accept or reduce:** if A1 or A2 is false for this provider, spend could exceed the budget by the excess of the (at most 3, after calibration) attempts before the halt. Options: accept; or set a provider-side spend limit on the Nebius account (not controllable from here).
 
-**Checks.** *Before:* `eval/cache-inventory.ts` / `eval/warm-cache.ts` (dry run: plan, fingerprint, bound simulation); `eval/cache-snapshot.ts` (39 rows `3a445b18…12e0f6`, `replay_cases` `d359b6ca…631a3a6`). *During:* attempts, tokens (null = unavailable, never 0), running worst-case and actual spend. *After:* the 39 pre-existing rows re-hash to `3a445b18…12e0f6`; row count = 39 + rows written; every new key is in the plan; inventory shows the new hits and lists any unwritten trial with its reason; `replay_cases` hash unchanged; free replay 38/38. Hashes corroborate the insert-only code path and its tests; they cannot by themselves prove an identical rewrite was impossible.
+## 6. Warm-up plan (applies only after a selection rule is approved; nothing runs before)
+- **Scope:** parse only the uncached chunks of the selected trials with the production parse path (same prompt, schema, `reconcileBatch`, MID model, `reasoning_effort: low`, `max_tokens` 8192). No extraction/evaluate/verify/fail-check, no FAST call. A trial is stored only if every chunk parsed (`isCacheable`).
+- **Attempt ceiling:** 2 x chunks (one validation retry per chunk; 429 backoff attempts count). The dollar bound (section 5), not the ceiling, limits spend.
+- **Writes (approved design constraint):** `trial_criteria_cache` only, **insert-only** (`ON CONFLICT DO NOTHING`), exact key re-checked just before writing, at most one row per planned trial. No updates or deletes; the existing 39 rows (including the six kept from the failed first live run) are never touched. A fake-client test will assert only insert-ignore calls on planned keys.
+- **Plan-fingerprint gate (approved design constraint):** the approval records `SHA-256(parser version, policy id, ordered trial / source version / criteria / chunks)`. `--execute` must be given it (`WARM_PLAN=...`); the script recomputes the plan from live CT.gov first and, on **any** difference (trials added/removed, a `last_update` or criteria count changed, policy or parser version changed), exits before any model call or write, printing only counts and ids. A changed plan needs a new dry run and a new approval; no automatic re-plan.
+- **Checks:** before: `eval/warm-cache.ts` dry run, `eval/cache-snapshot.ts` (39 rows `3a445b18…12e0f6`, `replay_cases` `d359b6ca…631a3a6`). After: the 39 old rows re-hash identically; count = 39 + rows written; every new key is planned; inventory shows the hits and any unwritten trial with its reason; `replay_cases` unchanged; free replay 38/38. Hashes corroborate the insert-only code path and tests; they cannot alone prove an identical rewrite was impossible.
+- **Expected effect:** a later live run skips the cold parse stage; about 6 of 30 trials may still stay UNCERTAIN for lack of evaluate capacity (`docs/run-plan.md`). A follow-up live run is a separate approval.
 
-**Expected effect (unchanged).** A later live run would skip the 14 cold-run parse calls; earlier measurements (`docs/run-plan.md`) suggest about 6 of 30 trials still stay UNCERTAIN for lack of evaluate capacity. A follow-up live run is a separate approval.
-
-## 4. Decisions requested (nothing runs before these)
-1. Selection policy: adopt `hash-ranked-v1` for discovery (a production code change, to be offline-tested first), keep the API order, or another rule? Warming before this is decided is not recommended.
-2. Budget and ceiling: confirm or change the $0.50 hard pre-dispatch bound and the 2 x chunks attempt ceiling.
-3. Approval of the insert-only write scope and the fingerprint gate.
+## 7. Decisions requested
+1. Review `relevance-v1` (section 3) and the adoption condition (>= 60% retained after the next refresh); decide the observational-study question.
+2. Spend: accept the byte-based bound at $0.75 with the calibration gate and the stated residual risk, or choose a different budget / provider-side limit.
+3. Nothing is warmed and the live route is unchanged until both are decided and the refresh result is in.

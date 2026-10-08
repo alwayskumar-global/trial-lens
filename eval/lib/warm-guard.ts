@@ -52,6 +52,14 @@ export class SpendGuard {
 /** Conservative token estimate from character count (documented heuristic; verified at runtime by SpendGuard.settle). */
 export const estTokens = (chars: number): number => Math.ceil(chars / 2.5) + 200;
 
+/**
+ * Defensible upper bound on billed PROMPT tokens that does not assume a tokenizer ratio: a token covers at least one byte of the serialized
+ * request body (true of byte-level BPE tokenizers), plus a fixed allowance for chat-template/special tokens. Stated assumption, not a verified
+ * provider guarantee; SpendGuard.settle still halts if a reported usage ever exceeds it.
+ */
+export const TEMPLATE_OVERHEAD_TOKENS = 64;
+export const promptTokensUpperBoundFromBytes = (bodyBytes: number): number => bodyBytes + TEMPLATE_OVERHEAD_TOKENS;
+
 export const worstAttemptUsd = (estPromptTokens: number, maxTokens: number, price: { p: number; c: number }): number => estPromptTokens * price.p + maxTokens * price.c;
 
 export interface PlannedTrial { nct_id: string; source_version: string; criteria: number; chunks: number }

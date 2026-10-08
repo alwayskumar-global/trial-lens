@@ -1,6 +1,8 @@
 // DRY-RUN ONLY cache-warming planner. It makes NO model call and NO Supabase write; it does not import the model client, and `--execute` is refused.
 // Reads: public ClinicalTrials.gov GETs, Supabase SELECTs (cache keys, replay profile events). Prints counts, public NCT ids, versions and dollars only.
-//   node --env-file=.env --import tsx eval/warm-cache.ts [--policy=api-default|hash-ranked-v1] [--budget=0.50]
+//   node --env-file=.env --import tsx eval/warm-cache.ts [--policy=api-default|relevance|hash-ranked-v1] [--budget=0.50] [--bound=bytes|estimate]
+// Policies: api-default = today's production query order; relevance = same query with sort=@relevance and a breast-signal guard (PROPOSED, under review);
+// hash-ranked-v1 = salted-hash order (REJECTED by Kumar, kept only for comparison).
 // What it plans (see docs/cache-warming-proposal.md): which trials the chosen selection policy would warm, how many parse chunks that is, the
 // worst-case dollars of every attempt BEFORE dispatch, and how much the enforceable SpendGuard bound would let through.
 import { createHash } from "node:crypto";
@@ -12,13 +14,15 @@ import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt } from "../src
 import { makeClauseBatchSchema } from "../src/schema/clause";
 import { getSupabase } from "../src/lib/supabase";
 import { PRICE } from "./cost-per-run";
+import { fetchWindow } from "./lib/ctgov-window";
 import { POLICY_ID, chooseInRankOrder, rankPool } from "./lib/selection-policy";
-import { SpendGuard, estTokens, planFingerprint, worstAttemptUsd, type PlannedTrial } from "./lib/warm-guard";
+import { SpendGuard, estTokens, planFingerprint, promptTokensUpperBoundFromBytes, worstAttemptUsd, type PlannedTrial } from "./lib/warm-guard";
 
 if (process.argv.includes("--execute")) { console.error("--execute is not implemented: the warm-up is NOT approved. This script is dry-run only."); process.exit(2); }
 const arg = (k: string, d: string) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split("=")[1] ?? d;
 const POLICY = arg("policy", "api-default");
 const BUDGET = Number(arg("budget", "0.50"));
+const BOUND = arg("bound", "bytes"); // which worst-case figure drives the SpendGuard simulation
 const BASE = process.env.CTGOV_API_BASE ?? "https://clinicaltrials.gov/api/v2";
 const CHUNK = 15, MAX_CANDIDATES = 30, MAX_TOKENS = 8192, CONCURRENCY = 6, RETRY_ECHO_CHARS = 4000 + 300;
 const MEASURED_PARSE_CALL_USD = 0.0021; // two live runs: 1.9-2.0k tokens in, 1.6-1.65k out at MID prices (docs/cost-per-run.md)
@@ -67,10 +71,12 @@ async function main() {
   const ranked = rankPool(pool);
   const rankedDetails = await detailsByIds(ranked.slice(0, 90)); // buffer well beyond 30 for the prefilter
   const rankedList = ranked.slice(0, 90).flatMap((id) => (rankedDetails.has(id) ? [rankedDetails.get(id)!] : []));
+  const relWin = await fetchWindow(BASE, "@relevance");
+  const relList = relWin.filter((w) => w.scope !== "no_breast_signal").map((w) => w.trial);
   const select = (policy: string): Map<string, Trial> => {
     const u = new Map<string, Trial>();
     for (const p of profiles) {
-      const sel = policy === POLICY_ID ? chooseInRankOrder(rankedList, (t) => prefilterTrials([t], p.filter).length === 1, MAX_CANDIDATES) : prefilterTrials(apiOrder, p.filter).slice(0, MAX_CANDIDATES);
+      const sel = policy === POLICY_ID ? chooseInRankOrder(rankedList, (t) => prefilterTrials([t], p.filter).length === 1, MAX_CANDIDATES) : policy === "relevance" ? prefilterTrials(relList, p.filter).slice(0, MAX_CANDIDATES) : prefilterTrials(apiOrder, p.filter).slice(0, MAX_CANDIDATES);
       for (const t of sel) u.set(t.nct_id, t);
     }
     return u;
@@ -82,7 +88,7 @@ async function main() {
     return exact ? (exact.n === n ? "hit" : "length_mismatch") : have.some((h) => h.pv === k.parser_version) ? "stale_source" : have.length ? "stale_parser" : "missing";
   };
   console.log(JSON.stringify({ at: new Date().toISOString(), parser_version: PARSER_VERSION, pool_recruiting_breast: pool.length, api_order_first30_sha: sha(apiOrder.slice(0, 30).map((t) => t.nct_id)), api_order_first120_sha: sha(apiOrder.map((t) => t.nct_id)), hash_rank_top30_sha: sha(ranked.slice(0, 30)), profiles: profiles.map((p) => ({ id: p.id, ...p.filter })) }));
-  for (const pol of ["api-default", POLICY_ID]) {
+  for (const pol of ["api-default", "relevance", POLICY_ID]) {
     const u = select(pol), st = [...u.values()].map(status);
     console.log(JSON.stringify({ policy: pol, union: u.size, hit: st.filter((s) => s === "hit").length, uncached: st.filter((s) => s !== "hit").length, ids_sha: sha([...u.keys()].sort()) }));
   }
@@ -91,37 +97,46 @@ async function main() {
   const sel = [...select(POLICY).values()].sort((a, b) => a.nct_id.localeCompare(b.nct_id));
   const todo = sel.filter((t) => status(t) !== "hit");
   const sys = buildClauseParseSystemPrompt();
-  const planned: PlannedTrial[] = [], chunks: Array<{ nct: string; estIn: number; first: number; retry: number }> = [];
+  const planned: PlannedTrial[] = [], chunks: Array<{ nct: string; estIn: number; first: number; retry: number; firstB: number; retryB: number; bytes: number }> = [];
   for (const t of todo) {
     const src = splitTrialCriteria(t.nct_id, t.eligibility_text);
     planned.push({ nct_id: t.nct_id, source_version: cacheKeyFor(t.nct_id, t.last_update).source_version, criteria: src.length, chunks: Math.ceil(src.length / CHUNK) });
     for (let i = 0; i < src.length; i += CHUNK) {
       const part = src.slice(i, i + CHUNK);
       const user = buildClauseBatchUserPrompt(part.map((c, k) => ({ index: k, type: c.type, text: c.text })));
-      const schemaChars = JSON.stringify(z.toJSONSchema(makeClauseBatchSchema(part.map((c) => c.text)), { io: "input" })).length;
+      const schemaObj = z.toJSONSchema(makeClauseBatchSchema(part.map((c) => c.text)), { io: "input" });
+      const schemaChars = JSON.stringify(schemaObj).length;
       const estIn = estTokens(sys.length + user.length + schemaChars);
-      chunks.push({ nct: t.nct_id, estIn, first: worstAttemptUsd(estIn, MAX_TOKENS, PRICE.MID), retry: worstAttemptUsd(estTokens(sys.length + user.length + schemaChars + RETRY_ECHO_CHARS), MAX_TOKENS, PRICE.MID) });
+      // The request body exactly as the parse call sends it (json_schema mode, reasoning_effort low), serialized: its UTF-8 size bounds the prompt tokens.
+      const body = JSON.stringify({ model: "nvidia/nemotron-3-super-120b-a12b", messages: [{ role: "system", content: sys }, { role: "user", content: user }], temperature: 0, max_tokens: MAX_TOKENS, response_format: { type: "json_schema", json_schema: { name: "clause_batch", strict: true, schema: schemaObj } }, reasoning_effort: "low" });
+      const bytes = Buffer.byteLength(body);
+      const retryExtraBytes = 4 * 4000 + 4 * 300; // echoed previous output (<= 4000 chars) + correction note, at the 4-byte-per-character worst case
+      chunks.push({ nct: t.nct_id, estIn, bytes, first: worstAttemptUsd(estIn, MAX_TOKENS, PRICE.MID), retry: worstAttemptUsd(estTokens(sys.length + user.length + schemaChars + RETRY_ECHO_CHARS), MAX_TOKENS, PRICE.MID), firstB: worstAttemptUsd(promptTokensUpperBoundFromBytes(bytes), MAX_TOKENS, PRICE.MID), retryB: worstAttemptUsd(promptTokensUpperBoundFromBytes(bytes + retryExtraBytes), MAX_TOKENS, PRICE.MID) });
     }
   }
-  const W1 = chunks.reduce((a, c) => a + c.first, 0), W2 = chunks.reduce((a, c) => a + c.retry, 0), A = 2 * chunks.length;
+  const sum = (f: (c: (typeof chunks)[number]) => number) => chunks.reduce((x, c) => x + f(c), 0);
+  const A = 2 * chunks.length;
   const fp = planFingerprint(PARSER_VERSION, POLICY, planned);
   const smallest14 = [...chunks].sort((a, b) => a.estIn - b.estIn).slice(0, 14);
-  console.log(JSON.stringify({ plan: { policy: POLICY, trials_to_warm: todo.length, chunks: chunks.length, attempt_ceiling: A, fingerprint: fp, est_input_tokens_per_chunk: { min: Math.min(...chunks.map((c) => c.estIn)), max: Math.max(...chunks.map((c) => c.estIn)), mean: Math.round(chunks.reduce((a, c) => a + c.estIn, 0) / Math.max(1, chunks.length)) }, calibration_14_smallest_chunks_mean_est_in: Math.round(smallest14.reduce((a, c) => a + c.estIn, 0) / Math.max(1, smallest14.length)), measured_live_mean_in_per_parse_call: "1886-2033" } }));
+  console.log(JSON.stringify({ plan: { policy: POLICY, trials_to_warm: todo.length, chunks: chunks.length, attempt_ceiling: A, fingerprint: fp, request_body_bytes: { min: Math.min(...chunks.map((c) => c.bytes)), max: Math.max(...chunks.map((c) => c.bytes)) }, est_input_tokens_chars_div_2_5: { min: Math.min(...chunks.map((c) => c.estIn)), max: Math.max(...chunks.map((c) => c.estIn)), mean: Math.round(sum((c) => c.estIn) / Math.max(1, chunks.length)) }, calibration_14_smallest_chunks_mean_est_in: Math.round(smallest14.reduce((a, c) => a + c.estIn, 0) / Math.max(1, smallest14.length)), measured_live_mean_in_per_parse_call: "1886-2033" } }));
   const usd = (n: number) => Number(n.toFixed(4));
-  console.log(JSON.stringify({ worst_case_usd: { first_attempts_all_chunks: usd(W1), retries_all_chunks: usd(W2), all_attempts_at_ceiling: usd(W1 + W2), max_single_attempt: usd(Math.max(0, ...chunks.map((c) => c.retry))) } }));
+  const exposure = (first: (c: (typeof chunks)[number]) => number, retry: (c: (typeof chunks)[number]) => number) => ({ first_attempts: usd(sum(first)), retries: usd(sum(retry)), all_attempts_at_ceiling: usd(sum(first) + sum(retry)), max_single_attempt: usd(Math.max(0, ...chunks.map(retry))) });
+  console.log(JSON.stringify({ max_forecast_exposure_usd_at_attempt_ceiling: { attempts: A, assumption_chars_div_2_5_estimate: exposure((c) => c.first, (c) => c.retry), assumption_bytes_bound_no_tokenizer_ratio: exposure((c) => c.firstB, (c) => c.retryB), "if_actual_prompt_were_2x_the_byte_bound": usd(sum((c) => c.firstB + c.retryB) + sum((c) => promptTokensUpperBoundFromBytes(c.bytes) * PRICE.MID.p + promptTokensUpperBoundFromBytes(c.bytes + 16_000) * PRICE.MID.p)), expected_at_measured_average: usd(chunks.length * MEASURED_PARSE_CALL_USD) } }));
 
   // ---- what the enforceable bound lets through ----
-  const sim = (actualOf: (c: { first: number }) => number) => {
-    const g = new SpendGuard(BUDGET, A || 1); let done = 0; const open: Array<{ r: { id: number; worst: number }; a: number }> = [];
+  const firstOf = (c: (typeof chunks)[number]) => (BOUND === "estimate" ? c.first : c.firstB);
+  const sim = (budget: number, actualOf: (c: (typeof chunks)[number]) => number) => {
+    const g = new SpendGuard(budget, A || 1); let done = 0; const open: Array<{ r: { id: number; worst: number }; a: number }> = [];
     for (const c of chunks) {
       while (open.length >= CONCURRENCY) { const o = open.shift()!; g.settle(o.r, o.a); }
-      const t = g.tryReserve(c.first);
+      const t = g.tryReserve(firstOf(c));
       if (!t.ok) break;
       open.push({ r: t.reservation, a: actualOf(c) }); done++;
     }
     for (const o of open) g.settle(o.r, o.a);
-    return { chunks_dispatched: done, of: chunks.length, spent_usd: usd(g.spentUsd), within_budget: g.spentUsd <= BUDGET + 1e-9 };
+    return { chunks_dispatched: done, of: chunks.length, spent_usd: usd(g.spentUsd) };
   };
-  console.log(JSON.stringify({ budget_usd: BUDGET, bound: "dispatch only if actual_spent + in_flight_worst_case + this_worst_case <= budget", at_measured_average: sim((c) => Math.min(c.first, MEASURED_PARSE_CALL_USD)), if_every_attempt_hit_its_worst_case: sim((c) => c.first), note: "first attempts only; a validation retry is a second reservation against the same bound" }));
+  console.log(JSON.stringify({ bound_mode: BOUND, rule: "dispatch only if actual_spent + in_flight_worst_case + this_worst_case <= budget", budgets: [0.5, 0.75, 1, 1.5].map((b) => ({ budget_usd: b, if_every_attempt_hits_its_worst_case: sim(b, firstOf), at_measured_average: sim(b, (c) => Math.min(firstOf(c), MEASURED_PARSE_CALL_USD)) })), note: "first attempts only; a validation retry is a second reservation against the same bound" }));
+  void BUDGET;
 }
 main().catch((e: unknown) => { console.error("warm-cache dry-run failed:", (e as Error)?.message?.slice(0, 80)); process.exit(1); });
