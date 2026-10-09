@@ -8,6 +8,7 @@
 // What it plans (see docs/cache-warming-proposal.md): which trials the chosen selection policy would warm, how many parse chunks that is, the
 // worst-case dollars of every attempt BEFORE dispatch, and how much the enforceable SpendGuard bound would let through.
 import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { z } from "zod";
 import { PARSER_VERSION, cacheKeyFor } from "../src/lib/cache/criteria-cache";
 import { prefilterTrials, type Trial } from "../src/lib/ctgov/client";
@@ -110,6 +111,11 @@ async function main() {
   const fp = planFingerprint(PARSER_VERSION, policyLabel, planned);
   const smallest14 = [...chunks].sort((a, b) => a.estIn - b.estIn).slice(0, 14);
   console.log(JSON.stringify({ plan: { policy: policyLabel, trials_to_warm: todo.length, max_cache_writes: todo.length, chunks: chunks.length, attempt_ceiling: A, fingerprint: fp, request_body_bytes: { min: Math.min(...chunks.map((c) => c.bytes)), max: Math.max(...chunks.map((c) => c.bytes)) }, est_input_tokens_chars_div_2_5: { min: Math.min(...chunks.map((c) => c.estIn)), max: Math.max(...chunks.map((c) => c.estIn)), mean: Math.round(sum((c) => c.estIn) / Math.max(1, chunks.length)) }, calibration_14_smallest_chunks_mean_est_in: Math.round(smallest14.reduce((a, c) => a + c.estIn, 0) / Math.max(1, smallest14.length)), measured_live_mean_in_per_parse_call: "1886-2033" } }));
+  // Local, gitignored copy of the exact plan (public NCT ids, versions, counts) so a later plan can be diffed against an approved one.
+  mkdirSync("eval/data/warm-plans", { recursive: true });
+  const planFile = `eval/data/warm-plans/${new Date().toISOString().replace(/[:.]/g, "-")}-${fp.slice(0, 8)}.json`;
+  writeFileSync(planFile, JSON.stringify({ policy: policyLabel, parser_version: PARSER_VERSION, fingerprint: fp, trials: planned, keys: planned.map((t) => `${t.nct_id}|${t.source_version}|${PARSER_VERSION}`) }));
+  console.log(JSON.stringify({ plan_file: planFile, planned_keys: planned.length }));
   const usd = (n: number) => Number(n.toFixed(4));
   const exposure = (first: (c: (typeof chunks)[number]) => number, retry: (c: (typeof chunks)[number]) => number) => ({ first_attempts: usd(sum(first)), retries: usd(sum(retry)), all_attempts_at_ceiling: usd(sum(first) + sum(retry)), max_single_attempt: usd(Math.max(0, ...chunks.map(retry))) });
   console.log(JSON.stringify({ max_forecast_exposure_usd_at_attempt_ceiling: { attempts: A, assumption_chars_div_2_5_estimate: exposure((c) => c.first, (c) => c.retry), assumption_bytes_bound_no_tokenizer_ratio: exposure((c) => c.firstB, (c) => c.retryB), "if_actual_prompt_were_2x_the_byte_bound": usd(sum((c) => c.firstB + c.retryB) + sum((c) => promptTokensUpperBoundFromBytes(c.bytes) * PRICE.MID.p + promptTokensUpperBoundFromBytes(c.bytes + 16_000) * PRICE.MID.p)), expected_at_measured_average: usd(chunks.length * MEASURED_PARSE_CALL_USD) } }));

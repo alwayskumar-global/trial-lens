@@ -31,6 +31,16 @@ Window overlap between the two policies 12 of 120; selected overlap 1. The refre
 **Manual refresh check (no background job):**
 `node --env-file=.env --import tsx eval/selection-snapshot.ts --due` prints whether CT.gov's `dataTimestamp` has changed since the latest saved snapshot (currently `2026-10-08T09:00:05`, not changed). When it has: take a snapshot (same command without flags), then `... eval/selection-snapshot.ts --compare <older.json> <newer.json>`.
 
+## 3b. Refresh result (2026-10-09; dataTimestamp 2026-10-08T09:00:05 -> 2026-10-09T09:00:05; interventional scope; saved baselines in gitignored `eval/data/selection-snapshots/`)
+| Policy | Selected before -> after | Kept | Retention (kept / before) | Window of 120: kept / same position |
+|---|---|---|---|---|
+| `sort=@relevance` | 32 -> 32 | **32** | **100%** (32/32) | 120 / 118 |
+| API order | 33 -> 30 | 1 | 3% (1/33) | 18 / 0 |
+
+- **The provisional 60% gate passes for `@relevance`** (needs about 19 of 32) and fails badly for API order. This is one pair of observations around one refresh, not proof of lasting stability; it should be re-measured at each refresh while the plan is live.
+- New `@relevance` plan (data 2026-10-09T09:00:05): 32 selected, 1 cache hit, **31 trials to warm, 55 parse chunks, 576 criteria, attempt ceiling 110, maximum cache writes 31**. Budget simulation, exposure table and price check unchanged (MID still $0.0000003 / $0.0000009). Planned keys (NCT id | source version | parser version) are saved in `eval/data/warm-plans/2026-10-09T14-47-30-344Z-17ed3158.json`.
+- Cache and replay snapshot unchanged: 39 rows `3a445b18…12e0f6`, `replay_cases` `d359b6ca…631a3a6`.
+
 ## 4. Spending: what is enforced, what is assumed, what is verified
 **The byte-based reservation is CONDITIONAL. It is not a guaranteed dollar cap.** It holds only while the assumptions below hold; $0.75 is a proposed budget, not a spending ceiling and not an approval.
 
@@ -56,7 +66,7 @@ Window overlap between the two policies 12 of 120; selected overlap 1. The refre
 ## 5. Warm-up plan for the proposed rule (final numbers for review; dry run 2026-10-08 13:28 UTC)
 Policy label `relevance-v1:interventional`, parser `spike-4+cov-1`, data `2026-10-08T09:00:05`, three prepared profiles.
 - Selected 32 distinct trials; 1 cached; **31 trials to warm**, **55 parse chunks** (request bodies 13,071-16,814 bytes).
-- **Plan fingerprint:** `a9d8d9d582591a3805dbe41666d1b328c46b306d3021f4f5f051761b2a383253` (valid only for this exact plan and CT.gov state; it changes if any trial, `last_update`, criteria count, chunk count, policy label or parser version changes).
+- **Plan fingerprint:** `17ed315827fecf3b6854ecd810f1ad38128a2d2b612be2cb7a3683f56a74978b` (recomputed 2026-10-09 after the refresh; the 2026-10-08 plan's fingerprint was `a9d8d9d5…383253` and would now be REFUSED by the gate, correctly: NCT06749210 was updated on 2026-10-09 and NCT07195344 on 2026-10-08, changing their source versions; valid only for this exact plan and CT.gov state; it changes if any trial, `last_update`, criteria count, chunk count, policy label or parser version changes).
 - **Exact attempt ceiling: 110** (2 x 55: one validation retry per chunk; 429 and timeout retries count against it).
 - **Maximum cache writes: 31** (one insert-only row per planned trial that parses fully; at most 31).
 - **Maximum forecast exposure at the ceiling (110 attempts):**
