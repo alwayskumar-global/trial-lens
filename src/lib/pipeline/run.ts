@@ -7,7 +7,8 @@
 import pLimit from "p-limit";
 import { z } from "zod";
 import { cacheKeyFor, isCacheable, type CriteriaCache } from "@/lib/cache/criteria-cache";
-import { prefilterTrials, nctUrl, type Trial } from "@/lib/ctgov/client";
+import { nctUrl, type Trial } from "@/lib/ctgov/client";
+import { selectFromDiscovered } from "@/lib/ctgov/selection";
 import { splitTrialCriteria } from "@/lib/ctgov/split";
 import { failClosedFinding } from "@/lib/engine/fail-closed";
 import { applyAbstentionGuard } from "@/lib/engine/guard";
@@ -145,9 +146,8 @@ export async function runPipeline(input: PipelineInput, deps: PipelineDeps, emit
     }
     const age = profile.facts.age.state === "known" ? Number(profile.facts.age.value) : undefined;
     const sex = profile.facts.sex.state === "known" ? String(profile.facts.sex.value) : undefined;
-    const prefiltered = prefilterTrials(all, { ...(age !== undefined ? { age } : {}), ...(sex ? { sex } : {}) });
-    const candidates = prefiltered.slice(0, deps.maxCandidates);
-    emit({ type: "counts", discovered: all.length, filtered: prefiltered.length, selected: candidates.length });
+    const { discovered, filtered, candidates } = selectFromDiscovered(all, { ...(age !== undefined ? { age } : {}), ...(sex ? { sex } : {}) }, deps.maxCandidates);
+    emit({ type: "counts", discovered, filtered, selected: candidates.length });
     const st = candidates.map((t): TrialState => ({
       trial: t,
       sources: splitTrialCriteria(t.nct_id, t.eligibility_text).map((c) => ({ id: c.id, nct_id: c.nct_id, type: c.type, text: c.text })),

@@ -1,8 +1,9 @@
 // DRY-RUN ONLY cache-warming planner. It makes NO model call and NO Supabase write; it does not import the model client, and `--execute` is refused.
 // Reads: public ClinicalTrials.gov GETs, Supabase SELECTs (cache keys, replay profile events). Prints counts, public NCT ids, versions and dollars only.
-//   node --env-file=.env --import tsx eval/warm-cache.ts [--policy=api-default|relevance] [--scope=interventional|all] [--budget=0.75] [--bound=bytes|estimate] [--check-price]
+//   node --env-file=.env --import tsx eval/warm-cache.ts [--policy=api-default|relevance] [--budget=0.75] [--bound=bytes|estimate] [--check-price]
 // Policies: api-default = today's production query order; relevance = same query with sort=@relevance and a breast-signal guard (PROPOSED, under review).
-// Scope (--scope=interventional|all, default interventional = Kumar's preference): the official API filter filter.advanced=AREA[StudyType]INTERVENTIONAL.
+// Selection is computed by the SAME code the live route uses (src/lib/ctgov/selection.ts): api-default -> mode "api-default" (all study types, today's behavior),
+// relevance -> mode "relevance-v1-interventional" (sort=@relevance + filter.advanced=AREA[StudyType]INTERVENTIONAL + breast-signal guard).
 // FAIL CLOSED: if the chosen policy's CT.gov request fails or returns an out-of-scope study, the script stops (exit 3); it never substitutes another ordering.
 // --check-price additionally reads the provider's model metadata (a GET, NOT an inference call) and stops if the MID price differs from the constants.
 // What it plans (see docs/cache-warming-proposal.md): which trials the chosen selection policy would warm, how many parse chunks that is, the
@@ -10,26 +11,24 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { z } from "zod";
-import { PARSER_VERSION, cacheKeyFor } from "../src/lib/cache/criteria-cache";
-import { prefilterTrials, type Trial } from "../src/lib/ctgov/client";
-import { splitTrialCriteria } from "../src/lib/ctgov/split";
+import { PARSER_VERSION } from "../src/lib/cache/criteria-cache";
+import { CtgovError } from "../src/lib/ctgov/client";
+import type { SelectionMode } from "../src/lib/ctgov/modes";
 import { buildClauseBatchUserPrompt, buildClauseParseSystemPrompt } from "../src/prompts/clause-parse";
 import { makeClauseBatchSchema } from "../src/schema/clause";
 import { getSupabase } from "../src/lib/supabase";
 import { PRICE } from "./cost-per-run";
-import { fetchWindow, WindowError } from "./lib/ctgov-window";
-import { SpendGuard, estTokens, planFingerprint, promptTokensUpperBoundFromBytes, worstAttemptUsd, type PlannedTrial } from "./lib/warm-guard";
+import { planWarm } from "./lib/warm-plan";
+import { SpendGuard, estTokens, promptTokensUpperBoundFromBytes, worstAttemptUsd } from "./lib/warm-guard";
 
 if (process.argv.includes("--execute")) { console.error("--execute is not implemented: the warm-up is NOT approved. This script is dry-run only."); process.exit(2); }
 const arg = (k: string, d: string) => process.argv.find((a) => a.startsWith(`--${k}=`))?.split("=")[1] ?? d;
 const POLICY = arg("policy", "relevance");
 const BUDGET = Number(arg("budget", "0.75"));
-const SCOPE = arg("scope", "interventional");
-const INT = SCOPE === "interventional";
-if (!["interventional", "all"].includes(SCOPE) || !["api-default", "relevance"].includes(arg("policy", "api-default"))) { console.error("bad --scope or --policy"); process.exit(2); }
+if (!["api-default", "relevance"].includes(arg("policy", "relevance"))) { console.error("bad --policy"); process.exit(2); }
 const BOUND = arg("bound", "bytes"); // which worst-case figure drives the SpendGuard simulation
 const BASE = process.env.CTGOV_API_BASE ?? "https://clinicaltrials.gov/api/v2";
-const CHUNK = 15, MAX_CANDIDATES = 30, MAX_TOKENS = 8192, CONCURRENCY = 6, RETRY_ECHO_CHARS = 4000 + 300;
+const CHUNK = 15, MAX_TOKENS = 8192, CONCURRENCY = 6, RETRY_ECHO_CHARS = 4000 + 300;
 const MEASURED_PARSE_CALL_USD = 0.0021; // two live runs: 1.9-2.0k tokens in, 1.6-1.65k out at MID prices (docs/cost-per-run.md)
 const IDS = ["her2pos-stage3", "hrpos-stage2", "tnbc-caregiver"];
 const sha = (xs: readonly string[]) => createHash("sha256").update(xs.join("\n")).digest("hex").slice(0, 16);
@@ -58,40 +57,21 @@ async function main() {
     return { id, filter: { ...(Number.isFinite(age) ? { age } : {}), ...(sex ? { sex: String(sex) } : {}) } };
   });
 
-  // ---- selection under each policy (the chosen one drives the cost plan) ----
-  // FAIL CLOSED selection: any CT.gov failure for a policy stops the script; no policy is ever substituted for another.
-  const win = async (sort: string | null) => { try { return await fetchWindow(BASE, sort, { interventionalOnly: INT }); } catch (e) { console.error(`selection_unavailable ${e instanceof WindowError ? e.code : "UNKNOWN"}: stopping (no fallback ordering)`); process.exit(3); } };
-  const apiWin = await win(null), relWin = await win("@relevance");
-  const apiOrder = apiWin.map((w) => w.trial);
-  const relList = relWin.filter((w) => w.scope !== "no_breast_signal").map((w) => w.trial);
-  const select = (policy: string): Map<string, Trial> => {
-    const u = new Map<string, Trial>();
-    for (const p of profiles) {
-      const sel = prefilterTrials(policy === "relevance" ? relList : apiOrder, p.filter).slice(0, MAX_CANDIDATES);
-      for (const t of sel) u.set(t.nct_id, t);
-    }
-    return u;
-  };
-  type St = "hit" | "length_mismatch" | "stale_source" | "stale_parser" | "missing";
-  const status = (t: Trial): St => {
-    const n = splitTrialCriteria(t.nct_id, t.eligibility_text).length, k = cacheKeyFor(t.nct_id, t.last_update), have = cached.get(t.nct_id) ?? [];
-    const exact = have.find((h) => h.sv === k.source_version && h.pv === k.parser_version);
-    return exact ? (exact.n === n ? "hit" : "length_mismatch") : have.some((h) => h.pv === k.parser_version) ? "stale_source" : have.length ? "stale_parser" : "missing";
-  };
-  console.log(JSON.stringify({ at: new Date().toISOString(), scope: SCOPE, parser_version: PARSER_VERSION, api_order_first30_sha: sha(apiOrder.slice(0, 30).map((t) => t.nct_id)), api_order_first120_sha: sha(apiOrder.map((t) => t.nct_id)), relevance_first30_sha: sha(relList.slice(0, 30).map((t) => t.nct_id)), profiles: profiles.map((p) => ({ id: p.id, ...p.filter })) }));
-  for (const pol of ["api-default", "relevance"]) {
-    const u = select(pol), st = [...u.values()].map(status);
-    console.log(JSON.stringify({ policy: pol, union: u.size, hit: st.filter((s) => s === "hit").length, uncached: st.filter((s) => s !== "hit").length, ids_sha: sha([...u.keys()].sort()) }));
-  }
+  // ---- plan for each policy, computed by the SAME selection code as the live route (src/lib/ctgov/selection.ts) ----
+  // FAIL CLOSED: any CT.gov failure stops the script (exit 3); no policy is ever substituted for another.
+  const modeOf = (policy: string): SelectionMode => (policy === "relevance" ? "relevance-v1-interventional" : "api-default");
+  const planFor = async (policy: string) => { try { return await planWarm({ mode: modeOf(policy), base: BASE, profiles, cached }); } catch (e) { console.error(`selection_unavailable ${e instanceof CtgovError ? e.code : "UNKNOWN"}: stopping (no fallback ordering)`); process.exit(3); } };
+  const plans = { "api-default": await planFor("api-default"), relevance: await planFor("relevance") };
+  console.log(JSON.stringify({ at: new Date().toISOString(), parser_version: PARSER_VERSION, profiles: profiles.map((p) => ({ id: p.id, ...p.filter })) }));
+  for (const [pol, pl] of Object.entries(plans)) console.log(JSON.stringify({ policy: pol, mode: pl.mode, discovered: pl.discovered, per_profile: pl.perProfile, union: pl.selected.length, hit: pl.hits, uncached: pl.warm.length, ids_sha: sha(pl.selected.map((t) => t.nct_id)) }));
 
   // ---- cost plan for the chosen policy ----
-  const sel = [...select(POLICY).values()].sort((a, b) => a.nct_id.localeCompare(b.nct_id));
-  const todo = sel.filter((t) => status(t) !== "hit");
+  const plan = plans[POLICY as "api-default" | "relevance"];
+  const todo = plan.warm;
   const sys = buildClauseParseSystemPrompt();
-  const planned: PlannedTrial[] = [], chunks: Array<{ nct: string; estIn: number; first: number; retry: number; firstB: number; retryB: number; bytes: number }> = [];
+  const planned = plan.planned, chunks: Array<{ nct: string; estIn: number; first: number; retry: number; firstB: number; retryB: number; bytes: number }> = [];
   for (const t of todo) {
-    const src = splitTrialCriteria(t.nct_id, t.eligibility_text);
-    planned.push({ nct_id: t.nct_id, source_version: cacheKeyFor(t.nct_id, t.last_update).source_version, criteria: src.length, chunks: Math.ceil(src.length / CHUNK) });
+    const src = t.sources;
     for (let i = 0; i < src.length; i += CHUNK) {
       const part = src.slice(i, i + CHUNK);
       const user = buildClauseBatchUserPrompt(part.map((c, k) => ({ index: k, type: c.type, text: c.text })));
@@ -107,8 +87,8 @@ async function main() {
   }
   const sum = (f: (c: (typeof chunks)[number]) => number) => chunks.reduce((x, c) => x + f(c), 0);
   const A = 2 * chunks.length;
-  const policyLabel = `${POLICY === "relevance" ? "relevance-v1" : "api-default"}:${SCOPE}`;
-  const fp = planFingerprint(PARSER_VERSION, policyLabel, planned);
+  const policyLabel = plan.policyLabel;
+  const fp = plan.fingerprint;
   const smallest14 = [...chunks].sort((a, b) => a.estIn - b.estIn).slice(0, 14);
   console.log(JSON.stringify({ plan: { policy: policyLabel, trials_to_warm: todo.length, max_cache_writes: todo.length, chunks: chunks.length, attempt_ceiling: A, fingerprint: fp, request_body_bytes: { min: Math.min(...chunks.map((c) => c.bytes)), max: Math.max(...chunks.map((c) => c.bytes)) }, est_input_tokens_chars_div_2_5: { min: Math.min(...chunks.map((c) => c.estIn)), max: Math.max(...chunks.map((c) => c.estIn)), mean: Math.round(sum((c) => c.estIn) / Math.max(1, chunks.length)) }, calibration_14_smallest_chunks_mean_est_in: Math.round(smallest14.reduce((a, c) => a + c.estIn, 0) / Math.max(1, smallest14.length)), measured_live_mean_in_per_parse_call: "1886-2033" } }));
   // Local, gitignored copy of the exact plan (public NCT ids, versions, counts) so a later plan can be diffed against an approved one.

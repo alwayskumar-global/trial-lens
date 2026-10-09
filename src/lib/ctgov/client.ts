@@ -21,12 +21,12 @@ export const TrialSchema = z.object({
 });
 export type Trial = z.infer<typeof TrialSchema>;
 
-const FIELDS = [
+export const FIELDS = [
   "NCTId", "BriefTitle", "OverallStatus", "EligibilityCriteria", "MinimumAge", "MaximumAge", "Sex",
   "LastUpdatePostDate", "LocationFacility", "LocationCity", "LocationStatus", "LocationGeoPoint",
 ].join("|");
 
-const StudySchema = z.object({
+export const StudySchema = z.object({
   protocolSection: z.object({
     identificationModule: z.object({ nctId: z.string(), briefTitle: z.string().optional() }),
     statusModule: z.object({ overallStatus: z.string().optional(), lastUpdatePostDateStruct: z.object({ date: z.string() }).optional() }).optional(),
@@ -54,7 +54,7 @@ export function mapStudy(s: z.infer<typeof StudySchema>): Trial | null {
 }
 
 export class CtgovError extends Error {
-  constructor(readonly code: "CTGOV_HTTP" | "CTGOV_SHAPE" | "CTGOV_NETWORK", readonly status?: number) {
+  constructor(readonly code: "CTGOV_HTTP" | "CTGOV_SHAPE" | "CTGOV_NETWORK" | "CTGOV_SCOPE", readonly status?: number) {
     super(code + (status ? `_${status}` : ""));
   }
 }

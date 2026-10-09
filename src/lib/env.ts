@@ -6,6 +6,7 @@
 // VERIFY: add `import "server-only"` once the build guard is wired; it is not
 // resolvable from tsx scripts in /eval, which also import this module.
 import { z } from "zod";
+import { DEFAULT_SELECTION_MODE, SELECTION_MODES } from "@/lib/ctgov/modes";
 
 type Source = Record<string, string | undefined>;
 
@@ -66,6 +67,12 @@ const pipelineSchema = z.object({
     blankToUndefined,
     z.enum(["debug", "info", "warn", "error"]).default("info"),
   ),
+});
+
+// Candidate-selection mode for live discovery (docs/selection-mode.md). Its own group so an invalid value breaks only live discovery (the pipeline maps the
+// EnvError to a labelled replay), never replays or /api/extract. Default keeps today's behavior.
+const selectionSchema = z.object({
+  CTGOV_SELECTION_MODE: z.preprocess(blankToUndefined, z.enum(SELECTION_MODES).default(DEFAULT_SELECTION_MODE)),
 });
 
 const guardSchema = z.object({
@@ -156,12 +163,14 @@ const supabase = lazyGroup("supabase", supabaseSchema);
 const upstash = lazyGroup("upstash", upstashSchema);
 const pipeline = lazyGroup("pipeline", pipelineSchema);
 const guard = lazyGroup("guard", guardSchema);
+const selection = lazyGroup("selection", selectionSchema);
 const visitor = lazyGroup("visitor", visitorSchema);
 
 export type NebiusEnv = Readonly<z.output<typeof nebiusSchema>>;
 export type SupabaseEnv = Readonly<z.output<typeof supabaseSchema>>;
 export type UpstashEnv = Readonly<z.output<typeof upstashSchema>>;
 export type PipelineEnv = Readonly<z.output<typeof pipelineSchema>>;
+export type SelectionEnv = Readonly<z.output<typeof selectionSchema>>;
 export type GuardEnv = Readonly<z.output<typeof guardSchema>>;
 export type VisitorEnv = Readonly<z.output<typeof visitorSchema>>;
 
@@ -169,10 +178,11 @@ export const getNebiusEnv = (): NebiusEnv => nebius.get();
 export const getSupabaseEnv = (): SupabaseEnv => supabase.get();
 export const getUpstashEnv = (): UpstashEnv => upstash.get();
 export const getPipelineEnv = (): PipelineEnv => pipeline.get();
+export const getSelectionEnv = (): SelectionEnv => selection.get();
 export const getGuardEnv = (): GuardEnv => guard.get();
 export const getVisitorEnv = (): VisitorEnv => visitor.get();
 
 /** Test-only: clear cached groups so the next call re-reads process.env. */
 export function resetEnvCacheForTests(): void {
-  for (const g of [nebius, supabase, upstash, pipeline, guard, visitor]) g.reset();
+  for (const g of [nebius, supabase, upstash, pipeline, guard, visitor, selection]) g.reset();
 }

@@ -1,8 +1,8 @@
 // Production wiring for the pipeline: Nebius Token Factory (Nemotron FAST/MID), live CT.gov discovery, layered cache.
 // Model IDs come only from env. Throws EnvError when Nebius env is incomplete (handler turns that into a replay).
-import { discoverRecruitingBreastTrials } from "@/lib/ctgov/client";
+import { discoverBySelectionMode } from "@/lib/ctgov/selection";
 import { LayeredCriteriaCache, MemoryCriteriaCache, ReadOnlyCriteriaCache, SupabaseCriteriaCache, type CriteriaCache } from "@/lib/cache/criteria-cache";
-import { EnvError, getNebiusEnv, getPipelineEnv } from "@/lib/env";
+import { EnvError, getNebiusEnv, getPipelineEnv, getSelectionEnv } from "@/lib/env";
 import { callJson, CallCap, makeClient, type CallStats } from "@/lib/llm/client";
 import type { LlmCallArgs, LlmPort, PipelineDeps } from "@/lib/pipeline/run";
 
@@ -47,9 +47,10 @@ function criteriaCache(writes: boolean): CriteriaCache {
 
 export function createPipelineDeps(signal: AbortSignal): PipelineDeps {
   const p = getPipelineEnv();
+  const mode = getSelectionEnv().CTGOV_SELECTION_MODE; // invalid value -> EnvError -> labelled replay (never a silent default)
   return {
     llm: createLlmPort(p.MAX_LLM_CALLS_PER_RUN),
-    discover: () => discoverRecruitingBreastTrials({ base: p.CTGOV_API_BASE, maxPages: 2, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) }),
+    discover: () => discoverBySelectionMode(mode, { base: p.CTGOV_API_BASE, maxPages: 2, signal: AbortSignal.any([signal, AbortSignal.timeout(30_000)]) }),
     cache: criteriaCache(p.CRITERIA_CACHE_WRITES),
     maxCalls: p.MAX_LLM_CALLS_PER_RUN,
     maxCandidates: p.MAX_CANDIDATE_TRIALS,
