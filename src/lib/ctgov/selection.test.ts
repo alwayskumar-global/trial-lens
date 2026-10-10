@@ -56,34 +56,38 @@ describe("default mode is byte-for-byte today's behavior", () => {
 });
 
 describe("relevance-v1-interventional", () => {
-  it("sends sort=@relevance and the interventional filter on both pages, keeps window order, drops studies with no breast signal", async () => {
+  it("sends sort=@relevance and the interventional filter on both pages and returns every study of the window in window order (nothing dropped after the fetch)", async () => {
     const f = fakeFetch([PAGE1, PAGE2]);
     const trials = await discoverBySelectionMode("relevance-v1-interventional", { base: BASE, maxPages: 2, fetchImpl: f.f });
     expect(f.urls).toHaveLength(2);
     for (const u of f.urls) { const p = params(u); expect(p["sort"]).toBe("@relevance"); expect(p["filter.advanced"]).toBe(INTERVENTIONAL_FILTER); }
-    expect(trials.map((t) => t.nct_id)).toEqual([1, 2, 3, 5, 6, 7, 8].map(id)); // id(4) has no breast signal; a free-text-only breast study (id(5)) is kept
+    expect(trials.map((t) => t.nct_id)).toEqual([1, 2, 3, 4, 5, 6, 7, 8].map(id)); // id(4) has NO breast signal and is still returned: scope is a diagnostic, not a filter
   });
 });
 
 describe("counts contract and route/planner parity", () => {
   const profile = { age: 52, sex: "female" };
-  it("selectFromDiscovered: discovered = window after the scope guard, filtered = after age/sex, selected = first max of filtered", () => {
-    const all = [1, 2, 3, 5, 6, 7, 8].map((n) => ({ nct_id: id(n), title: "", eligibility_text: "x", min_age: n === 2 ? "60 Years" : "18 Years", max_age: n === 6 ? "40 Years" : null, sex: n === 3 ? "MALE" : "ALL", last_update: null, sites: { total: 0, recruiting: 0, with_geo: 0 } }));
+  it("selectFromDiscovered: discovered = every study the query returned, filtered = after age/sex, selected = first max of filtered", () => {
+    const all = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ nct_id: id(n), title: "", eligibility_text: "x", min_age: n === 2 ? "60 Years" : "18 Years", max_age: n === 6 ? "40 Years" : null, sex: n === 3 ? "MALE" : "ALL", last_update: null, sites: { total: 0, recruiting: 0, with_geo: 0 } }));
     const r = selectFromDiscovered(all, profile, 2);
-    expect(r.discovered).toBe(7);
-    expect(r.filtered).toBe(4); // id 2 (min 60), 3 (male), 6 (max 40) excluded
-    expect(r.candidates.map((t) => t.nct_id)).toEqual([id(1), id(5)]);
+    expect(r.discovered).toBe(8);
+    expect(r.filtered).toBe(5); // ids 2 (min 60), 3 (male) and 6 (max 40) excluded; id 4 (no breast signal) is NOT excluded
+    expect(r.candidates.map((t) => t.nct_id)).toEqual([id(1), id(4)]);
   });
 
-  it("the pipeline's counts event and trial_results equal what the warm-up planner selects for the same profile (same code)", async () => {
+  it("CONTRACT discovered -> filtered -> selected, with a no_breast_signal study in the window: the pipeline's counts and results equal the planner's, and discovered equals the studies the query returned", async () => {
     const f = fakeFetch([PAGE1, PAGE2]);
+    const returned = PAGE1.length + PAGE2.length; // 8, including id(4) with no breast signal
     const discover = () => discoverBySelectionMode("relevance-v1-interventional", { base: BASE, maxPages: 2, fetchImpl: f.f });
     const events: SseEvent[] = [];
     await runPipeline("fictional profile text", fakeDeps([], {}, { discover, maxCandidates: 30 }), (e) => events.push(e));
     const counts = events.find((e) => e.type === "counts" && e.discovered !== undefined);
     const results = events.flatMap((e) => (e.type === "trial_result" ? [e.assessment.nct_id] : []));
     const plan = await planWarm({ mode: "relevance-v1-interventional", base: BASE, profiles: [{ id: "p", filter: profile }], cached: new Map(), discover: (m, b) => discoverBySelectionMode(m, { base: b, maxPages: 2, fetchImpl: fakeFetch([PAGE1, PAGE2]).f }) });
-    expect(counts).toMatchObject({ discovered: 7, filtered: plan.perProfile[0]!.filtered, selected: plan.perProfile[0]!.selected });
+    expect(counts).toMatchObject({ discovered: returned, filtered: 5, selected: 5 });
+    expect(plan.perProfile[0]).toMatchObject({ discovered: returned, filtered: 5, selected: 5 });
+    expect(plan.discovered).toBe(returned);
+    expect(results).toContain(id(4)); // the no-signal study is analysed like any other, not silently dropped
     expect([...results].sort()).toEqual(plan.selected.map((t) => t.nct_id).sort());
     expect(results).toHaveLength((counts as { selected: number }).selected);
   });

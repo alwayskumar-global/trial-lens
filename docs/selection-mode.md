@@ -2,6 +2,8 @@
 
 The live route and the offline warm-up planner now share ONE selection code path (`src/lib/ctgov/selection.ts`). The new rule `relevance-v1:interventional` is behind a server-side setting whose default is today's behavior. Nothing in Preview or Production sets it yet.
 
+*Revision 2026-10-10: the post-fetch drop of studies with no breast signal was removed from the route and the planner (it made `discovered` stop meaning "returned by the query"); the contract is pinned by a test with a no-signal study in the window.*
+
 ## The setting (exact key and values)
 | | |
 |---|---|
@@ -16,10 +18,10 @@ The live route and the offline warm-up planner now share ONE selection code path
 
 ## What the mode changes (only in `relevance-v1-interventional`)
 - Request: `query.cond=breast cancer`, `filter.overallStatus=RECRUITING`, **`sort=@relevance`**, **`filter.advanced=AREA[StudyType]INTERVENTIONAL`**, two pages of 60 (same number of requests as today).
-- Studies with no breast signal (MeSH or condition text) are dropped before the age/sex prefilter (0 of 120 on 2026-10-08/09).
+- **Nothing is dropped after the fetch.** Studies with no breast signal (MeSH or condition text) stay in the window (0 of 120 on 2026-10-08/09); the scope class is a diagnostic only (offline snapshots and tests), not a filter.
 - Then the same prefilter and the same 30-candidate cap as today.
-- **Counts contract** (SSE `counts`, discovery stage): `discovered` = studies in the window that passed the mode's scope guard; `filtered` = of those, passing the age/sex prefilter; `selected` = first 30 of the filtered, in window order. Later `selected = assessed + pending + failed`. Both modes use the same `selectFromDiscovered`.
-- **Fail closed:** an HTTP error (including a rejected `sort`, HTTP 400), network error/timeout, malformed page or any study that is not INTERVENTIONAL throws `CtgovError` after exactly one request; the pipeline reports `ctgov_unavailable`; the handler then streams a labelled replay (`mode: replay`, `reason: ctgov_unavailable`) when replay fallback is on, or the existing error event with `fallback_to_replay: false` when it is off. No path falls back to the API order. Limit: a silent change in what `@relevance` means is not detectable.
+- **Counts contract** (SSE `counts`, discovery stage): `discovered` = the studies the CT.gov query returned (in relevance mode: after the API-side interventional filter, nothing dropped afterwards); `filtered` = of those, passing the age/sex prefilter; `selected` = first 30 of the filtered, in window order. Later `selected = assessed + pending + failed`. Both modes use the same `selectFromDiscovered`.
+- **Fail closed:** an HTTP error (including a rejected `sort`, HTTP 400), network error/timeout, malformed page or any study that is not INTERVENTIONAL (a scope check on the response) throws `CtgovError` after exactly one request; the pipeline reports `ctgov_unavailable`; the handler then streams a labelled replay (`mode: replay`, `reason: ctgov_unavailable`) when replay fallback is on, or the existing error event with `fallback_to_replay: false` when it is off. No path falls back to the API order. Limit: a silent change in what `@relevance` means is not detectable.
 
 ## Code diff (summary)
 - `src/lib/ctgov/modes.ts` (new): mode names and default. `src/lib/ctgov/scope.ts` (new, moved from `eval/`): breast-signal classifier.

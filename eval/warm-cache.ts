@@ -1,9 +1,9 @@
 // DRY-RUN ONLY cache-warming planner. It makes NO model call and NO Supabase write; it does not import the model client, and `--execute` is refused.
 // Reads: public ClinicalTrials.gov GETs, Supabase SELECTs (cache keys, replay profile events). Prints counts, public NCT ids, versions and dollars only.
 //   node --env-file=.env --import tsx eval/warm-cache.ts [--policy=api-default|relevance] [--budget=0.75] [--bound=bytes|estimate] [--check-price]
-// Policies: api-default = today's production query order; relevance = same query with sort=@relevance and a breast-signal guard (PROPOSED, under review).
+// Policies: api-default = today's production query order; relevance = same query with sort=@relevance and the interventional API filter, no post-fetch drop (PROPOSED, under review).
 // Selection is computed by the SAME code the live route uses (src/lib/ctgov/selection.ts): api-default -> mode "api-default" (all study types, today's behavior),
-// relevance -> mode "relevance-v1-interventional" (sort=@relevance + filter.advanced=AREA[StudyType]INTERVENTIONAL + breast-signal guard).
+// relevance -> mode "relevance-v1-interventional" (sort=@relevance + filter.advanced=AREA[StudyType]INTERVENTIONAL).
 // FAIL CLOSED: if the chosen policy's CT.gov request fails or returns an out-of-scope study, the script stops (exit 3); it never substitutes another ordering.
 // --check-price additionally reads the provider's model metadata (a GET, NOT an inference call) and stops if the MID price differs from the constants.
 // What it plans (see docs/cache-warming-proposal.md): which trials the chosen selection policy would warm, how many parse chunks that is, the

@@ -1,7 +1,7 @@
 // ONE selection code path, used by the live route (via createPipelineDeps), by the pipeline's discovery stage and by the offline warm-up planner,
 // so what the demo shows and what a warm-up would parse can never drift apart.
 //
-//   discoverBySelectionMode(mode, opts)  ->  Trial[] in selection order (the CT.gov window, scope-guarded)
+//   discoverBySelectionMode(mode, opts)  ->  Trial[] in selection order: exactly the studies the CT.gov query returned (no post-fetch drop)
 //   selectFromDiscovered(all, profile, max) -> { discovered, filtered, candidates } (age/sex prefilter, then the first `max`); also the `counts` contract
 //
 // FAIL CLOSED: in "relevance-v1-interventional" any HTTP error, network error, timeout, malformed page, or a study that is not INTERVENTIONAL throws
@@ -62,12 +62,13 @@ export async function fetchSelectionWindow(o: WindowOptions): Promise<WindowStud
 export async function discoverBySelectionMode(mode: SelectionMode, o: DiscoverOptions): Promise<Trial[]> {
   if (mode === "api-default") return discoverRecruitingBreastTrials(o);
   const win = await fetchSelectionWindow({ base: o.base, sort: RELEVANCE_SORT, interventionalOnly: true, ...(o.maxPages !== undefined ? { maxPages: o.maxPages } : {}), ...(o.pageSize !== undefined ? { pageSize: o.pageSize } : {}), ...(o.signal ? { signal: o.signal } : {}), ...(o.fetchImpl ? { fetchImpl: o.fetchImpl } : {}) });
-  return win.filter((w) => w.scope !== "no_breast_signal").map((w) => w.trial);
+  // No post-fetch drop: `scope` (breast signal) stays a DIAGNOSTIC on WindowStudy, so `discovered` below is exactly the number of studies the query returned.
+  return win.map((w) => w.trial);
 }
 
 /**
  * Counts contract (the SSE `counts` event of the discovery stage):
- *   discovered = studies in the selection window that passed the mode's scope guard
+ *   discovered = studies the CT.gov query returned (after the API-side interventional filter in relevance mode; nothing is dropped after the fetch)
  *   filtered   = of those, studies passing the age/sex prefilter
  *   selected   = the first `max` of the filtered studies, in window order (these are the candidates analysed)
  * Later `selected = assessed + pending + failed` (the parse-status counts event).
