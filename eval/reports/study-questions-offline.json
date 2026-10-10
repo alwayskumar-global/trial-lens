@@ -1,0 +1,518 @@
+{
+ "note": "Option B panel content for the three prepared FICTIONAL profiles from cached parses; read-only, no model calls; public registry wording, no patient data.",
+ "parserVersion": "spike-4+cov-1",
+ "profiles": [
+  {
+   "profile": "her2pos-stage3",
+   "usableTrials": 29,
+   "panel": [
+    {
+     "fact_key": "ecog",
+     "study_count": 10,
+     "studies": [
+      {
+       "nct_id": "NCT04400695",
+       "criteria": [
+        {
+         "criterion_id": "NCT04400695:inclusion:3",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group(ECOG) physical condition 0 or 1;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05304962",
+       "criteria": [
+        {
+         "criterion_id": "NCT05304962:inclusion:1",
+         "type": "inclusion",
+         "text": "ECOG Performance Status 0 to 1"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05768139",
+       "criteria": [
+        {
+         "criterion_id": "NCT05768139:inclusion:4",
+         "type": "inclusion",
+         "text": "Has an ECOG performance status score of 0 or 1 at screening"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05812807",
+       "criteria": [
+        {
+         "criterion_id": "NCT05812807:inclusion:1",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group (ECOG) Performance Status 0-2"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05838066",
+       "criteria": [
+        {
+         "criterion_id": "NCT05838066:inclusion:5",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group (ECOG) physical status score of 0 - 1."
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06072612",
+       "criteria": [
+        {
+         "criterion_id": "NCT06072612:inclusion:17",
+         "type": "inclusion",
+         "text": "ECOG performance status of 0, 1 or 2"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06627712",
+       "criteria": [
+        {
+         "criterion_id": "NCT06627712:inclusion:2",
+         "type": "inclusion",
+         "text": "3\\. ECOG performance status of 0-1;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06732323",
+       "criteria": [
+        {
+         "criterion_id": "NCT06732323:inclusion:7",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group (ECOG) performance status of 0 to 1 with no worsening within 2 weeks prior to randomization;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06802757",
+       "criteria": [
+        {
+         "criterion_id": "NCT06802757:inclusion:3",
+         "type": "inclusion",
+         "text": "ECOG score 0-1 points."
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT07169994",
+       "criteria": [
+        {
+         "criterion_id": "NCT07169994:inclusion:3",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group performance status (ECOG PS) of 0 or 1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "fact_key": "measurable_disease",
+     "study_count": 3,
+     "studies": [
+      {
+       "nct_id": "NCT05838066",
+       "criteria": [
+        {
+         "criterion_id": "NCT05838066:inclusion:6",
+         "type": "inclusion",
+         "text": "Presence of lesion (RECIST 1.1)."
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06732323",
+       "criteria": [
+        {
+         "criterion_id": "NCT06732323:inclusion:6",
+         "type": "inclusion",
+         "text": "At least one measurable lesion per RECIST v1.1;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT07169994",
+       "criteria": [
+        {
+         "criterion_id": "NCT07169994:inclusion:6",
+         "type": "inclusion",
+         "text": "Have at least 1 extracranial measurable tumor lesion."
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "fact_key": "disease_setting",
+     "study_count": 2,
+     "studies": [
+      {
+       "nct_id": "NCT07290153",
+       "criteria": [
+        {
+         "criterion_id": "NCT07290153:exclusion:1",
+         "type": "exclusion",
+         "text": "Presence of distant metastasis;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT07410169",
+       "criteria": [
+        {
+         "criterion_id": "NCT07410169:inclusion:1",
+         "type": "inclusion",
+         "text": "early-stage breast cancer or locally advanced breast cancer"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "profile": "hrpos-stage2",
+   "usableTrials": 29,
+   "panel": [
+    {
+     "fact_key": "ecog",
+     "study_count": 10,
+     "studies": [
+      {
+       "nct_id": "NCT04400695",
+       "criteria": [
+        {
+         "criterion_id": "NCT04400695:inclusion:3",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group(ECOG) physical condition 0 or 1;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05304962",
+       "criteria": [
+        {
+         "criterion_id": "NCT05304962:inclusion:1",
+         "type": "inclusion",
+         "text": "ECOG Performance Status 0 to 1"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05768139",
+       "criteria": [
+        {
+         "criterion_id": "NCT05768139:inclusion:4",
+         "type": "inclusion",
+         "text": "Has an ECOG performance status score of 0 or 1 at screening"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05812807",
+       "criteria": [
+        {
+         "criterion_id": "NCT05812807:inclusion:1",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group (ECOG) Performance Status 0-2"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05838066",
+       "criteria": [
+        {
+         "criterion_id": "NCT05838066:inclusion:5",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group (ECOG) physical status score of 0 - 1."
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06072612",
+       "criteria": [
+        {
+         "criterion_id": "NCT06072612:inclusion:17",
+         "type": "inclusion",
+         "text": "ECOG performance status of 0, 1 or 2"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06627712",
+       "criteria": [
+        {
+         "criterion_id": "NCT06627712:inclusion:2",
+         "type": "inclusion",
+         "text": "3\\. ECOG performance status of 0-1;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06732323",
+       "criteria": [
+        {
+         "criterion_id": "NCT06732323:inclusion:7",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group (ECOG) performance status of 0 to 1 with no worsening within 2 weeks prior to randomization;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06802757",
+       "criteria": [
+        {
+         "criterion_id": "NCT06802757:inclusion:3",
+         "type": "inclusion",
+         "text": "ECOG score 0-1 points."
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT07169994",
+       "criteria": [
+        {
+         "criterion_id": "NCT07169994:inclusion:3",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group performance status (ECOG PS) of 0 or 1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "fact_key": "measurable_disease",
+     "study_count": 3,
+     "studies": [
+      {
+       "nct_id": "NCT05838066",
+       "criteria": [
+        {
+         "criterion_id": "NCT05838066:inclusion:6",
+         "type": "inclusion",
+         "text": "Presence of lesion (RECIST 1.1)."
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06732323",
+       "criteria": [
+        {
+         "criterion_id": "NCT06732323:inclusion:6",
+         "type": "inclusion",
+         "text": "At least one measurable lesion per RECIST v1.1;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT07169994",
+       "criteria": [
+        {
+         "criterion_id": "NCT07169994:inclusion:6",
+         "type": "inclusion",
+         "text": "Have at least 1 extracranial measurable tumor lesion."
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "fact_key": "disease_setting",
+     "study_count": 2,
+     "studies": [
+      {
+       "nct_id": "NCT07290153",
+       "criteria": [
+        {
+         "criterion_id": "NCT07290153:exclusion:1",
+         "type": "exclusion",
+         "text": "Presence of distant metastasis;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT07410169",
+       "criteria": [
+        {
+         "criterion_id": "NCT07410169:inclusion:1",
+         "type": "inclusion",
+         "text": "early-stage breast cancer or locally advanced breast cancer"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "profile": "tnbc-caregiver",
+   "usableTrials": 30,
+   "panel": [
+    {
+     "fact_key": "ecog",
+     "study_count": 9,
+     "studies": [
+      {
+       "nct_id": "NCT04400695",
+       "criteria": [
+        {
+         "criterion_id": "NCT04400695:inclusion:3",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group(ECOG) physical condition 0 or 1;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05304962",
+       "criteria": [
+        {
+         "criterion_id": "NCT05304962:inclusion:1",
+         "type": "inclusion",
+         "text": "ECOG Performance Status 0 to 1"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05768139",
+       "criteria": [
+        {
+         "criterion_id": "NCT05768139:inclusion:4",
+         "type": "inclusion",
+         "text": "Has an ECOG performance status score of 0 or 1 at screening"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05812807",
+       "criteria": [
+        {
+         "criterion_id": "NCT05812807:inclusion:1",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group (ECOG) Performance Status 0-2"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT05838066",
+       "criteria": [
+        {
+         "criterion_id": "NCT05838066:inclusion:5",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group (ECOG) physical status score of 0 - 1."
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06072612",
+       "criteria": [
+        {
+         "criterion_id": "NCT06072612:inclusion:17",
+         "type": "inclusion",
+         "text": "ECOG performance status of 0, 1 or 2"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06732323",
+       "criteria": [
+        {
+         "criterion_id": "NCT06732323:inclusion:7",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group (ECOG) performance status of 0 to 1 with no worsening within 2 weeks prior to randomization;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06802757",
+       "criteria": [
+        {
+         "criterion_id": "NCT06802757:inclusion:3",
+         "type": "inclusion",
+         "text": "ECOG score 0-1 points."
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT07169994",
+       "criteria": [
+        {
+         "criterion_id": "NCT07169994:inclusion:3",
+         "type": "inclusion",
+         "text": "Eastern Cooperative Oncology Group performance status (ECOG PS) of 0 or 1"
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "fact_key": "measurable_disease",
+     "study_count": 3,
+     "studies": [
+      {
+       "nct_id": "NCT05838066",
+       "criteria": [
+        {
+         "criterion_id": "NCT05838066:inclusion:6",
+         "type": "inclusion",
+         "text": "Presence of lesion (RECIST 1.1)."
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT06732323",
+       "criteria": [
+        {
+         "criterion_id": "NCT06732323:inclusion:6",
+         "type": "inclusion",
+         "text": "At least one measurable lesion per RECIST v1.1;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT07169994",
+       "criteria": [
+        {
+         "criterion_id": "NCT07169994:inclusion:6",
+         "type": "inclusion",
+         "text": "Have at least 1 extracranial measurable tumor lesion."
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "fact_key": "disease_setting",
+     "study_count": 2,
+     "studies": [
+      {
+       "nct_id": "NCT07290153",
+       "criteria": [
+        {
+         "criterion_id": "NCT07290153:exclusion:1",
+         "type": "exclusion",
+         "text": "Presence of distant metastasis;"
+        }
+       ]
+      },
+      {
+       "nct_id": "NCT07410169",
+       "criteria": [
+        {
+         "criterion_id": "NCT07410169:inclusion:1",
+         "type": "inclusion",
+         "text": "early-stage breast cancer or locally advanced breast cancer"
+        }
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

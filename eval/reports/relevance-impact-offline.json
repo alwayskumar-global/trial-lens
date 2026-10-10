@@ -1,0 +1,201 @@
+{
+ "note": "Offline read-only projection of the PROPOSED relevance check (not wired) on the three prepared FICTIONAL profiles; counts only; no model calls, no writes. A = declared dependencies, B = declared and anchored by the loose shared cue (lower bound of a strict table's downgrades). Tier projection does not re-run the verification stage.",
+ "parserVersion": "spike-4+cov-1",
+ "profiles": [
+  {
+   "profile": "her2pos-stage3",
+   "storedResults": 30,
+   "usableTrials": 29,
+   "noCachedParse": 1,
+   "criteriaCountMismatch": 0,
+   "recomputedBaselineTierAgreesWithStored": 29,
+   "parseStatus_freeText": {
+    "parsed:partial/ok": {
+     "criteria": 407,
+     "freeText": 407,
+     "declaredEmpty": 404,
+     "declaredNonempty": 3,
+     "verifiedNonempty": 3
+    },
+    "parsed:partial/atoms_downgraded": {
+     "criteria": 29,
+     "freeText": 29,
+     "declaredNonempty": 29,
+     "verifiedNonempty": 28
+    },
+    "parsed:partial/coverage_failed": {
+     "criteria": 33,
+     "freeText": 33,
+     "declaredEmpty": 33
+    },
+    "parsed:full/ok": {
+     "criteria": 16
+    }
+   },
+   "parseStatus_llmDecidedPassFail": {
+    "parsed:partial/atoms_downgraded": {
+     "llmPassFail": 4,
+     "diag_allCitedKeysHaveCueInText": 4,
+     "keptA": 4,
+     "keptB": 4
+    },
+    "parsed:partial/ok": {
+     "llmPassFail": 37,
+     "diag_noCitedKeyHasCueInText": 22,
+     "downgradedA": 36,
+     "downgradedB": 36,
+     "diag_allCitedKeysHaveCueInText": 15,
+     "keptA": 1,
+     "keptB": 1
+    },
+    "parsed:partial/coverage_failed": {
+     "llmPassFail": 3,
+     "diag_allCitedKeysHaveCueInText": 2,
+     "downgradedA": 3,
+     "downgradedB": 3,
+     "diag_noCitedKeyHasCueInText": 1
+    }
+   },
+   "trialsWithAtLeastOneDowngrade_tierShift": {
+    "A": {
+     "POSSIBLE->POSSIBLE": 3,
+     "UNCERTAIN->UNCERTAIN": 14
+    },
+    "B": {
+     "POSSIBLE->POSSIBLE": 3,
+     "UNCERTAIN->UNCERTAIN": 14
+    }
+   }
+  },
+  {
+   "profile": "hrpos-stage2",
+   "storedResults": 30,
+   "usableTrials": 29,
+   "noCachedParse": 1,
+   "criteriaCountMismatch": 0,
+   "recomputedBaselineTierAgreesWithStored": 29,
+   "parseStatus_freeText": {
+    "parsed:partial/ok": {
+     "criteria": 411,
+     "freeText": 411,
+     "declaredEmpty": 408,
+     "declaredNonempty": 3,
+     "verifiedNonempty": 3
+    },
+    "parsed:partial/atoms_downgraded": {
+     "criteria": 29,
+     "freeText": 29,
+     "declaredNonempty": 29,
+     "verifiedNonempty": 28
+    },
+    "parsed:partial/coverage_failed": {
+     "criteria": 38,
+     "freeText": 38,
+     "declaredEmpty": 38
+    },
+    "parsed:full/ok": {
+     "criteria": 16
+    }
+   },
+   "parseStatus_llmDecidedPassFail": {
+    "parsed:partial/atoms_downgraded": {
+     "llmPassFail": 5,
+     "diag_allCitedKeysHaveCueInText": 5,
+     "keptA": 5,
+     "keptB": 5
+    },
+    "parsed:partial/ok": {
+     "llmPassFail": 16,
+     "diag_allCitedKeysHaveCueInText": 8,
+     "downgradedA": 15,
+     "downgradedB": 15,
+     "diag_noCitedKeyHasCueInText": 8,
+     "keptA": 1,
+     "keptB": 1
+    },
+    "parsed:partial/coverage_failed": {
+     "llmPassFail": 5,
+     "diag_allCitedKeysHaveCueInText": 2,
+     "downgradedA": 5,
+     "downgradedB": 5,
+     "diag_someCitedKeysHaveCueInText": 1,
+     "diag_noCitedKeyHasCueInText": 2
+    }
+   },
+   "trialsWithAtLeastOneDowngrade_tierShift": {
+    "A": {
+     "POSSIBLE->POSSIBLE": 2,
+     "UNCERTAIN->UNCERTAIN": 13
+    },
+    "B": {
+     "POSSIBLE->POSSIBLE": 2,
+     "UNCERTAIN->UNCERTAIN": 13
+    }
+   }
+  },
+  {
+   "profile": "tnbc-caregiver",
+   "storedResults": 30,
+   "usableTrials": 30,
+   "noCachedParse": 0,
+   "criteriaCountMismatch": 0,
+   "recomputedBaselineTierAgreesWithStored": 29,
+   "parseStatus_freeText": {
+    "parsed:partial/ok": {
+     "criteria": 423,
+     "freeText": 423,
+     "declaredEmpty": 421,
+     "declaredNonempty": 2,
+     "verifiedNonempty": 2
+    },
+    "parsed:partial/atoms_downgraded": {
+     "criteria": 30,
+     "freeText": 30,
+     "declaredNonempty": 30,
+     "verifiedNonempty": 29
+    },
+    "parsed:partial/coverage_failed": {
+     "criteria": 25,
+     "freeText": 25,
+     "declaredEmpty": 25
+    },
+    "parsed:full/ok": {
+     "criteria": 15
+    }
+   },
+   "parseStatus_llmDecidedPassFail": {
+    "parsed:partial/ok": {
+     "llmPassFail": 28,
+     "diag_allCitedKeysHaveCueInText": 21,
+     "downgradedA": 27,
+     "downgradedB": 27,
+     "diag_noCitedKeyHasCueInText": 7,
+     "keptA": 1,
+     "keptB": 1
+    },
+    "parsed:partial/atoms_downgraded": {
+     "llmPassFail": 7,
+     "diag_allCitedKeysHaveCueInText": 7,
+     "keptA": 7,
+     "keptB": 7
+    },
+    "parsed:partial/coverage_failed": {
+     "llmPassFail": 3,
+     "diag_allCitedKeysHaveCueInText": 3,
+     "downgradedA": 3,
+     "downgradedB": 3
+    }
+   },
+   "trialsWithAtLeastOneDowngrade_tierShift": {
+    "A": {
+     "POSSIBLE->POSSIBLE": 4,
+     "UNCERTAIN->UNCERTAIN": 16
+    },
+    "B": {
+     "POSSIBLE->POSSIBLE": 4,
+     "UNCERTAIN->UNCERTAIN": 16
+    }
+   }
+  }
+ ]
+}

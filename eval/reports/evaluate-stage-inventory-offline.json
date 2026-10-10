@@ -1,0 +1,44 @@
+{
+ "note": "Counts from the stored fictional replays; read-only; no model calls, no writes.",
+ "profiles": [
+  {
+   "profile": "her2pos-stage3",
+   "trials": 30,
+   "trialsWithModelEvaluatedRows_approxEvaluateCalls": 26,
+   "modelRowsByStatus": {
+    "UNKNOWN": 291,
+    "PASS": 20,
+    "FAIL": 24
+   },
+   "trialsWithModelFail": 8,
+   "trialsWithCodeFail": 1,
+   "codeRowsOpen": 165
+  },
+  {
+   "profile": "hrpos-stage2",
+   "trials": 30,
+   "trialsWithModelEvaluatedRows_approxEvaluateCalls": 26,
+   "modelRowsByStatus": {
+    "UNKNOWN": 320,
+    "PASS": 18,
+    "FAIL": 10
+   },
+   "trialsWithModelFail": 8,
+   "trialsWithCodeFail": 1,
+   "codeRowsOpen": 160
+  },
+  {
+   "profile": "tnbc-caregiver",
+   "trials": 30,
+   "trialsWithModelEvaluatedRows_approxEvaluateCalls": 28,
+   "modelRowsByStatus": {
+    "UNKNOWN": 357,
+    "PASS": 23,
+    "FAIL": 15
+   },
+   "trialsWithModelFail": 10,
+   "trialsWithCodeFail": 0,
+   "codeRowsOpen": 87
+  }
+ ]
+}

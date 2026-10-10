@@ -51,7 +51,11 @@ Source of truth for types. Mirror these in `/src/schema` as Zod schemas. The voc
 
 Derived (computed in code, not asked): `tnbc` = `er=negative ∧ pr=negative ∧ her2=negative`.
 
-Anything not mappable → `fact_key: null`, evaluated by the LLM path with `depends_on` listing any vocabulary keys it touches.
+Anything not mappable → kept as a `text` leaf (see `docs/clause-representation.md`), evaluated by the LLM path with `depends_on` listing any vocabulary keys it touches.
+
+`Fact` invariants (enforced by Zod): `state: "known"` requires a `value` that conforms to the vocabulary type (number finite, bool boolean, enum in `values`); `state: "unknown"` must not carry a value.
+
+Compound and conditional criteria: a criterion is 1–4 BLOCKS (all must hold); a block is `when` (optional, inclusion only, conjunctive) → `items` (all|any) minus `except`; evaluation per block is `¬when ∨ requirement`, findings carry per-block `applicability` with cited known-fact evidence; a `ParsedCriterion` gains a `clause` (tree of `atom | text | timing` leaves joined by `all | any | except`, every leaf with an exact `source` fragment); `scoring` is derived (`category !== consent_logistics`), not model output; parse completeness is `full | partial | unresolved`.
 
 ## 2. Types (Zod-equivalent TS)
 
@@ -85,7 +89,7 @@ interface ParsedCriterion {
   fact_key: FactKey | null;     // null => free-text / LLM path
   operator?: Operator;
   value?: number | string | boolean | Array<number | string>;
-  unit?: string;                // as written in the source, converted in code
+  unit: string | null;          // as written in the source, converted in code; null = absent/ambiguous (evaluator returns UNKNOWN); defaults to null
   depends_on: FactKey[];        // for free-text criteria
   scoring: boolean;             // false for consent_logistics
 }
@@ -101,15 +105,16 @@ interface CriterionFinding {
   guard_downgraded?: boolean;   // true if PASS/FAIL coerced to UNKNOWN
 }
 
-type Tier = "STRONG" | "POSSIBLE" | "UNCERTAIN" | "LIKELY_MISMATCH";
+type Tier = "STRONG" | "POSSIBLE" | "UNCERTAIN" | "LIKELY_MISMATCH"; // Policy R2: only POSSIBLE and UNCERTAIN are ever emitted; the other two are legacy values kept so stored replays validate (SPEC §4)
 
 interface TrialAssessment {
   nct_id: string;
   title: string;
   tier: Tier;
   findings: CriterionFinding[];
-  verified: boolean;
-  verifier_flags: string[];
+  verified: boolean;            // a second automated pass found no conflict; never means the facts were verified; false for reported_conflict
+  verifier_flags: string[];     // fixed strings, internal (e.g. reported_only, reported_conflict); never shown as text
+  fact_basis?: "visitor_reported"; // always set on emitted results (optional only for stored legacy replays)
   sites: Array<{ facility: string; city?: string; distance_miles?: number }>;
   coordinator_questions: string[];
   analysis_failed?: boolean;

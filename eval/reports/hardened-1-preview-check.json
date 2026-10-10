@@ -1,0 +1,6 @@
+{
+  "label": "DEVELOPMENT CHECK: 12 author-written fictional cases with author-written labels; not measured clinical accuracy",
+  "requests": 0,
+  "stopped": "503 unavailable BEFORE any model call: PROFILE_SIGNING_SECRET is not set on this Preview deployment (or the deployment predates it)",
+  "results": []
+}

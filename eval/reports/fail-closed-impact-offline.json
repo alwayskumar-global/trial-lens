@@ -1,0 +1,322 @@
+{
+ "note": "Offline read-only projection of the PROPOSED fail-closed rule (not wired) on the three prepared FICTIONAL profiles; counts and fact keys only; no model calls, no writes to the database. The verification and fail-check stages are not re-run.",
+ "parserVersion": "spike-4+cov-1",
+ "profiles": [
+  {
+   "profile": "her2pos-stage3",
+   "storedResults": 30,
+   "usableTrials": 29,
+   "noCachedParse": 1,
+   "criteriaCountMismatch": 0,
+   "criterionRows_llmDecidedPassFail_byParseStatus": {
+    "parsed:partial/atoms_downgraded": {
+     "llm_PASS": 4,
+     "downgraded": 4
+    },
+    "parsed:partial/ok": {
+     "llm_PASS": 14,
+     "downgraded": 37,
+     "llm_FAIL": 23
+    },
+    "parsed:partial/coverage_failed": {
+     "llm_PASS": 2,
+     "downgraded": 3,
+     "llm_FAIL": 1
+    }
+   },
+   "rowsChangedToUnknown": {
+    "PASS": 20,
+    "FAIL": 24
+   },
+   "evidenceKeysRemoved": 45,
+   "ruleD_failFindingsByFailCheck": {
+    "llm FAIL, fail_check=unsubstantiated": 1,
+    "llm FAIL, fail_check=no_capacity": 20,
+    "code FAIL, fail_check=no_capacity": 1,
+    "llm FAIL, fail_check=verified": 3
+   },
+   "storedTrialsWithReportedConflictFlag": 0,
+   "trialsWithAtLeastOneDowngrade": 20,
+   "ofWhichStoredVerifiedTrue": 8,
+   "tierBeforeCeiling_baselineToProjected": {
+    "POSSIBLE->POSSIBLE": 7,
+    "UNCERTAIN->UNCERTAIN": 19,
+    "LIKELY_MISMATCH->UNCERTAIN": 3
+   },
+   "finalTier_baselineToProjected": {
+    "POSSIBLE->POSSIBLE": 7,
+    "UNCERTAIN->UNCERTAIN": 22
+   },
+   "studyTeamPanel": {
+    "baselineTopics": 11,
+    "projectedTopics": 11,
+    "baseline": [
+     "ecog:10",
+     "measurable_disease:3",
+     "disease_setting:2",
+     "prior_other_malignancy:2",
+     "anc:1",
+     "ast_alt_x_uln:1",
+     "er_status:1",
+     "lvef_percent:1",
+     "platelets:1",
+     "pr_status:1",
+     "prior_anthracycline:1"
+    ],
+    "projected": [
+     "ecog:10",
+     "measurable_disease:3",
+     "disease_setting:2",
+     "er_status:2",
+     "pr_status:2",
+     "prior_other_malignancy:2",
+     "anc:1",
+     "ast_alt_x_uln:1",
+     "lvef_percent:1",
+     "platelets:1",
+     "prior_anthracycline:1"
+    ],
+    "baselineTop3": [
+     "ecog:10",
+     "measurable_disease:3",
+     "disease_setting:2"
+    ],
+    "projectedTop3": [
+     "ecog:10",
+     "measurable_disease:3",
+     "disease_setting:2"
+    ],
+    "baselineCriterionKeyPairs": {
+     "pairs": 24,
+     "fromDowngraded": 19
+    },
+    "projectedCriterionKeyPairs": {
+     "pairs": 26,
+     "fromDowngraded": 19
+    },
+    "projectedWithoutRejectedAtomDependencies": {
+     "topics": 5,
+     "all": [
+      "ecog:3",
+      "disease_setting:1",
+      "er_status:1",
+      "pr_status:1",
+      "prior_other_malignancy:1"
+     ],
+     "top3": [
+      "ecog:3",
+      "disease_setting:1",
+      "er_status:1"
+     ]
+    }
+   }
+  },
+  {
+   "profile": "hrpos-stage2",
+   "storedResults": 30,
+   "usableTrials": 29,
+   "noCachedParse": 1,
+   "criteriaCountMismatch": 0,
+   "criterionRows_llmDecidedPassFail_byParseStatus": {
+    "parsed:partial/atoms_downgraded": {
+     "llm_PASS": 4,
+     "downgraded": 5,
+     "llm_FAIL": 1
+    },
+    "parsed:partial/ok": {
+     "llm_PASS": 9,
+     "downgraded": 16,
+     "llm_FAIL": 7
+    },
+    "parsed:partial/coverage_failed": {
+     "llm_PASS": 4,
+     "downgraded": 5,
+     "llm_FAIL": 1
+    }
+   },
+   "rowsChangedToUnknown": {
+    "PASS": 17,
+    "FAIL": 9
+   },
+   "evidenceKeysRemoved": 33,
+   "ruleD_failFindingsByFailCheck": {
+    "llm FAIL, fail_check=unsubstantiated": 1,
+    "llm FAIL, fail_check=no_capacity": 4,
+    "code FAIL, fail_check=no_capacity": 1,
+    "llm FAIL, fail_check=verified": 4
+   },
+   "storedTrialsWithReportedConflictFlag": 0,
+   "trialsWithAtLeastOneDowngrade": 19,
+   "ofWhichStoredVerifiedTrue": 8,
+   "tierBeforeCeiling_baselineToProjected": {
+    "POSSIBLE->POSSIBLE": 6,
+    "UNCERTAIN->UNCERTAIN": 19,
+    "LIKELY_MISMATCH->UNCERTAIN": 4
+   },
+   "finalTier_baselineToProjected": {
+    "POSSIBLE->POSSIBLE": 6,
+    "UNCERTAIN->UNCERTAIN": 23
+   },
+   "studyTeamPanel": {
+    "baselineTopics": 9,
+    "projectedTopics": 9,
+    "baseline": [
+     "ecog:10",
+     "measurable_disease:3",
+     "disease_setting:2",
+     "prior_other_malignancy:2",
+     "anc:1",
+     "ast_alt_x_uln:1",
+     "lvef_percent:1",
+     "platelets:1",
+     "prior_anthracycline:1"
+    ],
+    "projected": [
+     "ecog:10",
+     "measurable_disease:3",
+     "disease_setting:2",
+     "prior_other_malignancy:2",
+     "anc:1",
+     "ast_alt_x_uln:1",
+     "lvef_percent:1",
+     "platelets:1",
+     "prior_anthracycline:1"
+    ],
+    "baselineTop3": [
+     "ecog:10",
+     "measurable_disease:3",
+     "disease_setting:2"
+    ],
+    "projectedTop3": [
+     "ecog:10",
+     "measurable_disease:3",
+     "disease_setting:2"
+    ],
+    "baselineCriterionKeyPairs": {
+     "pairs": 22,
+     "fromDowngraded": 17
+    },
+    "projectedCriterionKeyPairs": {
+     "pairs": 22,
+     "fromDowngraded": 17
+    },
+    "projectedWithoutRejectedAtomDependencies": {
+     "topics": 3,
+     "all": [
+      "ecog:3",
+      "disease_setting:1",
+      "prior_other_malignancy:1"
+     ],
+     "top3": [
+      "ecog:3",
+      "disease_setting:1",
+      "prior_other_malignancy:1"
+     ]
+    }
+   }
+  },
+  {
+   "profile": "tnbc-caregiver",
+   "storedResults": 30,
+   "usableTrials": 30,
+   "noCachedParse": 0,
+   "criteriaCountMismatch": 0,
+   "criterionRows_llmDecidedPassFail_byParseStatus": {
+    "parsed:partial/ok": {
+     "llm_PASS": 14,
+     "downgraded": 28,
+     "llm_FAIL": 14
+    },
+    "parsed:partial/atoms_downgraded": {
+     "llm_PASS": 6,
+     "downgraded": 7,
+     "llm_FAIL": 1
+    },
+    "parsed:partial/coverage_failed": {
+     "llm_PASS": 3,
+     "downgraded": 3
+    }
+   },
+   "rowsChangedToUnknown": {
+    "PASS": 23,
+    "FAIL": 15
+   },
+   "evidenceKeysRemoved": 61,
+   "ruleD_failFindingsByFailCheck": {
+    "llm FAIL, fail_check=no_capacity": 11,
+    "llm FAIL, fail_check=verified": 4
+   },
+   "storedTrialsWithReportedConflictFlag": 0,
+   "trialsWithAtLeastOneDowngrade": 22,
+   "ofWhichStoredVerifiedTrue": 9,
+   "tierBeforeCeiling_baselineToProjected": {
+    "POSSIBLE->POSSIBLE": 7,
+    "UNCERTAIN->UNCERTAIN": 19,
+    "LIKELY_MISMATCH->UNCERTAIN": 4
+   },
+   "finalTier_baselineToProjected": {
+    "POSSIBLE->POSSIBLE": 7,
+    "UNCERTAIN->UNCERTAIN": 23
+   },
+   "studyTeamPanel": {
+    "baselineTopics": 10,
+    "projectedTopics": 10,
+    "baseline": [
+     "ecog:9",
+     "measurable_disease:3",
+     "disease_setting:2",
+     "prior_other_malignancy:2",
+     "anc:1",
+     "ast_alt_x_uln:1",
+     "lvef_percent:1",
+     "platelets:1",
+     "prior_anthracycline:1",
+     "stage:1"
+    ],
+    "projected": [
+     "ecog:9",
+     "measurable_disease:3",
+     "disease_setting:2",
+     "prior_other_malignancy:2",
+     "anc:1",
+     "ast_alt_x_uln:1",
+     "lvef_percent:1",
+     "platelets:1",
+     "prior_anthracycline:1",
+     "stage:1"
+    ],
+    "baselineTop3": [
+     "ecog:9",
+     "measurable_disease:3",
+     "disease_setting:2"
+    ],
+    "projectedTop3": [
+     "ecog:9",
+     "measurable_disease:3",
+     "disease_setting:2"
+    ],
+    "baselineCriterionKeyPairs": {
+     "pairs": 22,
+     "fromDowngraded": 18
+    },
+    "projectedCriterionKeyPairs": {
+     "pairs": 22,
+     "fromDowngraded": 18
+    },
+    "projectedWithoutRejectedAtomDependencies": {
+     "topics": 3,
+     "all": [
+      "ecog:2",
+      "disease_setting:1",
+      "prior_other_malignancy:1"
+     ],
+     "top3": [
+      "ecog:2",
+      "disease_setting:1",
+      "prior_other_malignancy:1"
+     ]
+    }
+   }
+  }
+ ]
+}

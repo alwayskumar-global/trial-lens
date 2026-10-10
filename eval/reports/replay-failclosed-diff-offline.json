@@ -1,0 +1,244 @@
+{
+ "note": "Offline read-only before/after of stored replays under the read-time fail-closed treatment; counts only; no writes, no model calls, no regeneration. Verification and fail-check stages not re-run.",
+ "parserVersion": "spike-4+cov-1",
+ "profiles": [
+  {
+   "profile": "her2pos-stage3",
+   "storedTrials": 30,
+   "trialsWithoutCachedParse": 1,
+   "trialsWithoutCachedParse_ids": [
+    "NCT05693766"
+   ],
+   "rowsByFindingSource_beforeAfter": {
+    "before": {
+     "llm_mid:UNKNOWN": 291,
+     "llm_mid:PASS": 20,
+     "code:PASS": 7,
+     "llm_mid:FAIL": 24,
+     "code:UNKNOWN": 165,
+     "code:FAIL": 1
+    },
+    "after": {
+     "llm_mid:UNKNOWN": 335,
+     "code:PASS": 7,
+     "code:UNKNOWN": 165,
+     "code:FAIL": 1
+    }
+   },
+   "changed": {
+    "rows": 44,
+    "evidenceKeysRemoved": 45,
+    "rationaleReplaced": 44,
+    "failCheckRemoved": {
+     "unsubstantiated": 1,
+     "no_capacity": 20,
+     "verified": 3
+    },
+    "trialsTouched": 20,
+    "ofThoseWithoutCachedParse": {
+     "trials": 0,
+     "rows": 0
+    }
+   },
+   "tiersStreamed_beforeToAfter": {
+    "POSSIBLE->POSSIBLE": 7,
+    "UNCERTAIN->UNCERTAIN": 23
+   },
+   "reportedConflictFlag": {
+    "before": 3,
+    "after": 0
+   },
+   "verifiedTrue": {
+    "before": 7,
+    "after": 7
+   },
+   "topUnknownChanged": 8,
+   "trialResultOrderChanged": 0,
+   "storedEventTypes": {
+    "stage": 16,
+    "profile": 1,
+    "counts": 2,
+    "question": 1,
+    "trial_result": 30
+   },
+   "streamedEventTypes_after": {
+    "profile": 1,
+    "counts": 2,
+    "trial_result": 30
+   },
+   "countsEvent_unchanged": true,
+   "tierRecomputationCheck_vsStoredRawTier": {
+    "agrees": 30,
+    "recomputedTierBetterThanStored_explainedByVerificationStage": 0,
+    "recomputedTierWorseThanStored": 0
+   },
+   "panelIfComputedNow_newRule": {
+    "withStoredFindings": [
+     "ecog:3",
+     "disease_setting:1"
+    ],
+    "withDowngradedFindings": [
+     "ecog:3",
+     "disease_setting:1"
+    ]
+   }
+  },
+  {
+   "profile": "hrpos-stage2",
+   "storedTrials": 30,
+   "trialsWithoutCachedParse": 1,
+   "trialsWithoutCachedParse_ids": [
+    "NCT05693766"
+   ],
+   "rowsByFindingSource_beforeAfter": {
+    "before": {
+     "llm_mid:UNKNOWN": 320,
+     "llm_mid:PASS": 18,
+     "code:PASS": 8,
+     "llm_mid:FAIL": 10,
+     "code:UNKNOWN": 160,
+     "code:FAIL": 1
+    },
+    "after": {
+     "llm_mid:UNKNOWN": 348,
+     "code:PASS": 8,
+     "code:UNKNOWN": 160,
+     "code:FAIL": 1
+    }
+   },
+   "changed": {
+    "rows": 28,
+    "evidenceKeysRemoved": 37,
+    "rationaleReplaced": 28,
+    "failCheckRemoved": {
+     "unsubstantiated": 1,
+     "no_capacity": 5,
+     "verified": 4
+    },
+    "trialsTouched": 20,
+    "ofThoseWithoutCachedParse": {
+     "trials": 1,
+     "rows": 2
+    }
+   },
+   "tiersStreamed_beforeToAfter": {
+    "POSSIBLE->POSSIBLE": 6,
+    "UNCERTAIN->UNCERTAIN": 24
+   },
+   "reportedConflictFlag": {
+    "before": 4,
+    "after": 0
+   },
+   "verifiedTrue": {
+    "before": 6,
+    "after": 6
+   },
+   "topUnknownChanged": 9,
+   "trialResultOrderChanged": 0,
+   "storedEventTypes": {
+    "stage": 16,
+    "profile": 1,
+    "counts": 2,
+    "question": 1,
+    "trial_result": 30
+   },
+   "streamedEventTypes_after": {
+    "profile": 1,
+    "counts": 2,
+    "trial_result": 30
+   },
+   "countsEvent_unchanged": true,
+   "tierRecomputationCheck_vsStoredRawTier": {
+    "agrees": 30,
+    "recomputedTierBetterThanStored_explainedByVerificationStage": 0,
+    "recomputedTierWorseThanStored": 0
+   },
+   "panelIfComputedNow_newRule": {
+    "withStoredFindings": [
+     "ecog:3",
+     "disease_setting:1"
+    ],
+    "withDowngradedFindings": [
+     "ecog:3",
+     "disease_setting:1"
+    ]
+   }
+  },
+  {
+   "profile": "tnbc-caregiver",
+   "storedTrials": 30,
+   "trialsWithoutCachedParse": 0,
+   "trialsWithoutCachedParse_ids": [],
+   "rowsByFindingSource_beforeAfter": {
+    "before": {
+     "llm_mid:UNKNOWN": 357,
+     "llm_mid:PASS": 23,
+     "code:PASS": 11,
+     "code:UNKNOWN": 87,
+     "llm_mid:FAIL": 15
+    },
+    "after": {
+     "llm_mid:UNKNOWN": 395,
+     "code:PASS": 11,
+     "code:UNKNOWN": 87
+    }
+   },
+   "changed": {
+    "rows": 38,
+    "evidenceKeysRemoved": 61,
+    "rationaleReplaced": 38,
+    "failCheckRemoved": {
+     "no_capacity": 11,
+     "verified": 4
+    },
+    "trialsTouched": 22,
+    "ofThoseWithoutCachedParse": {
+     "trials": 0,
+     "rows": 0
+    }
+   },
+   "tiersStreamed_beforeToAfter": {
+    "POSSIBLE->POSSIBLE": 6,
+    "UNCERTAIN->UNCERTAIN": 24
+   },
+   "reportedConflictFlag": {
+    "before": 4,
+    "after": 0
+   },
+   "verifiedTrue": {
+    "before": 6,
+    "after": 6
+   },
+   "topUnknownChanged": 11,
+   "trialResultOrderChanged": 0,
+   "storedEventTypes": {
+    "stage": 16,
+    "profile": 1,
+    "counts": 2,
+    "question": 1,
+    "trial_result": 30
+   },
+   "streamedEventTypes_after": {
+    "profile": 1,
+    "counts": 2,
+    "trial_result": 30
+   },
+   "countsEvent_unchanged": true,
+   "tierRecomputationCheck_vsStoredRawTier": {
+    "agrees": 29,
+    "recomputedTierBetterThanStored_explainedByVerificationStage": 1,
+    "recomputedTierWorseThanStored": 0
+   },
+   "panelIfComputedNow_newRule": {
+    "withStoredFindings": [
+     "ecog:2",
+     "disease_setting:1"
+    ],
+    "withDowngradedFindings": [
+     "ecog:2",
+     "disease_setting:1"
+    ]
+   }
+  }
+ ]
+}

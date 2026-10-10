@@ -17,3 +17,14 @@ next-env.d.ts
 .claude/settings.local.json
 .DS_Store
 *.log
+
+# spike fixtures (raw CT.gov text; regenerate with pnpm spike:ctgov)
+eval/spike/fixtures/
+
+# local-only agent notes (kept out of git). TASKS.md is tracked again (Kumar reversed its removal).
+CLAUDE.md
+
+# downloaded public eval datasets (licenses not all verified; never committed)
+eval/data/
+
+__pycache__/
