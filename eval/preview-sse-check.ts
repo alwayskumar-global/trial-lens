@@ -94,6 +94,13 @@ async function main() {
   const bad = await fetch(`${BASE}/api/run`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: "not json" });
   check(bad.status === 400, `malformed body is 400 [got ${bad.status}]`);
 
+  // VISITOR_INPUT_MODE=samples is effective: a text that is not one of the prepared fictional samples is refused with 403 BEFORE the rate-limit guard,
+  // the pipeline or any model call (handler.ts), so this probe is free. (If the mode were `open` it would start a live run, so it uses a clearly
+  // fictional one-line text and the check below fails loudly; never run this probe against a deployment where `open` is intended.)
+  const probe = await fetch(`${BASE}/api/run`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify({ text: "Fictional probe text that is not a prepared sample." }) });
+  check(probe.status === 403, `non-prepared text is refused with 403 (VISITOR_INPUT_MODE=samples effective) [got ${probe.status}]`);
+  await probe.text();
+
   // Explicit replays (no model call, no cache write: handler.ts streams replay_id from the Supabase read-only store before the guard/pipeline).
   for (const id of ["her2pos-stage3", "hrpos-stage2", "tnbc-caregiver"]) {
     const rp = await post({ replay_id: id }, cookie);
