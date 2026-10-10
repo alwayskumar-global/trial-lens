@@ -50,6 +50,8 @@ Required server-side variables (never `NEXT_PUBLIC_`, never in `.env.example` va
 
 Check the effective configuration for free, before any model call: `GET <preview>/api/input-mode` returns `{visitor_input, extract_ready, max_input_chars}`. `extract_ready:false` = signing secret missing or invalid; `visitor_input:"samples"` after you set `open` = the salt or secret is missing/too short. Function logs show `visitor_input_mode` on each run line.
 
+Observed 2026-10-10 on the Preview for `d9df734`: `GET /api/input-mode` returned `{visitor_input:"samples", extract_ready:false, max_input_chars:4000}` and the 39-check free preflight passed 39/39. So `PROFILE_SIGNING_SECRET` is missing, too short or not scoped to Preview there; the Preview therefore serves the original fixed flow (safe fallback), not the new review flow. `RATE_LIMIT_IP_SALT` cannot be observed until `open` is set.
+
 Sequence:
 1. Preview env: set `PROFILE_SIGNING_SECRET` and `RATE_LIMIT_IP_SALT` (Sensitive, Preview only); keep `CRITERIA_CACHE_WRITES=false`.
 2. Redeploy Preview; `GET /api/input-mode` must say `samples` + `extract_ready:true`. Verify the gated UI (disabled box, read-only review, sample flow).
