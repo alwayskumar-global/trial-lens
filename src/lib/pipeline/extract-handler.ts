@@ -5,7 +5,7 @@
 import { z } from "zod";
 import type { RunGuard } from "@/lib/guards/run-guard";
 import { isCrossSite } from "@/lib/pipeline/handler";
-import { extractProfile } from "@/lib/pipeline/extract";
+import { extractProfileWithStats } from "@/lib/pipeline/extract";
 import type { LlmPort } from "@/lib/pipeline/run";
 import { signExtraction } from "@/lib/profile/token";
 import { isPreparedText, stripControlChars } from "@/lib/sample/prepared";
@@ -58,12 +58,16 @@ export async function handleExtract(req: Request, deps: ExtractHandlerDeps): Pro
   try {
     llm = deps.makeLlm();
   } catch {
-    deps.log({ evt: "extract", ok: false, reason: "model_unavailable", ms: Date.now() - t0 });
+    deps.log({ evt: "extract", ok: false, reason: "model_unavailable", detail: "config", ms: Date.now() - t0 });
     return json(503, "model_unavailable");
   }
-  const profile = await extractProfile(text, llm).catch(() => null);
+  const result = await extractProfileWithStats(text, llm).catch(() => null);
+  const profile = result?.profile;
   if (!profile) {
-    deps.log({ evt: "extract", ok: false, reason: "model_unavailable", ms: Date.now() - t0 });
+    const kind = result?.stats.errorKind;
+    // Only fixed error classes from our LLM client. Never log a thrown provider message or visitor text.
+    const detail = kind && /^(HTTP_\d{3}|HTTP_\?|RATE_LIMITED|TIMEOUT|NETWORK|CALL_CAP_EXCEEDED|CALL_FAILED|ZOD_INVALID_AFTER_RETRY)$/.test(kind) ? kind : "unexpected";
+    deps.log({ evt: "extract", ok: false, reason: "model_unavailable", detail, calls: llm.used(), ms: Date.now() - t0 });
     return json(503, "model_unavailable");
   }
   // Facts only: state and value. The model's free-text notes are not returned and are never accepted back.
