@@ -87,7 +87,7 @@ export function liveAssertions(lv: { status: number; ttfb: number; total: number
   check(lv.chunks > 3, `live: delivery is progressive (${lv.chunks} network chunks)`);
   check(stages.length >= 10 && (stages.at(-1)?.t ?? 0) - (stages[0]?.t ?? 0) > 5000, "live: stage events spread over time (not buffered to the end)");
   check(lv.total < 300_000, `live: completed within the 300 s function limit (${sec(lv.total)})`);
-  log(`  >60 s? ${lv.total > 60_000 ? "YES: beyond the default 60 s limit, so the longer maxDuration is active" : "no (completed under 60 s: this run does not prove the 300 s setting)"}`);
+  log(`  >60 s? ${lv.total > 60_000 ? "YES: the function ran beyond the default 60 s, so a limit above 60 s is in effect (the 300 s value itself is not proven by any run this short)" : "no (completed under 60 s: this run does not prove the 300 s setting)"}`);
 
   // 6. counts: assessed + pending + failed = selected = number of streamed trial_results; cold-cache pending trials are reported on their own
   if (counts) {
