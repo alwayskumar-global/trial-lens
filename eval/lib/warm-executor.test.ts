@@ -57,7 +57,8 @@ describe("executeWarm: approved plan -> reservation dispatcher -> insert-only wr
     const r = await executeWarm(deps(plan, p, fs), approvalOf(plan));
     expect(r.status).toBe("done");
     if (r.status !== "done") return;
-    expect(r.summary).toMatchObject({ written: 3, chunks_parsed: 4, attempts: 4, halted: null, skipped: {} });
+    expect(r.summary).toMatchObject({ written: 3, chunks_parsed: 4, attempts: 4, halted: null, skipped: {}, usage: { replies: 4, reported: 4, unavailable: 0, prompt_tokens_reported: 12000, completion_tokens_reported: 6000, no_reply: { rate_limited: 0, timeout: 0, http: 0, network: 0 } } });
+    expect(r.summary.usage.reported_cost_usd).toBeCloseTo(4 * (3000 * price.p + 1500 * price.c), 6);
     expect(r.summary.spent_usd).toBeCloseTo(4 * (3000 * price.p + 1500 * price.c), 10);
     expect(p.st.calls).toBe(4);
     expect(fs.rows.size).toBe(3);

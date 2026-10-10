@@ -18,6 +18,7 @@ async function main(): Promise<number> {
   const gate = executeGate(process.env, plan);
   if (!gate.ok) { console.error(`warm-execute refused: ${gate.reason}. The warm-up is NOT approved; no model call, no write.`); return 2; }
 
+  console.error(`warm-execute: gate passed; fingerprint ${gate.approval.fingerprint.slice(0, 8)}, budget $${gate.approval.budgetUsd}, attempt ceiling ${gate.approval.attemptCeiling}, max writes ${gate.approval.maxWrites}; one attempt at a time`);
   const sb = getSupabase();
   const { data: rc } = await sb.from("replay_cases").select("id,result").in("id", ["her2pos-stage3", "hrpos-stage2", "tnbc-caregiver"]);
   const { data: rows } = await sb.from("trial_criteria_cache").select("nct_id,source_version,parser_version,parsed");
@@ -38,7 +39,10 @@ async function main(): Promise<number> {
       try { const p = await planWarm({ mode: "relevance-v1-interventional", base, profiles, cached, parserVersion: PARSER_VERSION }); return { fingerprint: p.fingerprint, trials: p.planned, warm: p.warm }; }
       catch (e) { console.error(`selection_unavailable ${e instanceof CtgovError ? e.code : "UNKNOWN"}`); return { fingerprint: "unavailable", trials: [], warm: [] }; }
     },
-    model, system: buildClauseParseSystemPrompt(), maxTokens: 8192, calibration: 3, concurrency: 6,
+    model, system: buildClauseParseSystemPrompt(), maxTokens: 8192,
+    // STRICTLY ONE ATTEMPT AT A TIME throughout (Kumar, 2026-10-10): every job is sequential, so at most one reservation is ever in flight.
+    calibration: Number.MAX_SAFE_INTEGER, concurrency: 1,
+    onResult: (r) => console.error(`job ${r.id} ${r.status}${r.status === "unparsed" ? ` (${r.reason})` : ""} attempts=${r.attempts}`),
   }, gate.approval);
   console.log(JSON.stringify(result));
   return result.status === "done" && !result.summary.halted ? 0 : 1;

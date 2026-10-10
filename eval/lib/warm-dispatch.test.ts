@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dispatchJob, PortError, runJobs, type ChatPort, type ChatReply, type ChatRequest, type Job } from "./warm-dispatch";
+import { dispatchJob, newTally, PortError, runJobs, type ChatPort, type ChatReply, type ChatRequest, type Job } from "./warm-dispatch";
 import { SpendGuard } from "./warm-guard";
 
 const price = { p: 3e-7, c: 9e-7 };
@@ -175,5 +175,24 @@ describe("concurrent in-flight reservations and the ceilings", () => {
       expect(s.spentUsd).toBeLessThanOrEqual(budget + 1e-9);
       expect(s.halted).toBeNull(); // every simulated actual stayed within its reservation
     }
+  });
+});
+
+describe("usage tally, progress hook, strictly sequential mode", () => {
+  it("counts replies with reported usage, replies without usage, and attempts that returned no reply, plus reported tokens and cost", async () => {
+    const guard = new SpendGuard(5, 100), tally = newTally();
+    const { p } = port((_, n) => (n === 0 ? new PortError("rate_limited") : n === 1 ? good(700, 200) : n === 2 ? new PortError("timeout") : { content: '{"ok":true}' }), guard);
+    const s = await runJobs({ port: p, guard, price, sleep, tally }, [job("a"), job("b"), job("c")], { calibration: 10, concurrency: 1 });
+    expect(s.parsed).toBe(2); // a (after one 429) and c; b timed out
+    expect(tally).toMatchObject({ replies: 2, reported: 1, unavailable: 1, noReply: { rate_limited: 1, timeout: 1, http: 0, network: 0 }, promptTokens: 700, completionTokens: 200 });
+    expect(tally.reportedCostUsd).toBeCloseTo(cost(700, 200), 12);
+  });
+  it("calibration >= number of jobs means NO concurrency at all: exactly one attempt in flight at any moment, and onResult sees every job in order", async () => {
+    const guard = new SpendGuard(10, 100); const { p, seen } = port(async () => { await new Promise((r) => setTimeout(r, 2)); return good(); }, guard);
+    const order: string[] = [];
+    const s = await runJobs({ port: p, guard, price, sleep }, Array.from({ length: 8 }, (_, i) => job(`j${i}`)), { calibration: Number.MAX_SAFE_INTEGER, concurrency: 1, onResult: (r) => order.push(r.id) });
+    expect(s.parsed).toBe(8);
+    expect(seen.maxActive).toBe(1);
+    expect(order).toEqual(Array.from({ length: 8 }, (_, i) => `j${i}`));
   });
 });

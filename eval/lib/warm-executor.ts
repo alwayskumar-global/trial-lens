@@ -15,7 +15,7 @@ import { reconcileBatch, type ParseOutcome, type SourceCriterion } from "../../s
 import { buildClauseBatchUserPrompt } from "../../src/prompts/clause-parse";
 import { makeClauseBatchSchema } from "../../src/schema/clause";
 import type { CacheStore } from "./warm-store";
-import { runJobs, type ChatPort, type ChatRequest, type Job, type Price } from "./warm-dispatch";
+import { newTally, runJobs, type ChatPort, type ChatRequest, type Job, type JobResult, type Price } from "./warm-dispatch";
 import { diffPlans, SpendGuard, type PlanDiff, type PlannedTrial } from "./warm-guard";
 
 export const CHUNK = 15;
@@ -28,11 +28,13 @@ export interface ExecuteDeps {
   checkPrice: () => Promise<boolean>;
   planNow: () => Promise<CurrentPlan>;
   model: string; system: string; maxTokens: number; calibration: number; concurrency: number;
+  onResult?: (r: JobResult<unknown>) => void;
 }
 export type Refusal = "bad_approval" | "price_changed" | "plan_changed";
 export interface ExecuteSummary {
   trials_planned: number; written: number; skipped: Record<string, number>; chunks_parsed: number; chunks_unparsed: Record<string, number>;
   attempts: number; spent_usd: number; upper_bound_usd: number; halted: string | null; written_keys: string[];
+  usage: { replies: number; reported: number; unavailable: number; no_reply: Record<string, number>; prompt_tokens_reported: number; completion_tokens_reported: number; reported_cost_usd: number };
 }
 export type ExecuteResult = { status: "refused"; reason: Refusal; diff?: PlanDiff } | { status: "done"; summary: ExecuteSummary };
 
@@ -76,7 +78,8 @@ export async function executeWarm(deps: ExecuteDeps, approval: Approval): Promis
   });
 
   const guard = new SpendGuard(approval.budgetUsd, approval.attemptCeiling);
-  const run = await runJobs({ port: deps.port, guard, price: deps.price, sleep: deps.sleep }, jobs, { calibration: deps.calibration, concurrency: deps.concurrency });
+  const tally = newTally();
+  const run = await runJobs({ port: deps.port, guard, price: deps.price, sleep: deps.sleep, tally }, jobs, { calibration: deps.calibration, concurrency: deps.concurrency, ...(deps.onResult ? { onResult: deps.onResult as (r: JobResult<Batch>) => void } : {}) });
   const byId = new Map(run.results.map((r) => [r.id, r]));
 
   let written = 0;
@@ -98,5 +101,5 @@ export async function executeWarm(deps: ExecuteDeps, approval: Approval): Promis
     written++;
     writtenKeys.push(keyStr(t.key));
   }
-  return { status: "done", summary: { trials_planned: approval.trials.length, written, skipped, chunks_parsed: run.parsed, chunks_unparsed: run.unparsed, attempts: run.attempts, spent_usd: run.spentUsd, upper_bound_usd: run.upperBoundUsd, halted: run.halted, written_keys: writtenKeys } };
+  return { status: "done", summary: { trials_planned: approval.trials.length, written, skipped, chunks_parsed: run.parsed, chunks_unparsed: run.unparsed, attempts: run.attempts, spent_usd: run.spentUsd, upper_bound_usd: run.upperBoundUsd, halted: run.halted, written_keys: writtenKeys, usage: { replies: tally.replies, reported: tally.reported, unavailable: tally.unavailable, no_reply: { ...tally.noReply }, prompt_tokens_reported: tally.promptTokens, completion_tokens_reported: tally.completionTokens, reported_cost_usd: Number(tally.reportedCostUsd.toFixed(6)) } } };
 }

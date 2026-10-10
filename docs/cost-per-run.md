@@ -67,3 +67,10 @@ Source: `done.stats.usage` (`u-1`). Counts only. Cost is ESTIMATED from reported
 - `worst_case_calls` reported 48 (run 1) and 50 (run 2): the run plan's structural bound for those runs, below the 80 cap. Not proven as a general bound.
 - These two runs are far below the earlier $0.09-$0.27 proxy range because only 7-9 trials got an evaluate slot and fail checks never ran (no FAIL finding). A run with more trials assessed (warmer cache) would cost more; the proxy range and the $0.67 forecast stand until such a run is measured. Still no dollar-denominated limit in code.
 - Duration: 58.2 s and 58.3 s at the client (application wall time 57.5 s on run 1 and 41.1 s on run 2). On run 2 the client duration exceeds the application wall time by about 17 s; that is an unexplained gap between application wall time and client duration, and its location has not been established. All `trial_result` events are emitted after the final stage, so the client sees results at the end.
+
+
+## Measured usage: one-time cache warm-up (2026-10-10; 55 parse chunks, MID, strictly sequential, fictional-free public trial text only)
+- 63 attempts (55 first attempts + 8 validation retries); every one returned a reply with reported usage (0 unavailable, 0 rate-limited, 0 timeouts or errors).
+- Tokens: 128,554 prompt and 107,880 completion, about 2,040 in and 1,710 out per attempt, in line with the live-run parse averages (1.9-2.0k in, 1.6-1.65k out).
+- **Estimated cost $0.1357** from reported usage (expected from the measured average: $0.1155 for 55 first attempts; the 8 retries account for the difference). The conditional reservation (budget $0.75, ceiling 110) never halted; no assumption (prompt tokens <= body bytes + 64; completion <= max_tokens; usage reported) was violated in 63 attempts. This is an estimate from reported usage, not an invoice; the Token Factory Usage tab is the check.
+- 26 of 31 planned trials were written; 5 chunks failed validation twice and were skipped.

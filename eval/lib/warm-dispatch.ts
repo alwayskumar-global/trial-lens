@@ -20,7 +20,11 @@ export interface Job<T> { id: string; request: ChatRequest; validate: (content: 
 export type Unparsed = "invalid_after_retry" | "refused_budget" | "refused_attempts" | "halted" | "http_error" | "rate_limited" | "timeout" | "network";
 export type JobResult<T> = { id: string; status: "parsed"; data: T; attempts: number } | { id: string; status: "unparsed"; reason: Unparsed; attempts: number };
 
-export interface DispatchDeps { port: ChatPort; guard: SpendGuard; price: Price; sleep: (ms: number) => Promise<void> }
+/** Usage accounting for the report (counts, tokens and dollars only). `reportedCostUsd` is the cost of replies that reported usage; the guard's own spend additionally charges worst cases. */
+export interface UsageTally { replies: number; reported: number; unavailable: number; noReply: Record<FailKind, number>; promptTokens: number; completionTokens: number; reportedCostUsd: number }
+export const newTally = (): UsageTally => ({ replies: 0, reported: 0, unavailable: 0, noReply: { rate_limited: 0, timeout: 0, http: 0, network: 0 }, promptTokens: 0, completionTokens: 0, reportedCostUsd: 0 });
+
+export interface DispatchDeps { port: ChatPort; guard: SpendGuard; price: Price; sleep: (ms: number) => Promise<void>; tally?: UsageTally }
 
 const isCount = (n: unknown): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0;
 const bodyBytes = (req: ChatRequest): number => Buffer.byteLength(JSON.stringify(req));
@@ -52,6 +56,7 @@ export async function dispatchJob<T>(deps: DispatchDeps, job: Job<T>): Promise<J
         reply = await port.create(req);
       } catch (e) {
         const kind: FailKind = e instanceof PortError ? e.kind : "network";
+        if (deps.tally) deps.tally.noReply[kind]++;
         if (kind === "rate_limited") {
           // Nebius documents neither that a 429 is free nor that it is billed (rate-limits and billing pages, checked 2026-10-08), so without
           // billing evidence a 429 is charged its WORST case like any other failed attempt.
@@ -65,11 +70,15 @@ export async function dispatchJob<T>(deps: DispatchDeps, job: Job<T>): Promise<J
       }
       // Reported-usage reconciliation and assumption checks.
       const u = reply.usage;
+      if (deps.tally) deps.tally.replies++;
       if (!u || !isCount(u.prompt_tokens) || !isCount(u.completion_tokens)) {
+        if (deps.tally) deps.tally.unavailable++;
         guard.settle(r, null);
         guard.violate("usage_unavailable");
       } else {
-        guard.settle(r, u.prompt_tokens * price.p + u.completion_tokens * price.c);
+        const actual = u.prompt_tokens * price.p + u.completion_tokens * price.c;
+        if (deps.tally) { deps.tally.reported++; deps.tally.promptTokens += u.prompt_tokens; deps.tally.completionTokens += u.completion_tokens; deps.tally.reportedCostUsd += actual; }
+        guard.settle(r, actual);
         if (u.prompt_tokens > promptTokensUpperBoundFromBytes(bytes)) guard.violate("prompt_tokens_exceed_bound");
         if (u.completion_tokens > req.max_tokens) guard.violate("completion_exceeds_max_tokens");
       }
@@ -86,7 +95,7 @@ export async function dispatchJob<T>(deps: DispatchDeps, job: Job<T>): Promise<J
 export interface RunSummary<T> { results: Array<JobResult<T>>; parsed: number; unparsed: Record<string, number>; attempts: number; spentUsd: number; upperBoundUsd: number; halted: string | null }
 
 /** First `calibration` jobs strictly one at a time (a wrong assumption is found before concurrency opens), then up to `concurrency` jobs at once. */
-export async function runJobs<T>(deps: DispatchDeps, jobs: readonly Job<T>[], o: { calibration: number; concurrency: number }): Promise<RunSummary<T>> {
+export async function runJobs<T>(deps: DispatchDeps, jobs: readonly Job<T>[], o: { calibration: number; concurrency: number; onResult?: (r: JobResult<T>) => void }): Promise<RunSummary<T>> {
   const results: Array<JobResult<T>> = new Array(jobs.length);
   let next = 0;
   const worker = async (): Promise<void> => {
@@ -94,10 +103,11 @@ export async function runJobs<T>(deps: DispatchDeps, jobs: readonly Job<T>[], o:
       const i = next++;
       if (i >= jobs.length) return;
       results[i] = deps.guard.halted ? { id: jobs[i]!.id, status: "unparsed", reason: "halted", attempts: 0 } : await dispatchJob(deps, jobs[i]!);
+      o.onResult?.(results[i]!);
     }
   };
   const k = Math.min(o.calibration, jobs.length);
-  for (let i = 0; i < k; i++) { next = i; results[i] = deps.guard.halted ? { id: jobs[i]!.id, status: "unparsed", reason: "halted", attempts: 0 } : await dispatchJob(deps, jobs[i]!); }
+  for (let i = 0; i < k; i++) { next = i; results[i] = deps.guard.halted ? { id: jobs[i]!.id, status: "unparsed", reason: "halted", attempts: 0 } : await dispatchJob(deps, jobs[i]!); o.onResult?.(results[i]!); }
   next = k;
   await Promise.all(Array.from({ length: Math.max(1, o.concurrency) }, worker));
   const unparsed: Record<string, number> = {};
