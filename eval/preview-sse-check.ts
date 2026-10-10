@@ -8,6 +8,7 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { SAMPLE_TEXT } from "../src/lib/sample/triallens-sample";
+import { FACT_KEYS } from "../src/schema/vocabulary";
 import { SseEventSchema } from "../src/schema/sse";
 import { liveAssertions, type ExpectedSelection, type Timed } from "./lib/live-assertions";
 import { planWarm, type CachedRows } from "./lib/warm-plan";
@@ -80,12 +81,31 @@ async function main() {
   const bad = await fetch(`${BASE}/api/run`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: "not json" });
   check(bad.status === 400, `malformed body is 400 [got ${bad.status}]`);
 
-  // VISITOR_INPUT_MODE=samples is effective: a text that is not one of the prepared fictional samples is refused with 403 BEFORE the rate-limit guard,
-  // the pipeline or any model call (handler.ts), so this probe is free. (If the mode were `open` it would start a live run, so it uses a clearly
-  // fictional one-line text and the check below fails loudly; never run this probe against a deployment where `open` is intended.)
-  const probe = await fetch(`${BASE}/api/run`, { method: "POST", headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) }, body: JSON.stringify({ text: "Fictional probe text that is not a prepared sample." }) });
-  check(probe.status === 403, `non-prepared text is refused with 403 (VISITOR_INPUT_MODE=samples effective) [got ${probe.status}]`);
-  await probe.text();
+  // Effective visitor-input mode, read from the server (GET /api/input-mode, free). The check is mode-aware:
+  //  - samples: a text that is not one of the prepared fictional samples is refused with 403 BEFORE the rate-limit guard, the pipeline or any model
+  //    call (handler.ts), so the typed-text probe is free.
+  //  - open: typed text is ACCEPTED and would start a paid live run, so the typed-text probe is never sent. Instead: the mode must report open +
+  //    extract_ready, and the free refusals (forged and missing token, 401, before any guard or model call) are checked.
+  const modeRes = await fetch(`${BASE}/api/input-mode`, { headers: cookie ? { cookie } : {} });
+  const modeBody = (await modeRes.json().catch(() => ({}))) as { visitor_input?: string; extract_ready?: boolean };
+  check(modeRes.status === 200 && (modeBody.visitor_input === "samples" || modeBody.visitor_input === "open"), `GET /api/input-mode reports a valid mode [${String(modeBody.visitor_input)}, extract_ready=${String(modeBody.extract_ready)}]`);
+  const expectOpen = process.env.EXPECT_VISITOR_INPUT === "open";
+  check(modeBody.visitor_input === (expectOpen ? "open" : "samples"), `effective visitor input is ${expectOpen ? "open" : "samples"} (EXPECT_VISITOR_INPUT=${expectOpen ? "open" : "unset"})`);
+  const h = { "content-type": "application/json", ...(cookie ? { cookie } : {}) };
+  if (modeBody.visitor_input === "samples") {
+    const probe = await fetch(`${BASE}/api/run`, { method: "POST", headers: h, body: JSON.stringify({ text: "Fictional probe text that is not a prepared sample." }) });
+    check(probe.status === 403, `samples: non-prepared text is refused with 403 [got ${probe.status}]`);
+    await probe.text();
+  } else {
+    const emptyProfile = { facts: Object.fromEntries(FACT_KEYS.map((k) => [k, { key: k, state: "unknown" }])) };
+    const forged = await fetch(`${BASE}/api/run`, { method: "POST", headers: h, body: JSON.stringify({ profile: emptyProfile, extract_token: "forged.token" }) });
+    check(forged.status === 401, `open: forged extraction token refused with 401, no model call [got ${forged.status}]`);
+    await forged.text();
+    const none = await fetch(`${BASE}/api/run`, { method: "POST", headers: h, body: JSON.stringify({ profile: emptyProfile }) });
+    check(none.status === 401, `open: missing extraction token refused with 401 [got ${none.status}]`);
+    await none.text();
+    check(modeBody.extract_ready === true, "open: extract_ready is true (signing secret effective)");
+  }
 
   // Explicit replays (no model call, no cache write: handler.ts streams replay_id from the Supabase read-only store before the guard/pipeline).
   for (const id of ["her2pos-stage3", "hrpos-stage2", "tnbc-caregiver"]) {

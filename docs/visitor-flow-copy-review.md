@@ -14,6 +14,8 @@ Status: for Kumar's review. All strings live in `src/lib/visitor/copy.ts` and ar
 
 **Copy-rule exceptions to approve.** `docs/copy-rules.md` says live screens never say "your information" because visitors provided none. That rule applies to the fixed flow; this flow does address the visitor, so the copy audit test now covers `src/lib/visitor` for the banned words but not the "refers to the prepared profile" rule.
 
+**Added after the Preview run (see `docs/judge-flow-preview-evidence.md`):** the Processing line `V_DISCOVERY_FIT` ("fit the age and sex you entered") is wrong when no sex was entered; proposed replacement: "fit the age you entered" (the filter uses age, and sex only when given). Not changed yet; awaiting your decision.
+
 ## 2. Structural choices to confirm
 - h1 stays "Find clinical trials worth asking about." (approved hero); "Your situation" is the textarea label, and "Here is what we understood" is the Confirm h1. If the original design had "Your situation" as the page title, say so.
 - The three fictional examples appear as picker buttons under the textarea. They fill the box (editable in `open`, display-only in the gated state).
