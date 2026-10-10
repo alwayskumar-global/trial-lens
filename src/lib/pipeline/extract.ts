@@ -5,6 +5,7 @@ import { z } from "zod";
 import { FactSchema, type Fact, type PatientProfile } from "@/schema/profile";
 import { FACT_KEYS, type FactKey } from "@/schema/vocabulary";
 import type { LlmPort } from "@/lib/pipeline/run";
+import type { CallStats } from "@/lib/llm/client";
 
 type Extraction = z.infer<typeof ExtractSchema>;
 
@@ -19,9 +20,12 @@ export function profileFromExtraction(data: Extraction): PatientProfile {
 }
 
 /** One FAST call (plus its single validation retry inside the port). null ⇒ no usable profile. */
-export async function extractProfile(profileText: string, llm: LlmPort): Promise<PatientProfile | null> {
+export async function extractProfileWithStats(profileText: string, llm: LlmPort): Promise<{ profile: PatientProfile | null; stats: CallStats }> {
   // echoOnRetry:false: the output can repeat or obey text the visitor wrote, so it is never fed back on the validation retry.
-  const { data } = await llm.call({ stage: "extraction", tier: "FAST", system: EXTRACT_SYSTEM, user: buildExtractUserPrompt(profileText), schema: ExtractSchema, schemaName: "facts", maxTokens: 8192, echoOnRetry: false });
-  if (!data) return null;
-  return profileFromExtraction(data);
+  const { data, stats } = await llm.call({ stage: "extraction", tier: "FAST", system: EXTRACT_SYSTEM, user: buildExtractUserPrompt(profileText), schema: ExtractSchema, schemaName: "facts", maxTokens: 8192, echoOnRetry: false });
+  return { profile: data ? profileFromExtraction(data) : null, stats };
+}
+
+export async function extractProfile(profileText: string, llm: LlmPort): Promise<PatientProfile | null> {
+  return (await extractProfileWithStats(profileText, llm)).profile;
 }

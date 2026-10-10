@@ -101,7 +101,16 @@ describe("POST /api/extract", () => {
     expect(await res.json()).toEqual({ code: "model_unavailable" });
     const noEnv = setup({ makeLlm: () => { throw new Error("env"); } });
     expect((await handleExtract(post({ text: "x" }), noEnv.deps)).status).toBe(503);
-    expect(failing.logs[0]).toMatchObject({ evt: "extract", ok: false, reason: "model_unavailable" });
+    expect(failing.logs[0]).toMatchObject({ evt: "extract", ok: false, reason: "model_unavailable", detail: "HTTP_503", calls: 1 });
+    expect(noEnv.logs[0]).toMatchObject({ evt: "extract", ok: false, reason: "model_unavailable", detail: "config" });
+  });
+
+  it("logs only fixed provider error classes, never a provider message", async () => {
+    const marker = "SENTINEL-MARKER-provider-secret";
+    const { deps, logs } = setup({ makeLlm: () => ({ used: () => 1, call: async () => ({ data: null, stats: { errorKind: marker } }) as never }) });
+    expect((await handleExtract(post({ text: "fictional" }), deps)).status).toBe(503);
+    expect(logs[0]).toMatchObject({ detail: "unexpected" });
+    expect(JSON.stringify(logs)).not.toContain(marker);
   });
 
   it("refuses browser cross-site POSTs", async () => {
