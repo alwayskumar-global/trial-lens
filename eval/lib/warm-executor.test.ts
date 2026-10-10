@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { cacheKeyFor, PARSER_VERSION } from "../../src/lib/cache/criteria-cache";
 import type { SourceCriterion } from "../../src/lib/engine/reconcile";
 import { makeParse } from "../../src/lib/pipeline/test-fakes";
-import { executeWarm, type Approval, type CurrentPlan, type ExecuteDeps, type WarmTrial } from "./warm-executor";
+import { executeWarm, issueCodes, type Approval, type CurrentPlan, type ExecuteDeps, type WarmTrial } from "./warm-executor";
 import { PortError, type ChatPort, type ChatReply, type ChatRequest } from "./warm-dispatch";
 import { makeInsertOnlyStore, type SupabaseLike } from "./warm-store";
 import { planFingerprint, type PlannedTrial } from "./warm-guard";
@@ -114,6 +114,7 @@ describe("executeWarm: approved plan -> reservation dispatcher -> insert-only wr
     expect(r.summary.written).toBe(1);
     expect(r.summary.skipped).toEqual({ unparsed_chunk: 1 });
     expect(r.summary.chunks_unparsed).toEqual({ invalid_after_retry: 1 });
+    expect(r.summary.unparsed_detail).toEqual([{ id: "NCT00000002#1", problem: "output was not valid JSON" }]); // a fixed reason; the garbage text itself is never kept
     expect([...fs.rows.keys()].map((k) => k.split("|")[0])).toEqual(["NCT00000001"]);
   });
 
@@ -166,5 +167,13 @@ describe("insert-only store (fake Supabase client)", () => {
     const e = await makeInsertOnlyStore(noInsert).insertIfAbsent(cacheKeyFor("NCT00000001", "x"), []).catch((x: Error) => x);
     expect(e).toMatchObject({ code: "STORE_INSERT" });
     expect(String((e as Error).message)).not.toContain("secret");
+  });
+});
+
+describe("issueCodes keeps schema paths and issue codes only", () => {
+  it("never includes values, messages or free text", () => {
+    const out = issueCodes([{ path: ["criteria", 3, "blocks", 0, "items", 1, "source"], code: "custom" }, { path: ["SECRET MODEL TEXT"], code: "invalid_type" }]);
+    expect(out).toBe("criteria.3.blocks.0.items.1.source: custom; ?: invalid_type");
+    expect(out).not.toContain("SECRET");
   });
 });

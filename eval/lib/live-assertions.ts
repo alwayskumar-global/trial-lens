@@ -8,7 +8,10 @@ const sec = (ms: number) => (ms / 1000).toFixed(1) + "s";
 const PRICE = { FAST: { in: 0.00000006, out: 0.00000024 }, MID: { in: 0.0000003, out: 0.0000009 } } as const; // Token Factory, docs/cost-per-run.md
 const tally = (xs: string[]) => xs.reduce<Record<string, number>>((a, k) => ((a[k] = (a[k] ?? 0) + 1), a), {});
 
-export function liveAssertions(lv: { status: number; ttfb: number; total: number; events: Timed[]; chunks: number; ct: string }, check: (ok: boolean, name: string) => void, log: (m: string) => void = (m) => console.warn(m)) {
+/** What the offline planner (the same selection code as the route) expects for the profile of the live request. */
+export interface ExpectedSelection { ids: readonly string[]; discovered: number; filtered: number; selected: number }
+
+export function liveAssertions(lv: { status: number; ttfb: number; total: number; events: Timed[]; chunks: number; ct: string }, check: (ok: boolean, name: string) => void, log: (m: string) => void = (m) => console.warn(m), expected?: ExpectedSelection) {
   const ev = lv.events.map((x) => x.e);
   const first = ev[0];
   const done = ev.find((e) => e.type === "done");
@@ -27,6 +30,14 @@ export function liveAssertions(lv: { status: number; ttfb: number; total: number
   check(!!done && done.type === "done" && done.replay === false, "live: ends with done(replay:false)");
   check(trials.length > 0, `live: ${trials.length} trial_result events`);
   check(!ev.some((e) => e.type === "question"), "live: no legacy question event");
+
+  // 1b. live SELECTOR parity: the studies streamed by the live route are exactly what the planner (same selection code) selects, and the discovery counts agree.
+  if (expected) {
+    const got = [...trials.map((a) => a.nct_id)].sort(), want = [...expected.ids].sort();
+    check(got.length === want.length && got.every((x, i) => x === want[i]), `live: streamed trials equal the planner's selection (${got.length} streamed, ${want.length} expected)`);
+    const first_ = countEvents.find((c) => c.discovered !== undefined);
+    check(!!first_ && first_.discovered === expected.discovered && first_.filtered === expected.filtered && first_.selected === expected.selected, `live: discovery counts equal the planner's (discovered ${first_?.discovered ?? "?"}/${expected.discovered}, filtered ${first_?.filtered ?? "?"}/${expected.filtered}, selected ${first_?.selected ?? "?"}/${expected.selected})`);
+  }
 
   // 2. live findings
   log(`  tiers ${JSON.stringify(tally(trials.map((a) => a.tier)))}`);

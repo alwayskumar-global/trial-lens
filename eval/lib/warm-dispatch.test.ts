@@ -196,3 +196,11 @@ describe("usage tally, progress hook, strictly sequential mode", () => {
     expect(order).toEqual(Array.from({ length: 8 }, (_, i) => `j${i}`));
   });
 });
+
+describe("invalid-after-retry keeps only the fixed validation reason", () => {
+  it("returns the job's last problem string (never model text) so a later diagnosis does not need another call", async () => {
+    const guard = new SpendGuard(5, 100); const { p } = port(() => ({ content: "garbage", usage: { prompt_tokens: 10, completion_tokens: 5 } }), guard);
+    const r = await dispatchJob({ port: p, guard, price, sleep }, job("a"));
+    expect(r).toMatchObject({ status: "unparsed", reason: "invalid_after_retry", attempts: 2, problem: "not json" });
+  });
+});

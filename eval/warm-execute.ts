@@ -42,7 +42,7 @@ async function main(): Promise<number> {
     model, system: buildClauseParseSystemPrompt(), maxTokens: 8192,
     // STRICTLY ONE ATTEMPT AT A TIME throughout (Kumar, 2026-10-10): every job is sequential, so at most one reservation is ever in flight.
     calibration: Number.MAX_SAFE_INTEGER, concurrency: 1,
-    onResult: (r) => console.error(`job ${r.id} ${r.status}${r.status === "unparsed" ? ` (${r.reason})` : ""} attempts=${r.attempts}`),
+    onResult: (r) => console.error(`job ${r.id} ${r.status}${r.status === "unparsed" ? ` (${r.reason})${r.problem ? ` problem=[${r.problem}]` : ""}` : ""} attempts=${r.attempts}`),
   }, gate.approval);
   console.log(JSON.stringify(result));
   return result.status === "done" && !result.summary.halted ? 0 : 1;

@@ -9,7 +9,9 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 import { SAMPLE_TEXT } from "../src/lib/sample/triallens-sample";
 import { SseEventSchema } from "../src/schema/sse";
-import { liveAssertions, type Timed } from "./lib/live-assertions";
+import { liveAssertions, type ExpectedSelection, type Timed } from "./lib/live-assertions";
+import { planWarm, type CachedRows } from "./lib/warm-plan";
+import { getSupabase } from "../src/lib/supabase";
 
 const BASE = (process.env.PREVIEW_URL ?? "").replace(/\/$/, "");
 if (!BASE) { console.error("PREVIEW_URL is required"); process.exit(2); }
@@ -75,6 +77,20 @@ const types = (ev: Timed[]) => Object.fromEntries([...new Set(ev.map((x) => x.e.
 const sec = (ms: number) => (ms / 1000).toFixed(1) + "s";
 
 // ---- live-run assertions live in eval/lib/live-assertions.ts (offline-tested); this file only sends the request ----
+// The planner's selection for the prepared profile behind SAMPLE_TEXT (the stored her2pos-stage3 replay profile), computed with the route's own selection code.
+async function expectedSelection(): Promise<ExpectedSelection | undefined> {
+  if (process.env.CTGOV_SELECTION_MODE_EXPECTED !== "relevance-v1-interventional") return undefined; // only meaningful when the Preview runs that mode
+  const sb = getSupabase();
+  const { data: rc } = await sb.from("replay_cases").select("result").eq("id", "her2pos-stage3").maybeSingle();
+  const facts = (rc?.result as { events?: Array<{ type: string; facts?: Array<{ key: string; state: string; value?: unknown }> }> } | undefined)?.events?.find((e) => e.type === "profile")?.facts ?? [];
+  const age = Number(facts.find((f) => f.key === "age" && f.state === "known")?.value), sex = facts.find((f) => f.key === "sex" && f.state === "known")?.value;
+  const filter = { ...(Number.isFinite(age) ? { age } : {}), ...(sex ? { sex: String(sex) } : {}) };
+  const cached: CachedRows = new Map();
+  const plan = await planWarm({ mode: "relevance-v1-interventional", base: process.env.CTGOV_API_BASE ?? "https://clinicaltrials.gov/api/v2", profiles: [{ id: "her2pos-stage3", filter }], cached });
+  const p0 = plan.perProfile[0]!;
+  return { ids: plan.selected.map((t) => t.nct_id), discovered: p0.discovered, filtered: p0.filtered, selected: p0.selected };
+}
+
 async function readCounters(): Promise<Record<string, number | string>> {
   try {
     const redis = new Redis({ url: process.env.UPSTASH_REDIS_REST_URL!, token: process.env.UPSTASH_REDIS_REST_TOKEN! });
@@ -140,11 +156,12 @@ async function main() {
     const before = await readCounters(); // runs_today / rl_keys are diagnostic only (other traffic can move them)
     // The in-flight counter must start clean, otherwise "returned to its start value" proves nothing (a leaked value only clears with its 600 s TTL).
     if (before.inflight !== 0) { console.error(`live run refused: tl:inflight is ${String(before.inflight)} before the run (must be 0; wait for the TTL)`); process.exit(2); }
+    const expected = await expectedSelection(); // read-only: same selection code as the route, for the profile of SAMPLE_TEXT (her2pos-stage3)
     const lv = await post({ text: SAMPLE_TEXT }, cookie);
     const afterClose = await readCounters(); // read right after the stream closed: the gate is released BEFORE close, so this must already be back to 0
     await new Promise((r) => setTimeout(r, 10_000));
     const settled = await readCounters();
-    liveAssertions(lv, check);
+    liveAssertions(lv, check, undefined, expected);
     check(afterClose.inflight === 0, `live: tl:inflight is 0 immediately after the stream closed (release ran before close; got ${String(afterClose.inflight)})`);
     check(settled.inflight === 0, `live: tl:inflight is still 0 ten seconds later (no leak; got ${String(settled.inflight)})`);
     console.warn(`  upstash (runs_today and rl_keys diagnostic; other traffic can interfere): ${JSON.stringify({ before, afterClose, settled })}`);

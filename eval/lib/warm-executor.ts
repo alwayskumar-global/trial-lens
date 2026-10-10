@@ -20,6 +20,12 @@ import { diffPlans, SpendGuard, type PlanDiff, type PlannedTrial } from "./warm-
 
 export const CHUNK = 15;
 
+/** Fixed-vocabulary description of schema problems: schema-key paths (or indices) and zod issue codes ONLY; never values, messages or model text. */
+export function issueCodes(issues: ReadonlyArray<{ path: ReadonlyArray<PropertyKey>; code: string }>): string {
+  const seg = (p: PropertyKey) => (typeof p === "number" ? String(p) : typeof p === "string" && /^[a-z_]{1,24}$/.test(p) ? p : "?");
+  return issues.slice(0, 5).map((i) => `${i.path.map(seg).join(".") || "(root)"}: ${i.code}`).join("; ");
+}
+
 export interface WarmTrial { nct_id: string; last_update: string | null; sources: SourceCriterion[] }
 export interface Approval { fingerprint: string; trials: PlannedTrial[]; budgetUsd: number; attemptCeiling: number; maxWrites: number }
 export interface CurrentPlan { fingerprint: string; trials: PlannedTrial[]; warm: WarmTrial[] }
@@ -33,6 +39,7 @@ export interface ExecuteDeps {
 export type Refusal = "bad_approval" | "price_changed" | "plan_changed";
 export interface ExecuteSummary {
   trials_planned: number; written: number; skipped: Record<string, number>; chunks_parsed: number; chunks_unparsed: Record<string, number>;
+  unparsed_detail: Array<{ id: string; problem: string }>;
   attempts: number; spent_usd: number; upper_bound_usd: number; halted: string | null; written_keys: string[];
   usage: { replies: number; reported: number; unavailable: number; no_reply: Record<string, number>; prompt_tokens_reported: number; completion_tokens_reported: number; reported_cost_usd: number };
 }
@@ -73,7 +80,7 @@ export async function executeWarm(deps: ExecuteDeps, approval: Approval): Promis
     const schema = makeClauseBatchSchema(chunk.map((c) => c.text));
     jobs.push({
       id: `${t.trial.nct_id}#${ci}`, request: buildParseRequest(deps.model, deps.system, deps.maxTokens, chunk),
-      validate: (content) => { try { const r = schema.safeParse(JSON.parse(content)); return r.success ? { ok: true, data: r.data } : { ok: false, problem: "schema" }; } catch { return { ok: false, problem: "not json" }; } },
+      validate: (content) => { try { const r = schema.safeParse(JSON.parse(content)); return r.success ? { ok: true, data: r.data } : { ok: false, problem: issueCodes(r.error.issues) }; } catch { return { ok: false, problem: "output was not valid JSON" }; } },
     });
   });
 
@@ -101,5 +108,5 @@ export async function executeWarm(deps: ExecuteDeps, approval: Approval): Promis
     written++;
     writtenKeys.push(keyStr(t.key));
   }
-  return { status: "done", summary: { trials_planned: approval.trials.length, written, skipped, chunks_parsed: run.parsed, chunks_unparsed: run.unparsed, attempts: run.attempts, spent_usd: run.spentUsd, upper_bound_usd: run.upperBoundUsd, halted: run.halted, written_keys: writtenKeys, usage: { replies: tally.replies, reported: tally.reported, unavailable: tally.unavailable, no_reply: { ...tally.noReply }, prompt_tokens_reported: tally.promptTokens, completion_tokens_reported: tally.completionTokens, reported_cost_usd: Number(tally.reportedCostUsd.toFixed(6)) } } };
+  return { status: "done", summary: { trials_planned: approval.trials.length, written, skipped, chunks_parsed: run.parsed, chunks_unparsed: run.unparsed, unparsed_detail: run.results.flatMap((r) => (r.status === "unparsed" && r.problem ? [{ id: r.id, problem: r.problem }] : [])), attempts: run.attempts, spent_usd: run.spentUsd, upper_bound_usd: run.upperBoundUsd, halted: run.halted, written_keys: writtenKeys, usage: { replies: tally.replies, reported: tally.reported, unavailable: tally.unavailable, no_reply: { ...tally.noReply }, prompt_tokens_reported: tally.promptTokens, completion_tokens_reported: tally.completionTokens, reported_cost_usd: Number(tally.reportedCostUsd.toFixed(6)) } } };
 }

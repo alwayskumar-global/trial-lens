@@ -18,7 +18,7 @@ export interface ChatPort { create(req: ChatRequest): Promise<ChatReply> }
 export interface Price { p: number; c: number }
 export interface Job<T> { id: string; request: ChatRequest; validate: (content: string) => { ok: true; data: T } | { ok: false; problem: string } }
 export type Unparsed = "invalid_after_retry" | "refused_budget" | "refused_attempts" | "halted" | "http_error" | "rate_limited" | "timeout" | "network";
-export type JobResult<T> = { id: string; status: "parsed"; data: T; attempts: number } | { id: string; status: "unparsed"; reason: Unparsed; attempts: number };
+export type JobResult<T> = { id: string; status: "parsed"; data: T; attempts: number } | { id: string; status: "unparsed"; reason: Unparsed; attempts: number; problem?: string };
 
 /** Usage accounting for the report (counts, tokens and dollars only). `reportedCostUsd` is the cost of replies that reported usage; the guard's own spend additionally charges worst cases. */
 export interface UsageTally { replies: number; reported: number; unavailable: number; noReply: Record<FailKind, number>; promptTokens: number; completionTokens: number; reportedCostUsd: number }
@@ -86,7 +86,7 @@ export async function dispatchJob<T>(deps: DispatchDeps, job: Job<T>): Promise<J
     const text = reply.content.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i, "$1");
     const v = job.validate(text);
     if (v.ok) return { id: job.id, status: "parsed", data: v.data, attempts };
-    if (validation === 2) break;
+    if (validation === 2) return { id: job.id, status: "unparsed", reason: "invalid_after_retry", attempts, problem: v.problem };
     messages = [...job.request.messages, { role: "assistant", content: reply.content.slice(0, 4000) }, { role: "user", content: `Your output failed validation: ${v.problem}. Return corrected JSON only.` }];
   }
   return { id: job.id, status: "unparsed", reason: "invalid_after_retry", attempts };

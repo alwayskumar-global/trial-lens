@@ -126,4 +126,13 @@ describe("liveAssertions", () => {
     const skew = good().map((e) => (e.type === "done" ? ({ ...e, stats: { ...e.stats!, usage: { ...e.stats!.usage!, total: { ...e.stats!.usage!.total, prompt_tokens: 5 } } } } as SseEvent) : e));
     expect(failed(run(skew)).join("|")).toMatch(/stage usage totals equal the reported total/);
   });
+
+  it("live selector parity: streamed trials and discovery counts must equal the planner's selection (same selection code)", () => {
+    // good() streams NCT00000001; its counts event has selected 1 but no discovered/filtered, so give it a full one
+    const withCounts = good().map((e) => (e.type === "counts" ? ({ type: "counts", discovered: 120, filtered: 113, selected: 1, assessed: 1, pending: 0, failed: 0 } as SseEvent) : e));
+    const run2 = (exp: { ids: string[]; discovered: number; filtered: number; selected: number }) => { const out: Array<[boolean, string]> = []; liveAssertions({ status: 200, ttfb: 800, total: 95000, events: timed(withCounts), chunks: 30, ct: "text/event-stream" }, (o, n) => out.push([o, n]), () => undefined, exp); return failed(out); };
+    expect(run2({ ids: ["NCT00000001"], discovered: 120, filtered: 113, selected: 1 })).toEqual([]);
+    expect(run2({ ids: ["NCT00000009"], discovered: 120, filtered: 113, selected: 1 }).join("|")).toMatch(/streamed trials equal the planner's selection/);
+    expect(run2({ ids: ["NCT00000001"], discovered: 119, filtered: 113, selected: 1 }).join("|")).toMatch(/discovery counts equal the planner's/);
+  });
 });
