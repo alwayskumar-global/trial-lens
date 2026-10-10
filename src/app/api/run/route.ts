@@ -2,7 +2,8 @@
 // VERIFY: Vercel plan limit for maxDuration. Measured runs: ~60-95 s warm/cold; 300 s needs a plan that allows it.
 import { clientIp, createUpstashConcurrencyGate, createUpstashRunGuard } from "@/lib/guards/run-guard";
 import { SupabaseReplayStore } from "@/lib/cache/replay";
-import { getGuardEnv, getPipelineEnv, getSelectionEnv } from "@/lib/env";
+import { getGuardEnv, getPipelineEnv } from "@/lib/env";
+import { effectiveConfigLogFields } from "@/lib/pipeline/log-fields";
 import { handleRun } from "@/lib/pipeline/handler";
 import { createPipelineDeps } from "@/lib/pipeline/deps";
 import { visitorConfig } from "@/lib/visitor-config";
@@ -10,22 +11,6 @@ import { visitorConfig } from "@/lib/visitor-config";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
-
-const cacheWrites = (): boolean | string => {
-  try {
-    return getPipelineEnv().CRITERIA_CACHE_WRITES;
-  } catch {
-    return "env_invalid";
-  }
-};
-
-const selectionMode = (): string => {
-  try {
-    return getSelectionEnv().CTGOV_SELECTION_MODE;
-  } catch {
-    return "env_invalid";
-  }
-};
 
 export function POST(req: Request): Promise<Response> {
   const v = visitorConfig();
@@ -39,6 +24,6 @@ export function POST(req: Request): Promise<Response> {
     replay: new SupabaseReplayStore(),
     makePipeline: createPipelineDeps,
     ip: (r) => clientIp(r.headers),
-    log: (line) => process.stdout.write(JSON.stringify({ ...line, cache_writes: cacheWrites(), selection_mode: selectionMode() }) + "\n"), // counts, timings and fixed codes only
+    log: (line) => process.stdout.write(JSON.stringify({ ...line, ...effectiveConfigLogFields() }) + "\n"), // counts, timings and fixed codes only
   });
 }
