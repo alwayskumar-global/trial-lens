@@ -1,5 +1,7 @@
 # Token Factory data retention and logging: first-party terms read (2026-10-10)
 
+> **ATTESTATION (Kumar, 2026-10-10):** Kumar states that Nebius has confirmed zero data retention for our organisation **in writing**. This is recorded as Kumar's attestation. The confirmation text has not been shared with or reviewed by the agent; Kumar will provide any wording needed for the privacy review later. Sections below are unchanged and still describe only what the public documents say. The privacy and results copy remains **unapproved** (`docs/visitor-flow-copy-review.md`).
+
 Scope: the TASKS item "Data retention / logging terms". **Sources are first-party only**: Nebius legal and documentation pages fetched directly on 2026-10-10 (no third-party sources, no account access). Short quotes only. Nothing here was sent to anyone. **The ZDR gate stays BLOCKED**: the pages document what ZDR does; they cannot show that *our organisation and key* have it. Visitor input stays paused, Stage 3 stays paused, and nothing in this review changed any code, setting or account.
 
 Pages read: [Legal Quick Guide](https://docs.tokenfactory.nebius.com/legal/legal-quick-guide) (the "Guide"), [Token Factory Supplemental Terms](https://docs.nebius.com/legal/token-factory) (the "Terms"), [Data Processing Agreement](https://docs.nebius.com/legal/dpa-il) (the "DPA", Token Factory in Annex 2), [Privacy Policy](https://docs.nebius.com/legal/privacy) (the old Token Factory URL redirects here). Each states that the Terms of Service, DPA and Privacy Policy control over the summary.
