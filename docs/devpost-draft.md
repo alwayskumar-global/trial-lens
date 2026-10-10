@@ -9,7 +9,7 @@
 Trial listings are written for researchers. A patient can't tell which criteria they meet, which are unknown, or what to ask.
 
 ## What it does
-Takes a fictional patient description, reads it into known/unknown facts, pulls recruiting breast-cancer studies live from ClinicalTrials.gov, parses each study's eligibility criteria, and shows a conservative per-study tier with a criterion-by-criterion matrix that keeps the original wording. Unknowns become questions for the study team. Everything is labelled demo, fictional, not medical advice. If services fail, a labelled replay streams instead.
+Takes a fictional patient description (today: one of three prepared fictional examples; typed input is built but switched off until a data-handling review is complete, and **must not be claimed until it passes Preview testing**), reads it into known/unknown facts that the user can review and correct, pulls recruiting breast-cancer studies live from ClinicalTrials.gov, parses each study's eligibility criteria, and shows a conservative per-study tier with a criterion-by-criterion matrix that keeps the original wording. Unknowns become questions for the study team. Everything is labelled demo, fictional, not medical advice. If services fail, a labelled replay streams instead.
 
 ## How we built it
 Next.js 16 on Vercel; SSE pipeline: extraction (Nemotron Nano) → CT.gov discovery → criteria parse (Nemotron Super, cached in Supabase) → evaluation → verification → failure checks → tier ceilings → study-team question panel. Nemotron models run on Nebius Token Factory (OpenAI-compatible, strict JSON schema output). Upstash Redis handles per-IP rate limits and a daily run budget. Hard caps: 80 model HTTP attempts per run.

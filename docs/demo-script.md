@@ -1,5 +1,7 @@
 # Demo script (DRAFT, under 3:00; Kumar records and owns the video)
 
+> **Judge-entered input is NOT yet proven.** The typed-situation flow is built and tested offline only. Until it has passed Preview testing with `VISITOR_INPUT_MODE=open`, and Kumar has approved the ZDR evidence and the privacy and results copy (`docs/visitor-flow-copy-review.md`), record only the fictional-example path below, and do not say or show that viewers can type their own situation. When the typed flow is proven, replace the 0:15-0:35 beat with: type a made-up situation, show "Here is what we understood", correct one detail, then run.
+
 Source: SPEC §8 with the approved deviation (study-team panel, no answer step). Record against the Production URL (or the protected Preview) in **live mode, samples-only**. Use only the prepared fictional profile. Do not type real health information on camera.
 
 Before recording: run one live sample run to confirm the pipeline is up (it spends model credits: Kumar decides). To show replay without spending, use the replay path (external services unreachable or rate-limited); the screen is labelled "replay" and you should say so.
@@ -7,7 +9,7 @@ Before recording: run one live sample run to confirm the pipeline is up (it spen
 | Time | On screen | Say (suggested) |
 |---|---|---|
 | 0:00-0:15 | Describe screen, demo notice visible | "TrialLens is a demo that shows where a fictional breast-cancer patient stands against recruiting trials, what's unknown, and what to ask the study team. It's not medical advice." |
-| 0:15-0:35 | Select the prepared profile → Confirm screen with Known / Unknown chips | "A Nemotron model reads the description into known and unknown facts. Everything here is the patient's own statement, none verified." |
+| 0:15-0:35 | Pick a fictional example (the text box is disabled in this environment) → Confirm screen, read-only, with the details we read | "A Nemotron model reads the description into known and unknown facts. Everything here is the patient's own statement, none verified." |
 | 0:35-1:15 | Run: live stream, counts narrowing (discovered → filtered → selected → assessed) | "It pulls recruiting studies live from ClinicalTrials.gov, parses each study's eligibility text with Nemotron Super through Nebius Token Factory, then evaluates, verifies and checks for failures." |
 | 1:15-1:50 | Results list: tiers and fit lines | "Tiers are deliberately conservative. The strongest we ever show is Possible. We never say someone qualifies or doesn't." |
 | 1:50-2:20 | Open one study: criteria matrix with ✓ ? ⚠ rows, original wording, coordinator questions, NCT link | "Every row keeps the study's original wording. Unknowns turn into questions for the coordinator, with a link to the official record." |

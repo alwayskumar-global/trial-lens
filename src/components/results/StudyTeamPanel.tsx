@@ -75,12 +75,13 @@ function Items({ questions }: { questions: readonly StudyQuestionItem[] }) {
   );
 }
 
-const Body = ({ questions }: { questions: readonly StudyQuestionItem[] }) => (
+export interface PanelCopy { sub: string; note: string }
+const Body = ({ questions, copy }: { questions: readonly StudyQuestionItem[]; copy?: PanelCopy | undefined }) => (
   <>
-    <p className="tl-qcard__sub">{PANEL_SUB}</p>
+    <p className="tl-qcard__sub">{copy?.sub ?? PANEL_SUB}</p>
     <Items questions={questions} />
     <p className="tl-small" style={{ margin: 0, color: "var(--muted-foreground)" }}>
-      {PANEL_NOTE}
+      {copy?.note ?? PANEL_NOTE}
     </p>
   </>
 );
@@ -90,7 +91,7 @@ const Body = ({ questions }: { questions: readonly StudyQuestionItem[] }) => (
  * (small neutral state, never hidden); the caller renders nothing at all when the event never arrived.
  * Desktop: a card with the title. Mobile: a collapsed disclosure whose summary is the title, with no repeated heading inside it.
  */
-export function StudyTeamPanel({ questions }: { questions: readonly StudyQuestionItem[] }) {
+export function StudyTeamPanel({ questions, copy }: { questions: readonly StudyQuestionItem[]; copy?: PanelCopy | undefined }) {
   if (questions.length === 0) {
     return (
       <section
@@ -120,7 +121,7 @@ export function StudyTeamPanel({ questions }: { questions: readonly StudyQuestio
           <h2 className="tl-qcard__q" id="tl-sq">
             {PANEL_TITLE}
           </h2>
-          <Body questions={questions} />
+          <Body questions={questions} copy={copy} />
         </section>
       </div>
       <div className="only-m">
@@ -129,7 +130,7 @@ export function StudyTeamPanel({ questions }: { questions: readonly StudyQuestio
             {PANEL_TITLE} ({questions.length})
           </summary>
           <div className="in stack g16">
-            <Body questions={questions} />
+            <Body questions={questions} copy={copy} />
           </div>
         </details>
       </div>

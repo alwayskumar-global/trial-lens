@@ -1,15 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { FitBar } from "../results/FitBar";
 import { FitLine } from "../results/FitLine";
 import { StudyTeamPanel } from "../results/StudyTeamPanel";
 import { TierBadge, type Tier } from "../status/TierBadge";
-import { LIVE_SUBJECT, NOT_ANALYZED_GROUP, NOT_ANALYZED_GROUP_NOTE, REPLAY_SUBJECT } from "@/lib/live/copy";
+import { NOT_ANALYZED_GROUP, NOT_ANALYZED_GROUP_NOTE, REPLAY_SUBJECT } from "@/lib/live/copy";
 import { cardModel, tierCounts, trialKind, uiTier, type RunState } from "@/lib/live/model";
 import type { TrialResult } from "@/schema/assessment";
 import { CoverageRow } from "./CoverageRow";
 import { FitLegend } from "./FitLegend";
 import { LiveCard } from "./LiveCard";
+import { useLiveCopy } from "./LiveCopy";
 import { LiveShell } from "./LiveShell";
 
 const TIER_NAMES: Record<Tier, string> = { strong: "Strong potential", possible: "Possible", uncertain: "Uncertain", mismatch: "Likely mismatch" };
@@ -17,10 +18,11 @@ const SECTION_NAMES: Record<Tier, string> = { strong: "Strong potential match", 
 const dashedNote = (t: TrialResult) => (trialKind(t) === "pending" ? "not analyzed this run" : trialKind(t) === "failed" ? "couldn't be read" : undefined);
 
 /** Live and replay Results. Replay differs only by its labels and notice; the layout is the same so nothing imitates live progress. */
-export function LiveResults({ run, onOpen }: { run: RunState; onOpen: (nct: string) => void }) {
+export function LiveResults({ run, onOpen, actions }: { run: RunState; onOpen: (nct: string) => void; actions?: ReactNode }) {
+  const lc = useLiveCopy();
   const [filter, setFilter] = useState<Tier | null>(null);
   const replay = run.mode === "replay";
-  const subject = replay ? REPLAY_SUBJECT : LIVE_SUBJECT;
+  const subject = replay ? REPLAY_SUBJECT : lc.subject;
   const trials = run.trials;
   const counts = tierCounts(trials);
   const unfinished = trials.filter((t) => trialKind(t) !== "assessed");
@@ -62,6 +64,7 @@ export function LiveResults({ run, onOpen }: { run: RunState; onOpen: (nct: stri
           </div>
           <FitLegend />
         </div>
+        {actions}
         <div className={run.studyQuestions ? "res-grid" : undefined}>
         <div className="stack g32">
           {sectionTiers.map((k) => {
@@ -96,7 +99,7 @@ export function LiveResults({ run, onOpen }: { run: RunState; onOpen: (nct: stri
         </div>
         {run.studyQuestions && (
           <aside className="sticky rail">
-            <StudyTeamPanel questions={run.studyQuestions} />
+            <StudyTeamPanel questions={run.studyQuestions} copy={replay ? undefined : { sub: lc.panelSub, note: lc.panelNote }} />
           </aside>
         )}
         </div>

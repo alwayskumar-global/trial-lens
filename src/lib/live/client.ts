@@ -22,7 +22,7 @@ export function parseFrames(buffer: string): { events: SseEvent[]; rest: string 
   return { events, rest };
 }
 
-export async function streamRun(body: { text?: string; replay_id?: string }, onEvent: (e: SseEvent) => void, o: { signal?: AbortSignal; fetchImpl?: typeof fetch } = {}): Promise<StreamResult> {
+export async function streamRun(body: { text?: string; replay_id?: string; profile?: unknown; extract_token?: string }, onEvent: (e: SseEvent) => void, o: { signal?: AbortSignal; fetchImpl?: typeof fetch } = {}): Promise<StreamResult> {
   const f = o.fetchImpl ?? fetch;
   let res: Response;
   try {

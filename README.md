@@ -6,7 +6,7 @@ Built for the Nebius / NVIDIA Nemotron hackathon. **Demo only. Not medical advic
 
 ## What it does
 
-1. A prepared **fictional** patient description is read into known and unknown facts (Nemotron Nano via Nebius Token Factory).
+1. A **fictional** patient description is read into known and unknown facts (Nemotron Nano via Nebius Token Factory) on a "Here is what we understood" screen. With `VISITOR_INPUT_MODE=open` the visitor can type a made-up situation and correct, add or remove any detail; with `samples` (the current setting) only the three prepared fictional examples work, typing is visibly disabled, and the review is read-only. `/api/run` accepts the reviewed profile only with the server-signed extraction token.
 2. Recruiting interventional breast-cancer studies are pulled live from the ClinicalTrials.gov API v2.
 3. Each study's eligibility text is parsed into criteria (Nemotron Super, cached in Supabase by study version and parser version).
 4. Criteria are evaluated against the stated facts, verified, and checked for failures. Results stream to the browser over SSE.
@@ -64,7 +64,7 @@ All variables are server-side except the one marked public. Never prefix a secre
 | `SUPABASE_SERVICE_ROLE_KEY` | live run | none | Secret; bypasses RLS. |
 | `UPSTASH_REDIS_REST_URL` | live run | none | |
 | `UPSTASH_REDIS_REST_TOKEN` | live run | none | Secret. |
-| `PROFILE_SIGNING_SECRET` | `/api/extract` | none | Secret, 32+ chars. Signs extraction tokens. |
+| `PROFILE_SIGNING_SECRET` | the review flow | none | Secret, 32+ chars. Signs extraction tokens; needed in every mode. Without it the UI falls back to the original fixed flow. |
 | `RATE_LIMIT_IP_SALT` | only if `VISITOR_INPUT_MODE=open` | none | Secret, 16+ chars. |
 | `VISITOR_INPUT_MODE` | no | `samples` | `samples` accepts only the prepared fictional texts. `open` is gated, see Privacy. |
 | `CTGOV_API_BASE` | no | `https://clinicaltrials.gov/api/v2` | |
@@ -102,7 +102,7 @@ There is **no accuracy headline**. What exists are development checks, and none 
 
 ## Privacy
 
-The shipped demo runs `VISITOR_INPUT_MODE=samples`: only the prepared fictional texts are accepted, so visitor-typed text never reaches the model provider. The UI states: "TrialLens does not store your information." Free-text input from real visitors stays disabled until zero data retention is confirmed in writing for our Token Factory organisation and the privacy copy is re-approved (`docs/token-factory-data-terms.md`). Logs carry counts and configuration, not profile text. Redis holds a hashed IP and a counter.
+The shipped demo runs `VISITOR_INPUT_MODE=samples`: only the prepared fictional texts are accepted, so visitor-typed text never reaches the model provider. The typed-input flow is built and tested offline but not yet proven on a deployed Preview, and the server gate stays closed. `GET /api/input-mode` reports the effective mode so the UI shows a disabled text box instead of one the server would refuse. The UI states: "TrialLens does not store your information." Free-text input from real visitors stays disabled until zero data retention is confirmed in writing for our Token Factory organisation and the privacy copy is re-approved (`docs/token-factory-data-terms.md`). Logs carry counts and configuration, not profile text. Redis holds a hashed IP and a counter.
 
 ## Safety statement
 

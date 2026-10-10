@@ -1,12 +1,14 @@
 import { coverage, type RunState } from "@/lib/live/model";
+import { useLiveCopy } from "./LiveCopy";
 
 /** assessed / not analyzed this run / couldn't be read: always three separate figures (zero included). */
 export function CoverageRow({ run, replay }: { run: Pick<RunState, "counts" | "trials">; replay: boolean }) {
   const c = coverage(run);
+  const lc = useLiveCopy();
   const { discovered, filtered, selected } = run.counts;
   const parts = [
     discovered !== undefined && `${discovered} recruiting studies found`,
-    filtered !== undefined && `${filtered} fit ${replay ? "this profile's" : "the prepared fictional profile's"} age and sex`,
+    filtered !== undefined && `${filtered} ${replay ? "fit this profile's age and sex" : lc.discoveryFit}`,
     selected !== undefined && `${selected} selected for review`,
   ].filter(Boolean);
   return (

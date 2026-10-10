@@ -3,16 +3,18 @@ import { Button } from "../actions/Button";
 import { CriterionGroup } from "../results/CriterionStrip";
 import { StatusGlyph } from "../status/StatusGlyph";
 import { TierBadge } from "../status/TierBadge";
-import { FAILED_DETAIL, FAILED_TAG, LIVE_SUBJECT, OPEN_ON_CTGOV, PENDING_DETAIL, PENDING_TAG, REPLAY_SUBJECT, secondComparison } from "@/lib/live/copy";
+import { FAILED_DETAIL, FAILED_TAG, OPEN_ON_CTGOV, PENDING_DETAIL, PENDING_TAG, REPLAY_SUBJECT, secondComparison } from "@/lib/live/copy";
 import { detailModel, uiTier, type RunState } from "@/lib/live/model";
 import type { TrialResult } from "@/schema/assessment";
 import { CriterionRow } from "./CriterionRow";
+import { useLiveCopy } from "./LiveCopy";
 import { LiveShell } from "./LiveShell";
 
 /** Detail for a streamed trial: verbatim criteria with what they were compared to, and the official ClinicalTrials.gov link. */
 export function LiveDetail({ run, trial: t, onBack }: { run: RunState; trial: TrialResult; onBack: () => void }) {
+  const lc = useLiveCopy();
   const replay = run.mode === "replay";
-  const subject = replay ? REPLAY_SUBJECT : LIVE_SUBJECT;
+  const subject = replay ? REPLAY_SUBJECT : lc.subject;
   const m = detailModel(t, run.profile);
   const unfinished = m.kind !== "assessed";
   return (
@@ -106,7 +108,7 @@ export function LiveDetail({ run, trial: t, onBack }: { run: RunState; trial: Tr
                   {t.verified && t.tier !== "LIKELY_MISMATCH" && (
                     <li>
                       <StatusGlyph status="neutral" />
-                      <span>{secondComparison(subject)}</span>
+                      <span>{secondComparison(subject, lc.plural && !replay)}</span>
                     </li>
                   )}
                 </ul>

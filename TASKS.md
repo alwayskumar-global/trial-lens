@@ -126,9 +126,9 @@ Write throwaway scripts in `/eval/spike`. Record results in `/docs/spike-results
 ## Phase 4 — UI (Oct 14–21, overlaps Phase 3)
 Figma first for hero screens (Oct 6–10), then build.
 - [ ] Screen 1 Describe (+ 3 fictional sample profiles)
-  - **PARTIAL.** Fixed fictional Describe exists; 3 prepared profiles exist (`src/lib/sample/replay-profiles.ts`) but the UI shows one. **Editable input DEFERRED** (Stage 3 paused).
+  - **PARTIAL (2026-10-10, Stage 3 UI authorized by Kumar).** Built: "Your situation" textarea plus the 3 fictional examples (`src/components/visitor/VisitorDescribe.tsx`), wired to `/api/extract`. Tested offline and in a local browser with mocked responses only. **Not proven on a deployed Preview.** The server gate stays closed (`VISITOR_INPUT_MODE=samples`): in that state the textarea is visibly disabled and only the fictional examples work. Copy is PROPOSED and awaiting approval (`docs/visitor-flow-copy-review.md`).
 - [ ] Screen 2 Confirm (Known/Unknown/Uncertain chips, editable)
-  - **PARTIAL.** Read-only confirm of the prepared fictional profile. **Editable chips DEFERRED** (Stage 3 paused).
+  - **PARTIAL (2026-10-10).** "Here is what we understood": editable facts (change value, sure / not sure, remove, add), validated like the server, signed `/api/run` with the extraction token (`VisitorConfirm.tsx`, `src/lib/visitor/*`). Read-only when the server is in samples mode. No location or travel control (distance filtering does not exist). **Not proven on a deployed Preview.**
 - [x] Screen 3 Processing (live stage stream and counts)
   - Evidence: `LiveProcessing`/`Processing`, approved states in `docs/live-ui-proposal.md`, `live.test.tsx`.
 - [ ] Screen 4 Results (tier counts, cards, adaptive panel)
@@ -184,6 +184,9 @@ Figma first for hero screens (Oct 6–10), then build.
   - Not started (**KUMAR-OWNED**).
 - [ ] Set a weekly reminder to check credits/spend until Dec 15
   - Not started (**KUMAR-OWNED**).
+
+## Judge-entered input (Kumar, 2026-10-10: now a release requirement)
+Stage 3 UI implemented and tested offline (mocked provider and fetch; real `/api/extract` and `/api/run` handlers in `src/lib/visitor/flow.test.ts`). **It has NOT passed Preview testing and nothing may claim that judge-entered input works.** The server gate is unchanged: `VISITOR_INPUT_MODE=samples` until Kumar provides written Nebius organisation-level ZDR confirmation and approves the visitor-facing privacy and results copy. Activation sequence: `docs/release-runbook.md` ("Activating judge-entered input"). Copy packet: `docs/visitor-flow-copy-review.md`. New read-only endpoint `GET /api/input-mode` lets the UI show a gated state instead of a text box the server would refuse.
 
 ## Release baseline (2026-10-10 submission-readiness sprint)
 Samples-only live-mode build (`NEXT_PUBLIC_UI_MODE=live`, `VISITOR_INPUT_MODE=samples`). Runbook: `docs/release-runbook.md`. Unchanged and stated honestly: vocabulary gate NOT MET, Rule D never exercised live, 300 s limit unproven, ZDR gate BLOCKED, billing reconciliation open. Production untouched; nothing merged or published. Paused/historical items above (Stage 3, `open` mode, adaptive answer path, cache warm-up execution, DEEP escalation, Playwright) are not part of the baseline.

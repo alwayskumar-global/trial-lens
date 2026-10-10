@@ -185,3 +185,19 @@
 .tl-qlist li::before{content:counter(q);width:26px;height:26px;border-radius:50%;background:var(--primary-soft);color:var(--primary);display:grid;place-items:center;font:600 13px/1 var(--font-sans)}
 @media print{.tl-actions,.tl-safety{display:none}}
 @media(max-width:700px){.tl-strip summary{grid-template-columns:1fr auto}.tl-strip__summary-plain{display:none}.tl-strip__body{grid-template-columns:1fr}.tl-card{padding:20px}}
+
+/* Visitor flow: editable facts on the Confirm screen */
+.tl-facts{display:flex;flex-direction:column;gap:12px}
+.tl-fact{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;gap:8px 12px;align-items:center;padding:12px 0;border-top:1px solid var(--border)}
+.tl-fact:first-child{border-top:0}
+.tl-fact__label{font:600 16px/24px var(--font-sans);color:var(--foreground);grid-column:1/-1}
+.tl-fact--add{grid-template-columns:minmax(0,1fr) auto}
+.tl-fact--add .tl-fact__label{grid-column:auto}
+.tl-fact__num{display:inline-flex;align-items:center;gap:8px}
+.tl-fact__input,.tl-fact__sure{min-height:var(--target-min,44px);font:400 16px/24px var(--font-sans);color:var(--foreground);background:var(--card);border:1.5px solid var(--input);border-radius:var(--radius);padding:8px 12px;max-width:100%}
+.tl-fact__num .tl-fact__input{width:8.5em}
+.tl-fact__input:hover,.tl-fact__sure:hover{border-color:var(--foreground)}
+.tl-fact__input:focus-visible,.tl-fact__sure:focus-visible{outline:var(--ring-width,2px) solid var(--ring);outline-offset:2px}
+.tl-fact--error .tl-fact__input{border-color:var(--tier-mismatch-fg)}
+.tl-fact__err{grid-column:1/-1;margin:0;font:500 14px/20px var(--font-sans);color:var(--tier-mismatch-fg)}
+@media (max-width:560px){.tl-fact{grid-template-columns:minmax(0,1fr) auto}.tl-fact__label,.tl-fact>select.tl-fact__input,.tl-fact__num{grid-column:1/-1}.tl-fact__num .tl-fact__input{flex:1;width:auto;min-width:0}.tl-fact>select.tl-fact__input{width:100%}.tl-fact__sure{justify-self:start}.tl-fact .tl-btn{justify-self:end}}
