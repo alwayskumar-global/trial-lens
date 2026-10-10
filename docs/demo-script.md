@@ -18,4 +18,4 @@ Before recording: run one live sample run to confirm the pipeline is up (it spen
 
 If time: the fallback when a limit is hit shows "View a saved fictional example", clearly labelled, not an analysis of the typed details. Replay mode with external services disabled, labelled "replay".
 
-Do not claim: accuracy numbers, that selected studies are matches, that POSSIBLE means eligible, that Rule D has run live, that anything is clinically validated, or that visitor text is accepted (samples-only).
+Do not claim: accuracy numbers, that selected studies are matches, that POSSIBLE means eligible, that Rule D has run live, that anything is clinically validated, that TrialLens enforces a dollar spend limit, or that provider retention is anything more than owner-attested.
