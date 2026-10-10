@@ -74,3 +74,16 @@ Source: `done.stats.usage` (`u-1`). Counts only. Cost is ESTIMATED from reported
 - Tokens: 128,554 prompt and 107,880 completion, about 2,040 in and 1,710 out per attempt, in line with the live-run parse averages (1.9-2.0k in, 1.6-1.65k out).
 - **Estimated cost $0.1357** from reported usage (expected from the measured average: $0.1155 for 55 first attempts; the 8 retries account for the difference). The conditional reservation (budget $0.75, ceiling 110) never halted; no assumption (prompt tokens <= body bytes + 64; completion <= max_tokens; usage reported) was violated in 63 attempts. This is an estimate from reported usage, not an invoice; the Token Factory Usage tab is the check.
 - 26 of 31 planned trials were written; 5 chunks failed validation twice and were skipped.
+
+
+## Measured usage: third live run, the new selector with a warmed cache (2026-10-10; her2pos-stage3; cache writes OFF; effective `max_calls` 80)
+| Stage / tier | Logical calls | tokens in / out |
+|---|---|---|
+| extraction / FAST | 1 | 639 / 5,040 |
+| parse / MID (6 chunks of the 4 uncached trials) | 6 | 21,447 / 18,134 |
+| evaluate / MID (one per trial; the run budget allowed 22) | 22 | 14,419 / 14,685 |
+| verify / MID | 8 | 4,648 / 1,031 |
+| fail checks | 0 | |
+| **Total** | **37 logical, 40 HTTP attempts** | **41,153 / 38,890** |
+
+Estimated cost **$0.044** from reported usage (all 37 calls reported usage; attempts that returned no reply, if any, carry no tokens). 28 trials assessed, 0 pending, 2 failed to parse; 102.0 s client duration, 101.2 s application wall time. Compared with the first two live runs ($0.041, $0.037) the cost is similar even though 28 rather than 7-9 trials were assessed, because the run budget caps evaluate calls at 22 and parse calls fell from 14 to 6. Estimate, not an invoice.
