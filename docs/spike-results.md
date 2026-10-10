@@ -199,7 +199,7 @@ Node v22.22.0, pnpm 10.28.0, run from repo root. Status labels: **confirmed loca
 - SSE: streams incrementally for 70 s **locally** (`next start`). Vercel not tested.
 
 **Not done / needs the founder**
-- Token Factory data-retention/logging terms: **not verified** (governs README privacy wording; keep "does not store your information" off until verified).
+- Token Factory data-retention/logging terms: first-party documentation read 2026-10-10 (`docs/token-factory-data-terms.md`); platform behaviour documented, but ZDR for OUR organisation/key is **not verified** (needs written confirmation; support question drafted, not sent). Governs README privacy wording; keep "does not store your information" off until verified.
 - Vercel SSE ≥ 60 s on your plan: deploy with `SPIKE_SSE_ENABLED=true` on a Preview env only, then run `SSE_BASE_URL=https://<preview> pnpm spike:sse` (add Vercel deployment-protection bypass if the preview is protected; do not make it public). Remove the route after.
 - Tool calling: **not tested** (not used by the current design).
 - Cost per run: **not computed** (no Token Factory pricing in hand; tokens per call recorded in 02 only). Latency p50/p95 recorded for single-criterion calls; end-to-end run latency not measured.
