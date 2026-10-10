@@ -1,14 +1,15 @@
-import { coverage, type RunState } from "@/lib/live/model";
+import { discoveryFitText } from "@/lib/live/copy";
+import { appliedFilters, coverage, type RunState } from "@/lib/live/model";
 import { useLiveCopy } from "./LiveCopy";
 
 /** assessed / not analyzed this run / couldn't be read: always three separate figures (zero included). */
-export function CoverageRow({ run, replay }: { run: Pick<RunState, "counts" | "trials">; replay: boolean }) {
+export function CoverageRow({ run, replay }: { run: Pick<RunState, "counts" | "trials" | "profile">; replay: boolean }) {
   const c = coverage(run);
   const lc = useLiveCopy();
   const { discovered, filtered, selected } = run.counts;
   const parts = [
     discovered !== undefined && `${discovered} recruiting studies found`,
-    filtered !== undefined && `${filtered} ${replay ? "fit this profile's age and sex" : lc.discoveryFit}`,
+    filtered !== undefined && discoveryFitText(appliedFilters(run.profile), replay ? "replay" : lc.who, filtered),
     selected !== undefined && `${selected} selected for review`,
   ].filter(Boolean);
   return (

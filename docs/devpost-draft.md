@@ -9,7 +9,7 @@
 Trial listings are written for researchers. A patient can't tell which criteria they meet, which are unknown, or what to ask.
 
 ## What it does
-Takes a fictional patient description (today: one of three prepared fictional examples; typed input is built but switched off until a data-handling review is complete, and **must not be claimed until it passes Preview testing**), reads it into known/unknown facts that the user can review and correct, pulls recruiting breast-cancer studies live from ClinicalTrials.gov, parses each study's eligibility criteria, and shows a conservative per-study tier with a criterion-by-criterion matrix that keeps the original wording. Unknowns become questions for the study team. Everything is labelled demo, fictional, not medical advice. If services fail, a labelled replay streams instead.
+Takes a made-up (fictional) patient description typed by the judge or picked from three examples, reads it into known/unknown facts that the user reviews and corrects (change, mark "not sure", remove, add), signs the reviewed profile server-side, pulls recruiting breast-cancer studies live from ClinicalTrials.gov, parses each study's eligibility criteria, and shows a conservative per-study tier with a criterion-by-criterion matrix that keeps the original wording. Unknowns become questions for the study team. Everything is labelled demo, fictional, not medical advice. If services fail, a labelled replay streams instead.
 
 ## How we built it
 Next.js 16 on Vercel; SSE pipeline: extraction (Nemotron Nano) → CT.gov discovery → criteria parse (Nemotron Super, cached in Supabase) → evaluation → verification → failure checks → tier ceilings → study-team question panel. Nemotron models run on Nebius Token Factory (OpenAI-compatible, strict JSON schema output). Upstash Redis handles per-IP rate limits and a daily run budget. Hard caps: 80 model HTTP attempts per run.
@@ -23,7 +23,7 @@ Nemotron 3 Nano (FAST) for extraction; Nemotron 3 Super (MID) for parsing, evalu
 - Keeping the pipeline inside serverless limits and a spend ceiling.
 
 ## Honest limits
-No accuracy headline. Vocabulary-coverage gate not met. Fail checks never run live. 300 s function limit unproven (longest live run 102 s). No clinician review. Fictional profiles only; real input stays off until zero data retention is confirmed in writing. Dataset annotations parked, not validated.
+No accuracy headline. Typed input is for made-up situations only; the text is sent to Nebius Token Factory (zero data retention is owner-attested, not independently verified) and TrialLens stores none of it. Extraction is conservative and can miss stated facts; sparse profiles surface loosely related studies. Vocabulary-coverage gate not met. Fail checks never run live. 300 s function limit unproven (longest live run 102 s). No clinician review. Fictional profiles only; real input stays off until zero data retention is confirmed in writing. Dataset annotations parked, not validated.
 
 ## Feedback for Nebius Token Factory / AI Cloud / NVIDIA (from our spike notes; edit for tone and accuracy)
 - Strict `json_schema` worked on all three Nemotron tiers (first-attempt valid: Nano 98%, Super 100%, Ultra 92% on 50 criteria). Document per-model limits and truncation behaviour.

@@ -1,7 +1,7 @@
 import { LensRings } from "../brand/LensRings";
 import { StageList, type Stage } from "../feedback/StageList";
-import { PROCESSING_FOOT, PROCESSING_TITLE, STAGE_LABELS } from "@/lib/live/copy";
-import type { RunState } from "@/lib/live/model";
+import { discoveryFitText, PROCESSING_FOOT, PROCESSING_TITLE, STAGE_LABELS } from "@/lib/live/copy";
+import { appliedFilters, type RunState } from "@/lib/live/model";
 import { useLiveCopy, type LiveCopyValue } from "./LiveCopy";
 import { LiveShell } from "./LiveShell";
 
@@ -10,7 +10,7 @@ function stageCount(stage: string, s: RunState, c: LiveCopyValue): string {
   if (stage === "extraction" && s.profile) return `${s.profile.length} details found`;
   if (stage === "discovery") {
     const { discovered, filtered, selected } = s.counts;
-    const parts = [discovered !== undefined && `${discovered} found`, filtered !== undefined && `${filtered} ${c.discoveryFit}`, selected !== undefined && `${selected} selected`].filter(Boolean);
+    const parts = [discovered !== undefined && `${discovered} found`, filtered !== undefined && discoveryFitText(appliedFilters(s.profile), c.who, filtered), selected !== undefined && `${selected} selected`].filter(Boolean);
     return parts.join(" · ");
   }
   return "";

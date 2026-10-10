@@ -46,6 +46,23 @@ export function replayNotice(reason: ReplayReason | undefined, label?: string): 
   }
 }
 
+/**
+ * The discovery count sentence says only which filters were applied. `who`: "fixed" = the prepared fictional profile, "replay" = a saved example, "visitor" = typed details.
+ * When the filter state is unknown (an old replay without the profile event) the sentence names no filter.
+ */
+/** Results note (all live modes): what "selected for review" and the tiers do and do not mean. */
+export const R_NOTE_FIXED = "These are recruiting breast-cancer studies this demo selected to read. Selection is not a match. Possible match means no conflict was found with the prepared fictional profile, not confirmed eligibility. Only a study team can confirm.";
+export const R_NOTE_REPLAY = "These are recruiting breast-cancer studies selected for a saved fictional example. Selection is not a match. Possible match means no conflict was found with the fictional profile, not confirmed eligibility. Only a study team can confirm.";
+
+export type FilterWho = "fixed" | "replay" | "visitor";
+export function discoveryFitText(applied: { age: boolean; sex: boolean } | null, who: FilterWho, n: number): string {
+  if (!applied) return `${n} after filtering`;
+  const owner = who === "visitor" ? "you entered" : who === "replay" ? "of this profile" : "of the prepared fictional profile";
+  const noun = applied.age && applied.sex ? "age and sex" : applied.age ? "age" : applied.sex ? "sex" : "";
+  if (!noun) return "no age or sex filter applied";
+  return who === "visitor" ? `${n} fit the ${noun} you entered` : `${n} fit the ${noun} ${owner}`;
+}
+
 export const PENDING_TAG = "Not analyzed this run";
 export const FAILED_TAG = "Couldn't be read";
 export const PENDING_CARD = "This run didn't have capacity to read this study's criteria, so we can't say how it fits. It stays Uncertain. Read the original criteria on ClinicalTrials.gov or ask the study team.";

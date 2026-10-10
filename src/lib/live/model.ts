@@ -21,8 +21,15 @@ export interface Counts {
 }
 export interface ProfileFact {
   key: string;
+  /** known = used by the prefilter; uncertain facts are shown but never filter. */
+  state?: "known" | "uncertain";
   value?: string | number | boolean;
 }
+
+/** Which discovery filters were actually applied. The server filters on age and sex only when each is a KNOWN fact (run.ts); uncertain or missing never filters. */
+export interface AppliedFilters { age: boolean; sex: boolean }
+export const appliedFilters = (profile: readonly ProfileFact[] | null): AppliedFilters | null =>
+  profile ? { age: profile.some((f) => f.key === "age" && f.state === "known"), sex: profile.some((f) => f.key === "sex" && f.state === "known") } : null;
 export interface RunState {
   status: "idle" | "connecting" | "streaming" | "done" | "error";
   mode: "live" | "replay" | null;
@@ -58,7 +65,7 @@ export function reduceRun(s: RunState, a: RunAction): RunState {
       return { ...s, stages };
     }
     case "profile":
-      return { ...s, profile: a.facts.map((f) => ({ key: f.key, ...(f.value !== undefined ? { value: f.value } : {}) })) };
+      return { ...s, profile: a.facts.map((f) => ({ key: f.key, state: f.state, ...(f.value !== undefined ? { value: f.value } : {}) })) };
     case "counts": {
       const { type: _t, analyzed: _legacy, ...c } = a; // `analyzed` is deprecated and ambiguous: never shown
       void _t; void _legacy;

@@ -1,6 +1,17 @@
-# Visitor-flow copy review packet (PROPOSED; nothing here is approved)
+# Visitor-flow copy packet (APPROVED by Kumar 2026-10-10, subject to the accuracy fixes below, which are applied)
 
-Status: for Kumar's review. All strings live in `src/lib/visitor/copy.ts` and are used **only** when the server reports `VISITOR_INPUT_MODE=open`. In `samples` mode (current Preview and Production) the approved fictional-profile copy in `src/lib/live/copy.ts` and the approved footer are unchanged.
+Status: **approved with fixes, applied in the release-candidate commit.** Kumar approved the screenshots and this copy on condition that: (1) the Processing sentence describes only filters actually applied; (2) Describe and Results say the demo reviews breast-cancer studies, and "selected for review" and POSSIBLE do not imply confirmed eligibility; (3) the disclosure names Nebius Token Factory; (4) storage claims appear only where the code audit supports them. Nebius ZDR confirmation is **owner-attested** (Kumar states he holds written organisation-level confirmation; the document was not shared and the UI makes no claim about provider retention).
+
+## 0. Final copy changes (release candidate)
+- **Processing / coverage sentence** (`discoveryFitText`): built from the filters the server actually applied (age and sex only when each is a KNOWN fact): "N fit the age and sex you entered" / "... the age you entered" / "... the sex you entered" / "no age or sex filter applied" (neither). Saved examples and the prepared profile use "of this profile" / "of the prepared fictional profile". Unknown filter state names no filter ("N after filtering"). Tested for all four cases plus uncertain facts.
+- **Describe (open and gated):** adds "This demo searches recruiting breast-cancer studies only."
+- **Results note (all live modes, one line under the coverage row):** "These are recruiting breast-cancer studies this demo selected to read. Selection is not a match. Possible match means no conflict was found with the details you entered, not confirmed eligibility. Only a study team can confirm." (fictional-profile and saved-example variants for those modes.)
+- **Disclosure and footer (open mode):** "...is sent to Nebius Token Factory, an AI model provider, to be read. TrialLens does not store it." / footer "TrialLens does not store what you enter. Your text is sent to Nebius Token Factory, an AI model provider, to be read." No statement about the provider's retention anywhere in the UI.
+- **Storage claim audit:** "TrialLens does not store" is supported by the code: no table holds visitor text; function logs carry counts, timings and fixed codes (a text search of the Preview logs found no match); Redis holds a hashed IP and counters; the signed extraction token carries structured facts and is held in browser memory only; the page uses no localStorage. The samples-mode footer keeps the approved wording.
+
+(Sections 1 and 2 below are the original proposal text, kept for the record; where they differ, section 0 and the table in section 3 win.)
+
+Original status line: for Kumar's review. All strings live in `src/lib/visitor/copy.ts` and are used **only** when the server reports `VISITOR_INPUT_MODE=open`. In `samples` mode (current Preview and Production) the approved fictional-profile copy in `src/lib/live/copy.ts` and the approved footer are unchanged.
 
 ## 1. Audits you asked for
 
@@ -54,39 +65,39 @@ Status: for Kumar's review. All strings live in `src/lib/visitor/copy.ts` and ar
 | `D_EMPTY` | Describe a situation to continue. |
 | `D_HELPER` | For example: age, type and stage of cancer, treatments so far. Use a made-up situation. |
 | `D_LABEL` | Your situation |
-| `D_LEAD` | Describe a situation in your own words. We'll show what we understood before anything is searched. |
+| `D_LEAD` | Describe a situation in your own words. We'll show what we understood before anything is searched. This demo searches recruiting breast-cancer studies only. |
 | `D_PLACEHOLDER` | I'm 58 and was diagnosed with stage II breast cancer that is hormone receptor positive… |
-| `D_PRIVACY` | Please don't type your name, contact details or real medical records. This is a demo: use a made-up or fictional situation. What you type is sent to an AI model provider to be read, and TrialLens does not keep it. |
+| `D_PRIVACY` | Please don't type your name, contact details or real medical records. This is a demo: use a made-up or fictional situation. What you type is sent to Nebius Token Factory, an AI model provider, to be read. TrialLens does not store it. |
 | `D_SAMPLES_HEADING` | Or start from a fictional example |
 | `D_TAG` | Demo · fictional situations only |
 | `D_TITLE` | Find clinical trials worth asking about. |
 | `EXAMPLE_BUTTON` | View a saved fictional example |
 | `FOOTER_CURRENT` | TrialLens does not store your information. |
-| `FOOTER_OPEN` | TrialLens does not store what you enter. Your text is sent to an AI model provider to be read. |
+| `FOOTER_OPEN` | TrialLens does not store what you enter. Your text is sent to Nebius Token Factory, an AI model provider, to be read. |
 | `G_LOADING` | Checking what this demo allows… |
-| `G_NOTICE_BODY` | You can still try the whole flow with a fictional example below. Free-text input is enabled only after our data-handling review. |
+| `G_NOTICE_BODY` | You can still try the whole flow with a fictional example below. This demo searches recruiting breast-cancer studies only. |
 | `G_NOTICE_TITLE` | Typing a new situation is switched off in this demo environment |
 | `G_PLACEHOLDER` | Choose a fictional example below. |
 | `REPLAY_REASON_FOR_EXAMPLE` | requested |
 | `RETRY_BUTTON` | Try again |
 | `V_BANNER` | TrialLens compares public trial criteria with the details you entered. It can't confirm eligibility, and it hasn't checked your details. Only a study team can confirm. |
-| `V_DISCOVERY_FIT` | fit the age and sex you entered |
 | `V_EDIT` | Edit details and search again |
 | `V_EXTRACTION_STAGE` | Reading the details you entered |
 | `V_PANEL_NOTE` | These questions relate to the details you entered. They do not change the results shown. |
 | `V_PANEL_SUB` | Some criteria in these studies can't be checked from the details you entered. The study team can confirm the detail. |
 | `V_PROCESSING_LEAD` | We're reading public trial criteria against the details you entered. Nothing here is a decision. It's a map to bring to your care team. |
 | `V_RESTART` | Describe a different situation |
+| `V_RESULTS_NOTE` | These are recruiting breast-cancer studies this demo selected to read. Selection is not a match. Possible match means no conflict was found with the details you entered, not confirmed eligibility. Only a study team can confirm. |
 | `V_SUBJECT` | your details |
 | `extractError(413, input_too_long)` | **That's longer than this demo can read** Shorten the description and try again. |
 | `extractError(400, bad_request)` | **We couldn't use that text** Check that it isn't empty, then try again. |
-| `extractError(403, visitor_input_disabled)` | **Typing a new situation is switched off in this demo environment** You can still try the whole flow with a fictional example below. Free-text input is enabled only after our data-handling review. |
+| `extractError(403, visitor_input_disabled)` | **Typing a new situation is switched off in this demo environment** You can still try the whole flow with a fictional example below. This demo searches recruiting breast-cancer studies only. |
 | `extractError(429, rate_limited)` | **You've reached the hourly limit** Reading a new situation is limited each hour. Try a fictional example, or come back later. |
 | `extractError(403, forbidden)` | **This request was blocked** Reload the page and try again. |
 | `extractError(0, network)` | **We couldn't reach the server** Check your connection and try again. |
 | `extractError(503, model_unavailable)` | **Reading your situation isn't available right now** Please try again later, or try a fictional example. |
 | `runError(401, invalid_token)` | **Your details need to be read again** The review session expired or couldn't be confirmed. Nothing was searched. Go back and read your situation again. |
-| `runError(403, visitor_input_disabled)` | **Typing a new situation is switched off in this demo environment** You can still try the whole flow with a fictional example below. Free-text input is enabled only after our data-handling review. |
+| `runError(403, visitor_input_disabled)` | **Typing a new situation is switched off in this demo environment** You can still try the whole flow with a fictional example below. This demo searches recruiting breast-cancer studies only. |
 | `runError(429, rate_limited)` | **You've reached the hourly limit for live analysis** Nothing was searched. You can view a saved fictional example instead, which is not an analysis of your details. |
 | `runError(400, bad_request)` | **We couldn't use those details** Go back, check each detail, and try again. |
 | `runError(503, guard_unavailable)` | **Live analysis isn't available right now** No results are available from this run. You can view a saved fictional example instead, which is not an analysis of your details. |

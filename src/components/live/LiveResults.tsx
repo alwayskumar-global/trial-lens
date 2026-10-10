@@ -4,7 +4,7 @@ import { FitBar } from "../results/FitBar";
 import { FitLine } from "../results/FitLine";
 import { StudyTeamPanel } from "../results/StudyTeamPanel";
 import { TierBadge, type Tier } from "../status/TierBadge";
-import { NOT_ANALYZED_GROUP, NOT_ANALYZED_GROUP_NOTE, REPLAY_SUBJECT } from "@/lib/live/copy";
+import { NOT_ANALYZED_GROUP, NOT_ANALYZED_GROUP_NOTE, REPLAY_SUBJECT, R_NOTE_REPLAY } from "@/lib/live/copy";
 import { cardModel, tierCounts, trialKind, uiTier, type RunState } from "@/lib/live/model";
 import type { TrialResult } from "@/schema/assessment";
 import { CoverageRow } from "./CoverageRow";
@@ -38,6 +38,9 @@ export function LiveResults({ run, onOpen, actions }: { run: RunState; onOpen: (
         <div className="stack g12">
           <h1 className="tl-h1">{run.counts.selected ?? trials.length} studies selected for review</h1>
           <CoverageRow run={run} replay={replay} />
+          <p className="tl-small" style={{ margin: 0, color: "var(--muted-foreground)", maxWidth: "72ch" }}>
+            {replay ? R_NOTE_REPLAY : lc.resultsNote}
+          </p>
           <div className="summary">
             {tiers.map((k) => (
               <TierBadge key={k} tier={k} label={counts[k] + " " + TIER_NAMES[k]} />

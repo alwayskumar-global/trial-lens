@@ -13,6 +13,7 @@ const run = (...as: RunAction[]): RunState => as.reduce(reduceRun, initialRun);
 const resultsRun = (mode: "live" | "replay") =>
   run(
     { type: "mode", mode, ...(mode === "replay" ? { reason: "rate_limited" as const, label: "Fictional profile: stage III" } : {}) },
+    { type: "profile", facts: [{ key: "age", state: "known", value: 52 }, { key: "sex", state: "known", value: "female" }] },
     { type: "counts", discovered: 120, filtered: 115, selected: 5 },
     ...[assessedPossible, noMet, pending, failed, mismatch].map((t): RunAction => ({ type: "trial_result", assessment: t })),
     { type: "counts", assessed: 3, pending: 1, failed: 1 },
@@ -32,7 +33,7 @@ describe("LiveProcessing", () => {
     );
     expect(later).toContain("2 details found");
     expect(later).toContain("Reading the prepared fictional profile");
-    expect(later).toContain("120 found · 115 fit the prepared fictional profile&#x27;s age and sex · 30 selected");
+    expect(later).toContain("120 found · 115 fit the age and sex of the prepared fictional profile · 30 selected");
     for (const h of [early, later]) {
       expect(h).not.toMatch(/\d\s?%/);
       expect(h).not.toMatch(/under a minute|usually takes|seconds|Skip/i);
@@ -90,7 +91,9 @@ describe("LiveResults", () => {
     expect(h).toContain("1 not analyzed this run");
     expect(h).toContain("1 couldn&#x27;t be read");
     expect(h).toContain("5 studies selected for review");
-    expect(h).toContain("120 recruiting studies found, 115 fit the prepared fictional profile&#x27;s age and sex, 5 selected for review");
+    expect(h).toContain("120 recruiting studies found, 115 fit the age and sex of the prepared fictional profile, 5 selected for review");
+    expect(h).toContain("Selection is not a match");
+    expect(h).toContain("not confirmed eligibility");
     expect(h).toContain("Not analyzed or couldn&#x27;t be read");
     expect(h).toContain("They are not matches or mismatches");
     expect(h).toContain("Live run");
@@ -130,7 +133,7 @@ describe("LiveResults", () => {
     expect(h).toContain("This page shows saved results for a fictional profile. No new analysis is running.");
     expect(h).not.toMatch(/your description/);
     expect(h).toContain("compares public trial criteria with a fictional profile");
-    expect(h).toContain("this profile&#x27;s age and sex");
+    expect(h).toContain("115 fit the age and sex of this profile");
     expect(h).not.toContain("Live run");
     expect(h).not.toMatch(/Analyzing live|Skip to results/);
   });

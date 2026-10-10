@@ -98,3 +98,21 @@ describe("visitor results copy", () => {
     expect(h).not.toMatch(/\b(eligible|verified)\b/i);
   });
 });
+
+describe("approved-with-fixes copy", () => {
+  it("Describe says breast-cancer studies only and the disclosure names Nebius Token Factory; no retention claim about the provider", () => {
+    const open = html(<VisitorDescribe {...describeProps} mode="open" footer={C.FOOTER_OPEN} />);
+    expect(open).toContain("recruiting breast-cancer studies only");
+    expect(open).toContain("Nebius Token Factory");
+    expect(C.FOOTER_OPEN).toContain("Nebius Token Factory");
+    expect(`${C.D_PRIVACY} ${C.FOOTER_OPEN}`).not.toMatch(/zero data retention|ZDR|not retain|doesn't keep|does not keep|deleted|private|secure/i);
+    expect(html(<VisitorDescribe {...describeProps} mode="gated" footer={C.FOOTER_CURRENT} />)).toContain("recruiting breast-cancer studies only");
+  });
+  it("Results say selection is not a match and Possible is not confirmed eligibility", () => {
+    for (const note of [C.V_RESULTS_NOTE]) {
+      expect(note).toMatch(/breast-cancer/);
+      expect(note).toMatch(/Selection is not a match/);
+      expect(note).toMatch(/not confirmed eligibility/);
+    }
+  });
+});

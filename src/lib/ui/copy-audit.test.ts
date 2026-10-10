@@ -99,3 +99,27 @@ describe("study-team panel copy", () => {
     expect(src).toContain('"No question could be identified from the criteria assessed in this run."');
   });
 });
+
+// Judge-entered flow (approved by Kumar 2026-10-10 subject to accuracy fixes). Storage and privacy claims are limited to what the code audit supports:
+// TrialLens persists no visitor text (no table, logs carry counts only, Redis holds a hashed IP and counters). Nothing may claim anything about the model
+// provider's retention (the ZDR confirmation is owner-attested, not quoted) and nothing may overstate security.
+describe("visitor flow privacy and results wording", () => {
+  const visitorCopy = readFileSync("src/lib/visitor/copy.ts", "utf8");
+  const liveCopy = readFileSync("src/lib/live/copy.ts", "utf8");
+  it("makes no claim about the provider's retention and no security overstatement", () => {
+    for (const src of [visitorCopy, liveCopy]) expect(src).not.toMatch(/zero[- ]data[- ]retention|\bZDR\b|not retain|encrypt|\bsecure\b|anonymi[sz]ed|HIPAA|deleted immediately/i);
+  });
+  it("names Nebius Token Factory wherever typed text is said to be sent", () => {
+    expect(visitorCopy).toMatch(/D_PRIVACY = "[^"]*Nebius Token Factory/);
+    expect(visitorCopy).toMatch(/FOOTER_OPEN = "[^"]*Nebius Token Factory/);
+  });
+  it("every live results note says selection is not a match and Possible is not confirmed eligibility, and names breast-cancer studies", () => {
+    for (const re of [/R_NOTE_FIXED = "[^"]*breast-cancer[^"]*Selection is not a match[^"]*not confirmed eligibility/, /R_NOTE_REPLAY = "[^"]*breast-cancer[^"]*Selection is not a match[^"]*not confirmed eligibility/]) expect(liveCopy).toMatch(re);
+    expect(visitorCopy).toMatch(/V_RESULTS_NOTE = "[^"]*breast-cancer[^"]*Selection is not a match[^"]*not confirmed eligibility/);
+  });
+  it("the discovery sentence is built from applied filters, never a fixed 'age and sex' string", () => {
+    expect(visitorCopy).not.toMatch(/fit the age and sex you entered/);
+    expect(readFileSync("src/components/live/CoverageRow.tsx", "utf8")).not.toMatch(/age and sex/);
+    expect(readFileSync("src/components/live/LiveProcessing.tsx", "utf8")).not.toMatch(/age and sex/);
+  });
+});

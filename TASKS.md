@@ -126,10 +126,10 @@ Write throwaway scripts in `/eval/spike`. Record results in `/docs/spike-results
 
 ## Phase 4 — UI (Oct 14–21, overlaps Phase 3)
 Figma first for hero screens (Oct 6–10), then build.
-- [ ] Screen 1 Describe (+ 3 fictional sample profiles)
-  - **PARTIAL (2026-10-10, Stage 3 UI authorized by Kumar).** Built: "Your situation" textarea plus the 3 fictional examples (`src/components/visitor/VisitorDescribe.tsx`), wired to `/api/extract`. Tested offline and in a local browser with mocked responses only. **Not proven on a deployed Preview.** The server gate stays closed (`VISITOR_INPUT_MODE=samples`): in that state the textarea is visibly disabled and only the fictional examples work. Copy is PROPOSED and awaiting approval (`docs/visitor-flow-copy-review.md`).
-- [ ] Screen 2 Confirm (Known/Unknown/Uncertain chips, editable)
-  - **PARTIAL (2026-10-10).** "Here is what we understood": editable facts (change value, sure / not sure, remove, add), validated like the server, signed `/api/run` with the extraction token (`VisitorConfirm.tsx`, `src/lib/visitor/*`). Read-only when the server is in samples mode. No location or travel control (distance filtering does not exist). **Not proven on a deployed Preview.**
+- [x] Screen 1 Describe (+ 3 fictional sample profiles)
+  - **DONE (2026-10-10).** "Your situation" textarea plus the 3 fictional examples (`src/components/visitor/VisitorDescribe.tsx`), wired to `/api/extract`; typing is disabled with a stated reason whenever the server is in `samples`. Evidence: unit and flow tests, local desktop/mobile browser checks, and one deployed Preview run (`docs/judge-flow-preview-evidence.md`).
+- [x] Screen 2 Confirm (Known/Unknown/Uncertain chips, editable)
+  - **DONE (2026-10-10).** "Here is what we understood": editable facts (change value, sure / not sure, remove, add), validated like the server, signed `/api/run` with the extraction token (`VisitorConfirm.tsx`, `src/lib/visitor/*`). Read-only when the server is in `samples`. No location or travel control (distance filtering does not exist). Verified on the deployed Preview with one fictional run.
 - [x] Screen 3 Processing (live stage stream and counts)
   - Evidence: `LiveProcessing`/`Processing`, approved states in `docs/live-ui-proposal.md`, `live.test.tsx`.
 - [ ] Screen 4 Results (tier counts, cards, adaptive panel)
@@ -186,8 +186,12 @@ Figma first for hero screens (Oct 6–10), then build.
 - [ ] Set a weekly reminder to check credits/spend until Dec 15
   - Not started (**KUMAR-OWNED**).
 
-## Judge-entered input (Kumar, 2026-10-10: now a release requirement)
-**Preview run done 2026-10-10 (one fictional end-to-end run, about $0.04; `docs/judge-flow-preview-evidence.md`): the deployed flow worked end to end. Still NOT approved or release-ready: the visitor copy is unapproved and Kumar has not reviewed the evidence.** Stage 3 UI implemented and tested offline (mocked provider and fetch; real `/api/extract` and `/api/run` handlers in `src/lib/visitor/flow.test.ts`). **It has NOT passed Preview testing and nothing may claim that judge-entered input works.** The server gate is unchanged: `VISITOR_INPUT_MODE=samples` until Kumar provides written Nebius organisation-level ZDR confirmation and approves the visitor-facing privacy and results copy. Activation sequence: `docs/release-runbook.md` ("Activating judge-entered input"). Copy packet: `docs/visitor-flow-copy-review.md`. New read-only endpoint `GET /api/input-mode` lets the UI show a gated state instead of a text box the server would refuse.
+## Judge-entered input (Kumar, 2026-10-10: a release requirement; APPROVED for the release candidate)
+- **Status: built, tested, and run once end to end on the protected Preview** (`docs/judge-flow-preview-evidence.md`: one fictional extraction + one run, about $0.04). Kumar approved the screenshots and the visitor copy (`docs/visitor-flow-copy-review.md`) subject to accuracy fixes, now applied (filter-aware Processing sentence, breast-cancer scope and "selection is not a match / Possible is not confirmed eligibility" notes, Nebius Token Factory named in the disclosure, storage claims limited to what the code audit supports).
+- **ZDR: OWNER-ATTESTED (Kumar, 2026-10-10).** He states he holds written Nebius organisation-level ZDR confirmation. The document was not shared with the agent and is not quoted anywhere; the UI makes no claim about provider retention. This is an attestation, not independently verified by us.
+- **Release configuration:** `VISITOR_INPUT_MODE=open` with `PROFILE_SIGNING_SECRET` and `RATE_LIMIT_IP_SALT` on whichever environment judges use. **Production is not changed and `main` is not merged**; the PR is for Kumar's review (`docs/release-runbook.md`).
+- **Stated limits (not reopened as new work for this release):** the Phase 1 vocabulary-coverage gate is NOT MET (typed coverage about 3-6%); there is no clinical validation or accuracy headline; Rule D (fail checks) has no live evidence; the 300 s function limit is unproven (longest live run 102 s); extraction is conservative (it can miss facts the visitor stated); an age-only or sparse profile surfaces loosely related studies; dataset annotations are parked.
+- **Only Kumar can:** set Production variables (Vercel environment access returns 403 for the agent), change Production authentication, merge, and submit Devpost.
 
 ## Release baseline (2026-10-10 submission-readiness sprint)
 Samples-only live-mode build (`NEXT_PUBLIC_UI_MODE=live`, `VISITOR_INPUT_MODE=samples`). Runbook: `docs/release-runbook.md`. Unchanged and stated honestly: vocabulary gate NOT MET, Rule D never exercised live, 300 s limit unproven, ZDR gate BLOCKED, billing reconciliation open. Production untouched; nothing merged or published. Paused/historical items above (Stage 3, `open` mode, adaptive answer path, cache warm-up execution, DEEP escalation, Playwright) are not part of the baseline.

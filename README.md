@@ -65,8 +65,8 @@ All variables are server-side except the one marked public. Never prefix a secre
 | `UPSTASH_REDIS_REST_URL` | live run | none | |
 | `UPSTASH_REDIS_REST_TOKEN` | live run | none | Secret. |
 | `PROFILE_SIGNING_SECRET` | the review flow | none | Secret, 32+ chars. Signs extraction tokens; needed in every mode. Without it the UI falls back to the original fixed flow. |
-| `RATE_LIMIT_IP_SALT` | only if `VISITOR_INPUT_MODE=open` | none | Secret, 16+ chars. |
-| `VISITOR_INPUT_MODE` | no | `samples` | `samples` accepts only the prepared fictional texts. `open` is gated, see Privacy. |
+| `RATE_LIMIT_IP_SALT` | only if `VISITOR_INPUT_MODE=open` | none | Secret, 16+ chars. Without it `open` silently degrades to `samples`. |
+| `VISITOR_INPUT_MODE` | no | `samples` | `samples` accepts only the prepared fictional texts. `open` accepts typed text (the judge-entered flow; the release setting), see Privacy. |
 | `CTGOV_API_BASE` | no | `https://clinicaltrials.gov/api/v2` | |
 | `CTGOV_SELECTION_MODE` | no | `api-default` | Or `relevance-v1-interventional` (fail-closed). See `docs/selection-mode.md`. |
 | `CRITERIA_CACHE_WRITES` | no | `true` | `false` makes the criteria cache read-only. Exact strings only. |
@@ -99,10 +99,11 @@ There is **no accuracy headline**. What exists are development checks, and none 
 - **Stored replay cases** come from an earlier candidate-selection mode and may include studies that are only loosely on-topic.
 - A live run's cost was about $0.044 on the last measured run (`docs/cost-per-run.md`); the dollar worst case is a forecast, not an enforced limit.
 - No clinician has reviewed the output. LLM judgments can be wrong.
+- **Judge-entered input** was verified by one fictional end-to-end run on a protected Preview (`docs/judge-flow-preview-evidence.md`): extraction is conservative (it can miss facts the visitor stated, which is why the review screen exists), and sparse profiles surface loosely related studies. Results are screening against what was typed, not eligibility.
 
 ## Privacy
 
-The shipped demo runs `VISITOR_INPUT_MODE=samples`: only the prepared fictional texts are accepted, so visitor-typed text never reaches the model provider. The typed-input flow is built and tested offline but not yet proven on a deployed Preview, and the server gate stays closed. `GET /api/input-mode` reports the effective mode so the UI shows a disabled text box instead of one the server would refuse. The UI states: "TrialLens does not store your information." Free-text input from real visitors stays disabled until zero data retention is confirmed in writing for our Token Factory organisation and the privacy copy is re-approved (`docs/token-factory-data-terms.md`). Logs carry counts and configuration, not profile text. Redis holds a hashed IP and a counter.
+The judge-entered flow (`VISITOR_INPUT_MODE=open`) lets a visitor type a made-up situation. The page asks people not to enter names, contact details or real medical records, and discloses that the text is sent to **Nebius Token Factory**, an AI model provider, to be read. What the code supports: TrialLens stores no visitor text (no table holds it; function logs carry counts, timings and fixed codes; Redis holds a hashed IP and counters; the signed extraction token carries structured facts and lives in browser memory; the page uses no localStorage). The UI footer says "TrialLens does not store what you enter" and makes no claim about the provider's retention. **Zero data retention at Nebius is owner-attested**: the project owner states he holds written organisation-level confirmation; it has not been independently verified or quoted here. With `VISITOR_INPUT_MODE=samples`, only the three prepared fictional examples work, the text box is visibly disabled, and nothing typed can reach the provider. `GET /api/input-mode` reports the effective mode.
 
 ## Safety statement
 
