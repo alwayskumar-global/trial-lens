@@ -1,5 +1,6 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { focusScreenHeading } from "@/lib/ui/focus";
 import { LiveApp } from "./live/LiveApp";
 import { Confirm } from "./screens/Confirm";
 import { Describe } from "./screens/Describe";
@@ -16,8 +17,11 @@ function FixedDemo() {
   const [toast, setToast] = useState<string | null>(null);
   const [open, setOpen] = useState("t1");
 
+  const first = useRef(true);
   useEffect(() => {
     window.scrollTo(0, 0);
+    if (first.current) first.current = false; // do not steal focus on the initial render
+    else focusScreenHeading();
   }, [screen]);
   // Toasts dismiss themselves after ~6s (design: feedback/Toast.prompt.md).
   useEffect(() => {

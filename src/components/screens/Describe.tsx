@@ -11,13 +11,13 @@ export function Describe({ onNext, tag }: { onNext: () => void; tag?: string }) 
       </div>
       <div className="wrap" style={{ zIndex: 1 }}>
         <Header {...(tag ? { tag } : {})} />
-        <div className="strip-q">
+        <aside className="strip-q" aria-label="Demo notice">
           <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden="true">
             <circle cx="10" cy="10" r="7.5" />
             <path d="M10 9v4.5M10 6.5v.1" />
           </svg>
           A map, not a verdict. Only a study team can confirm eligibility.
-        </div>
+        </aside>
         <main className="page stack g32 narrow" style={{ marginLeft: 0 }}>
           <div className="stack g16">
             <h1 className="tl-display">Find clinical trials worth asking about.</h1>

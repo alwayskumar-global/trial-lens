@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { focusScreenHeading } from "@/lib/ui/focus";
 import { Confirm } from "../screens/Confirm";
 import { Describe } from "../screens/Describe";
 import { ErrorState } from "../feedback/ErrorState";
@@ -22,9 +23,14 @@ export function LiveApp() {
   const abort = useRef<AbortController | null>(null);
 
   useEffect(() => () => abort.current?.abort(), []);
+  const first = useRef(true);
+  const errored = run.status === "error";
+  const done = run.status === "done"; // results replace the processing view: move focus to the results heading, not to <body>
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [screen]);
+    if (first.current) first.current = false; // do not steal focus on the initial render
+    else focusScreenHeading();
+  }, [screen, errored, done]);
 
   const start = useCallback(() => {
     abort.current?.abort();
@@ -49,7 +55,7 @@ export function LiveApp() {
     view = (
       <LiveShell replay={false}>
         <main className="page stack g24">
-          <ErrorState title={ERROR_TITLE}>{ERROR_BODY}</ErrorState>
+          <ErrorState title={ERROR_TITLE} headingLevel={1}>{ERROR_BODY}</ErrorState>
         </main>
       </LiveShell>
     );
