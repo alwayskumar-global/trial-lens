@@ -157,33 +157,36 @@ Figma first for hero screens (Oct 6–10), then build.
 - [ ] Verify **no patient text** in logs, DB, Redis (grep logs; inspect tables)
   - **PARTIAL.** Tests assert logs and error bodies carry no visitor text; no visitor table exists; Redis holds only a hashed IP and a counter; Preview function logs reviewed for the sample run showed counts only. No inspection of production data. Scope note: visitor text reaches the model provider, which is covered by the ZDR gate, not by this item.
 - [ ] Playwright smoke test on replay mode with all external services disabled
-  - Not done (no Playwright dependency yet).
+  - **SUPERSEDED by manual evidence (2026-10-10):** no Playwright dependency added. In-app browser smoke at desktop and 375 px mobile on a local production build with keys blanked (forces the labelled-replay path), fetch mocks for SSE/error states, and axe-core passes. Three a11y findings fixed (`e4ebabb`), no visual change. Not an automated CI test.
 - [ ] Production deploy; test the public URL from a clean browser and a phone
   - **NOT STARTED.** Production is `main` (docs-only) and is untouched by instruction.
-- [ ] Secrets audit: no key in repo history, bundle, or client network calls
-  - Not done.
+- [x] Secrets audit: no key in repo history, bundle, or client network calls
+  - Evidence (2026-10-10): history and tree scan, client-bundle scan and fresh-clone build found no secrets; `.env` ignored. Open findings (not blockers): no script-src CSP (needs nonces); one dev-only high advisory (glob>micromatch>braces); infra IDs appear in public docs; no skip link; 20 px NCT link on mobile. Security headers added (`9682502`).
 
 ## Phase 6 — Submission assets (Oct 25–27)
-- [ ] README: what it is, prior art (TrialGPT, Antidote) and our difference, setup, env table, **how Nemotron and Token Factory are used**, eval table, limits, safety statement
-  - Not started (no README yet). Privacy wording is gated by the ZDR gate.
+- [x] README: what it is, prior art (TrialGPT, Antidote) and our difference, setup, env table, **how Nemotron and Token Factory are used**, eval table, limits, safety statement
+  - DONE as draft (2026-10-10): `README.md`. No eval table by design (no accuracy headline; development checks only, limits stated). Privacy wording unchanged from approved copy; strengthening it stays gated by the ZDR gate.
 - [ ] Demo video < 3 min following SPEC.md §8 acceptance script; upload public to YouTube
-  - Not started.
+  - Script drafted: `docs/demo-script.md`. Recording and upload are **KUMAR-OWNED**.
 - [ ] Devpost text: features, architecture, track, repo URL, demo URL, video URL
-  - Not started (**KUMAR-OWNED**).
+  - Draft: `docs/devpost-draft.md` (**KUMAR-OWNED**: edit, fill links, submit).
 - [ ] **Feedback section** for Token Factory, AI Cloud, NVIDIA tools (specific and critical, drawn from the spike notes)
-  - Not started.
+  - Drafted inside `docs/devpost-draft.md`; each point must be re-checked against current docs before submitting.
 - [ ] Confirm submission is marked "new" (no pre-existing explanation needed)
   - Not started.
 
 ## Phase 7 — Buffer and submit (Oct 28–29)
 - [ ] Fresh-clone test: follow README on a clean machine
-  - Not started.
+  - **Partly done (2026-10-10):** clean clone, `env -i`, frozen lockfile: lint, typecheck, 66 files / 879 tests, and build pass. Not done on a separate machine, and with real keys not tested.
 - [ ] Re-verify demo URL, replay mode, license visibility, video public
   - Not started.
 - [ ] **Submit by Oct 29 evening IST**
   - Not started (**KUMAR-OWNED**).
 - [ ] Set a weekly reminder to check credits/spend until Dec 15
   - Not started (**KUMAR-OWNED**).
+
+## Release baseline (2026-10-10 submission-readiness sprint)
+Samples-only live-mode build (`NEXT_PUBLIC_UI_MODE=live`, `VISITOR_INPUT_MODE=samples`). Runbook: `docs/release-runbook.md`. Unchanged and stated honestly: vocabulary gate NOT MET, Rule D never exercised live, 300 s limit unproven, ZDR gate BLOCKED, billing reconciliation open. Production untouched; nothing merged or published. Paused/historical items above (Stage 3, `open` mode, adaptive answer path, cache warm-up execution, DEEP escalation, Playwright) are not part of the baseline.
 
 ## Cut order if time slips
 1. Ultra escalation → 2. Tavily → 3. Verifier → 4. Second-domain stretch.
