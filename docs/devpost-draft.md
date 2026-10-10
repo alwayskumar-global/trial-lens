@@ -2,8 +2,10 @@
 
 **Name:** TrialLens
 **Tagline:** An eligibility reasoning engine for patients, not a trial search.
-**Track:** (Kumar to select)  **Marked "new":** confirm.
-**Links to fill:** repo URL · demo URL (must be free and unrestricted for judges through Dec 15) · video URL (public YouTube).
+**Track:** Best Apps & Agents (select on Devpost). **Marked "new":** confirm on the form.
+**Repository:** https://github.com/alwayskumar-global/trial-lens (public; Apache-2.0 license and setup README visible).
+**Working demo:** https://trial-lens-xi.vercel.app/ (public Production; fictional typed input verified end to end on 2026-10-10).
+**Video URL:** add the public YouTube link after upload. Keep the demo free and accessible to judges through the end of judging on Dec 15.
 
 ## Inspiration
 Trial listings are written for researchers. A patient can't tell which criteria they meet, which are unknown, or what to ask.

@@ -1,5 +1,12 @@
 # TASKS.md — TrialLens
 
+## Current submission status (verified 2026-10-10)
+
+- Public Production is live at https://trial-lens-xi.vercel.app/ on READY deployment `dpl_9gPfzBYyeSUUsg2RCDEqVhH5PN9B` (`main` merge `4dd8324`). PR #1 and the extraction-diagnostics PR #2 are merged. The Production Nebius key was replaced; one fictional typed extraction returned the Confirm screen, and one live search returned 30 Results with a working Detail view. Vercel logs showed `/api/extract` 200 and `/api/run` 200, `visitor_input_mode:open`, `selection_mode:relevance-v1-interventional`, `cache_writes:true`, and `max_calls:80`.
+- The GitHub repository is public with Apache-2.0 visible in About and setup instructions in README. `docs/devpost-draft.md` has the demo and repository URLs.
+- Remaining submission actions: record and publicly upload the under-3-minute YouTube video; paste its URL into Devpost; select Best Apps & Agents, confirm the project is marked new, provide the required Nebius/NVIDIA feedback, and submit by Oct 30 22:30 IST. Recheck the public demo before submitting and keep it available through judging.
+- Historical phase notes below retain their original state at the time they were written; they are not the current release status. The vocabulary gate remains unmet and no clinical accuracy claim is made.
+
 Deadline: **Oct 30, 2026 10:00 PDT = 22:30 IST**. Target submit: **Oct 29 evening IST**.
 Judging Period Dec 1–15: demo must stay live, free, unrestricted. Winners announced ~Jan 11, 2027.
 Tick boxes as you go. Order matters in Phase 0.
