@@ -1,8 +1,12 @@
-# Release runbook: Production (NOT executed; Kumar-only actions)
+# Release runbook: Production
 
-Release candidate: `phase1/spike` (PR to `main` for review; **not merged**). Judge-entered input is part of the release (`VISITOR_INPUT_MODE=open`), with ZDR **owner-attested** by Kumar (see `TASKS.md`). Production today = `main` at the docs-only commit; nothing here has been applied to Production.
+## Current state (verified 2026-10-10)
 
-**Why only Kumar can do these steps:** the agent's Vercel token returns 403 for environment variables (list and create), so Production variables, deployment protection and the merge are Kumar's. The agent can read deployments and logs.
+PR #1 was merged to `main`; PR #2 added sanitized extraction-failure diagnostics. The public Production URL is https://trial-lens-xi.vercel.app/. Vercel shows deployment `dpl_9gPfzBYyeSUUsg2RCDEqVhH5PN9B` (merge SHA `4dd8324`) READY. `GET /api/input-mode` reported `open` and `extract_ready:true`. A single fictional typed flow completed through extraction, a live 30-study run, Results and Detail. Request logs showed `POST /api/extract` 200, `POST /api/run` 200, `visitor_input_mode:"open"`, `selection_mode:"relevance-v1-interventional"`, `cache_writes:true`, and `max_calls:80`. No visitor text or secrets appeared in those structured log lines. Production is public; Preview remains protected. Nebius ZDR is **owner-attested** by Kumar (see `TASKS.md`).
+
+The configuration and rollout instructions below describe the setup already performed. Remaining release work is the demo video, final Devpost form, and periodic availability checks through judging.
+
+**Historical setup note:** the original connector returned 403 for environment-variable changes. Production credentials were entered and rotated through the dashboard, and the merged deployment was verified on 2026-10-10.
 
 ## 1. Recommended Production configuration (Vercel → trial-lens → Settings → Environment Variables)
 
@@ -36,9 +40,9 @@ Scope for every row: **Production only** (no Git branch). Mark Sensitive where s
 Do not set: `EXECUTE_ENABLED` (warm-up tooling stays disabled), any secret with `NEXT_PUBLIC_`. Unused: `PARSER_VERSION`, `LOG_LEVEL`, `NEMOTRON_MODEL_DEEP`, `TAVILY_API_KEY`.
 
 ## 2. Public access for judges
-Production currently sits behind Vercel Authentication, which blocks judges (rules: free and unrestricted testing). Only Kumar can change it: Settings → Deployment Protection → Vercel Authentication → disable for **Production** only. **Leave Preview protected.** Do this only after the free checks below pass on the deployment, because the site is then public and typed input spends model credits (bounded by the budgets above). If you prefer certainty about organiser expectations, send the drafted organiser question in `docs/cost-per-run.md` first.
+Production is public; Preview remains protected. Keep that separation while the demo is available for judging. Typed input spends model credits under the call-count and daily-run limits above; there is no enforced dollar cap.
 
-## 3. Order
+## 3. Original deployment order (completed)
 1. Set the Production variables above (Production scope). `NEXT_PUBLIC_UI_MODE=live` must be in place before the build.
 2. Review and merge the PR `phase1/spike` → `main`. The merge triggers the Production build, which reads the Production variables. **Do not use "Redeploy" on an old Production deployment instead**: that rebuilds the old commit.
 3. Wait for the Production deployment to be READY; confirm its SHA equals the PR head.
@@ -60,8 +64,8 @@ Production currently sits behind Vercel Authentication, which blocks judges (rul
 3. Re-enable protection: Deployment Protection → Vercel Authentication on for Production.
 4. Revert the deployment: Deployments → the previous Production deployment → Promote to Production.
 
-## 6. Preview verification already done
-See `docs/judge-flow-preview-evidence.md` (one fictional end-to-end run, about $0.04, 39 model calls) and the release packet. The agent made no further model calls.
+## 6. Verification history
+See `docs/judge-flow-preview-evidence.md` for the protected Preview test. Production was subsequently verified with fictional typed extraction and a live search on 2026-10-10, as recorded in Current state above.
 
 ## 7. What is not claimed
 No clinical validation or accuracy figure; the vocabulary-coverage gate is not met; Rule D has no live evidence; the 300 s function limit is unproven; extraction can miss facts; sparse profiles surface loosely related studies; ZDR is owner-attested, not independently verified.

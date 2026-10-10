@@ -6,7 +6,7 @@ Built for the Nebius / NVIDIA Nemotron hackathon. **Demo only. Not medical advic
 
 ## What it does
 
-1. A **fictional** patient description is read into known and unknown facts (Nemotron Nano via Nebius Token Factory) on a "Here is what we understood" screen. With `VISITOR_INPUT_MODE=open` the visitor can type a made-up situation and correct, add or remove any detail; with `samples` (the current setting) only the three prepared fictional examples work, typing is visibly disabled, and the review is read-only. `/api/run` accepts the reviewed profile only with the server-signed extraction token.
+1. A **fictional** patient description is read into known and unknown facts (Nemotron Nano via Nebius Token Factory) on a "Here is what we understood" screen. Production uses `VISITOR_INPUT_MODE=open`: the visitor can type a made-up situation and correct, add or remove any detail. With `samples`, only the three prepared fictional examples work, typing is visibly disabled, and the review is read-only. `/api/run` accepts the reviewed profile only with the server-signed extraction token.
 2. Recruiting interventional breast-cancer studies are pulled live from the ClinicalTrials.gov API v2.
 3. Each study's eligibility text is parsed into criteria (Nemotron Super, cached in Supabase by study version and parser version).
 4. Criteria are evaluated against the stated facts, verified, and checked for failures. Results stream to the browser over SSE.
@@ -23,12 +23,13 @@ If a guard trips or a model call fails, the app streams a clearly labelled **rep
 ## Architecture
 
 ```
-profile text ─► /api/run (SSE) ─► extraction (Nemotron Nano, FAST)
-                                   ├► ClinicalTrials.gov API v2 (discovery, ≤30 studies)
-                                   ├► criteria parse (Nemotron Super, MID; Supabase cache)
-                                   ├► evaluation → verify → fail checks (Nemotron Super)
-                                   ├► Policy R2 tier ceilings
-                                   └► study-team question panel
+profile text ─► /api/extract ─► extraction (Nemotron Nano, FAST)
+              └► review and correct facts ─► signed profile ─► /api/run (SSE)
+                                                     ├► ClinicalTrials.gov API v2 (discovery, ≤30 studies selected)
+                                                     ├► criteria parse (Nemotron Super, MID; Supabase cache)
+                                                     ├► evaluation → verify → fail checks (Nemotron Super)
+                                                     ├► Policy R2 tier ceilings
+                                                     └► study-team question panel
 guards: Upstash rate limit + daily run budget → labelled replay (Supabase `replay_cases`)
 ```
 

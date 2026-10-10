@@ -4,7 +4,7 @@
 
 Source: SPEC §8 with the approved deviation (study-team panel, no answer step). Record against the Production URL (or the protected Preview) in **live mode with typed input open**. Use a made-up situation. Do not type real health information on camera.
 
-Before recording: run one live sample run to confirm the pipeline is up (it spends model credits: Kumar decides). To show replay without spending, use the replay path (external services unreachable or rate-limited); the screen is labelled "replay" and you should say so.
+Production was verified with a fictional typed description on 2026-10-10: extraction, a live 30-study run, Results and Detail all completed. For the video, record a new fictional typed flow; the extraction and search spend model credits under the configured call-count limits. If replay appears, identify it as a saved fictional example rather than the analysis of the typed details.
 
 | Time | On screen | Say (suggested) |
 |---|---|---|
