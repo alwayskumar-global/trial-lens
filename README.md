@@ -4,6 +4,27 @@ An eligibility reasoning engine for patients, not a trial search: it shows where
 
 Built for the Nebius / NVIDIA Nemotron hackathon. **Demo only. Not medical advice. Fictional profiles only.** TrialLens does not diagnose, recommend treatment, or tell anyone they qualify or do not qualify for a study.
 
+| | |
+|---|---|
+| **Try it** | `https://trial-lens-xi.vercel.app/` (type a made-up situation; see `docs/judge-testing-guide.md`) |
+| **Video (under 3 min)** | `<YOUTUBE_URL>` |
+| **Devpost** | `<DEVPOST_URL>` |
+| **Built with** | NVIDIA Nemotron 3 (Nano and Super) on Nebius Token Factory, ClinicalTrials.gov API v2, Next.js 16, Supabase, Upstash |
+
+## Why TrialLens
+Clinical-trial eligibility is written for researchers. A patient can't tell which criteria they meet, which are unknown, or what to ask. TrialLens reads a plain-language description, lets the person correct what the model understood, and shows each study as a conservative tier with the study's own wording beside what is known. The strongest label is **Possible**; **Uncertain** is not a no; unknowns become questions for the study team. It never says anyone is eligible.
+
+## One measured run (fictional case, protected Preview, 2026-10-10)
+Extraction: 1 Nemotron Nano call, 8.7 s. Search: 120 recruiting studies found, 30 selected, 29 assessed, 1 couldn't be read; 39 Nemotron Super calls, 39,457 prompt and 31,075 completion tokens, 47 s, about $0.04. Tiers: 8 Possible, 22 Uncertain, none stronger. One run, not a benchmark (`docs/judge-flow-preview-evidence.md`).
+
+## Nemotron and Nebius Token Factory: where each is used
+| Step | Model | Why |
+|---|---|---|
+| Read the person's description into facts | Nemotron 3 Nano (FAST) | Fast, cheap structured extraction with strict JSON schema |
+| Parse each study's eligibility text into criteria | Nemotron 3 Super (MID) | Long, messy text; cached in Supabase per study version |
+| Compare criteria with the reviewed facts; second-pass verification; failure checks | Nemotron 3 Super (MID) | Judgment under uncertainty, with code-enforced tier ceilings |
+All calls use the OpenAI-compatible Token Factory endpoint with hard per-run attempt caps.
+
 ## What it does
 
 1. A **fictional** patient description is read into known and unknown facts (Nemotron Nano via Nebius Token Factory) on a "Here is what we understood" screen. Production uses `VISITOR_INPUT_MODE=open`: the visitor can type a made-up situation and correct, add or remove any detail. With `samples`, only the three prepared fictional examples work, typing is visibly disabled, and the review is read-only. `/api/run` accepts the reviewed profile only with the server-signed extraction token.

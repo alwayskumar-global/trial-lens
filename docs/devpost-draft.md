@@ -1,7 +1,9 @@
-# Devpost submission draft (Kumar owns and submits; edit freely)
+# Devpost submission (final text; Kumar fills the links, selects the track and submits)
+
+Paste **Testing instructions** from `docs/judge-testing-guide.md`. Checklist: `docs/submission-checklist.md`. Demo video: `docs/demo-script.md`.
 
 **Name:** TrialLens
-**Tagline:** An eligibility reasoning engine for patients, not a trial search.
+**Tagline:** Know where you stand in a clinical trial, and what to ask. Built on Nemotron, served by Nebius Token Factory.
 **Track:** Best Apps & Agents (select on Devpost). **Marked "new":** confirm on the form.
 **Repository:** https://github.com/alwayskumar-global/trial-lens (public; Apache-2.0 license and setup README visible).
 **Working demo:** https://trial-lens-xi.vercel.app/ (public Production; fictional typed input verified end to end on 2026-10-10).
